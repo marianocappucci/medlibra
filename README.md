@@ -24,6 +24,16 @@ No confundir con los sistemas de salud del Servidor Homei (PACS, Farmacia,
 Portal de Pacientes) — son proyectos completamente separados, sin relación
 ni infraestructura compartida.
 
+## Documentación
+
+- [ROADMAP.md](ROADMAP.md) — dirección estratégica.
+- [TASKS.md](TASKS.md) — trabajo concreto vigente.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — arquitectura actual.
+- [CONVENTIONS.md](CONVENTIONS.md) — estándares del código.
+- [DECISIONS.md](DECISIONS.md) — decisiones y motivos.
+- [CHANGELOG.md](CHANGELOG.md) — cambios publicados.
+- [MODULES.md](MODULES.md) — inventario de módulos.
+
 ## Desarrollo
 
 ```bash
