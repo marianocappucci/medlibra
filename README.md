@@ -5,10 +5,10 @@ centros médicos.
 
 Compone:
 
-- LibraGenda `v0.3.0` — agenda, recursos, servicios, ciclo de vida de turnos,
+- LibraGenda `v0.5.0` — agenda, recursos, servicios, ciclo de vida de turnos,
   disponibilidad/bloqueos/excepciones, feriados y timezone por sucursal,
-  recurrencias, recordatorios (puerto de notificaciones) y señas (puerto de
-  pagos).
+  recurrencias, recordatorios (puerto de notificaciones), señas (puerto de
+  pagos) y motivo opcional de cancelación/reprogramación.
 - LibraCore — administración/facturación/caja, **solo si MedLibra incorpora
   facturación** (no está decidido para el MVP).
 

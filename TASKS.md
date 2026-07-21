@@ -9,7 +9,6 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## Próximas
 
-- [ ] Evaluar actualizar LibraGenda desde `v0.3.0` a una versión posterior después de revisar compatibilidad.
 - [ ] CRUD de profesionales, consultorios, servicios y pacientes.
 - [ ] Agenda diaria/semanal y disponibilidad configurable por profesional.
 - [ ] Cancelación y reprogramación con motivos.
@@ -22,3 +21,6 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 ## Bloqueadas
 
 Ninguna bloqueada registrada.
+
+Resuelto (2026-07-21): LibraGenda actualizado a `v0.5.0` (desde `v0.3.0`,
+compatibilidad revisada — ver `CHANGELOG.md`).

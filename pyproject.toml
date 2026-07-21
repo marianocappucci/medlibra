@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.3.0",
+    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.5.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
 ]
