@@ -29,8 +29,17 @@ obtener/borrar sin editar, `admin`+`staff`, borrar es admin-only);
 valida contra la disponibilidad real configurada y el horario comercial de
 la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
 opcional); `/resources/{id}/agenda` (turnos de un profesional en un rango
-de fechas). Evoluciones estructuradas, diagnósticos, recetas, estudios y
-consentimientos quedan para fases siguientes.
+de fechas); `/reminders/dispatch` (solo `admin`, dispara los recordatorios
+vencidos — 24h y 2h antes de cada turno, fijo); y
+`/appointments/{id}/deposit` (pedir/consultar una seña, `admin`+`staff`) +
+`/deposits/{id}/mark-paid`/`mark-failed`/`refund` (solo `admin`, confirma
+el estado de la seña). Evoluciones estructuradas, diagnósticos, recetas,
+estudios y consentimientos quedan para fases siguientes.
+
+Recordatorios y señas todavía no tienen un canal real conectado (mismo
+estado que Gestiolibra): los recordatorios se loguean
+(`LoggingNotificationPort`) y las señas se cobran y confirman fuera de la
+app, a mano (`ManualPaymentPort` — ver `DECISIONS.md` ADR-010).
 
 ## Autenticación y roles
 

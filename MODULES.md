@@ -53,6 +53,10 @@
   `business_settings.py`: configuración comercial del consultorio, todas
   tablas propias de MedLibra — mismo feature, mismo código (portado
   verbatim), ya construido para Gestiolibra el mismo día.
+- `app/notifications.py`, `app/payments.py`: implementaciones placeholder de
+  los puertos `NotificationPort`/`PaymentPort` de LibraGenda — mismo
+  feature, mismo código que Gestiolibra, portado verbatim. Ver
+  "Recordatorios y señas" en `ARCHITECTURE.md`.
 - `app/routers/`: `health.py` (público), `auth.py` (`/auth/login`,
   `/auth/logout`, `/auth/me`), `users.py` (CRUD de usuarios, admin-only),
   `branches.py` (CRUD de sucursales, incluye teléfono/dirección),
@@ -66,8 +70,11 @@
   admin+staff salvo `DELETE`), `appointments.py` (crear/confirmar/
   cancelar/reprogramar, admin+staff — `create`/`reschedule` validan
   además el horario comercial si está configurado), `agenda.py`
-  (admin+staff) — traducen excepciones de dominio a códigos HTTP
-  (404/409/422). `/demo/seed` fue reemplazado por el CRUD real.
+  (admin+staff), `reminders.py` (`/reminders/dispatch`, admin-only),
+  `deposits.py` (`/appointments/{id}/deposit` admin+staff,
+  `/deposits/{id}/mark-paid`/`mark-failed`/`refund` admin-only) —
+  traducen excepciones de dominio a códigos HTTP (404/409/422).
+  `/demo/seed` fue reemplazado por el CRUD real.
 
 ## Próximos
 
@@ -76,7 +83,10 @@
 ## Después del MVP
 
 - Recetas, estudios, documentos clínicos, consentimientos.
-- Recordatorios y preferencias de comunicación (vía LibraGenda).
+- Canal real de notificaciones (email/SMS/WhatsApp) para reemplazar
+  `LoggingNotificationPort`.
+- Proveedor de pago real para reemplazar `ManualPaymentPort` y automatizar
+  la confirmación de señas.
 - Dashboard y reportes operativos.
 
 ## Fuera de alcance

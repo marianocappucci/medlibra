@@ -33,6 +33,13 @@ Resuelto (2026-07-22): configuración comercial del consultorio — horario
 por sucursal, precio por servicio y sucursal, contacto de sucursal y datos
 globales del negocio. Migración `0004_business_config`.
 
+Resuelto (2026-07-22): recordatorios y señas — mismo alcance y código que
+Gestiolibra, portado verbatim: `POST /reminders/dispatch`, `POST`/
+`GET /appointments/{id}/deposit`, `POST /deposits/{id}/mark-paid`/
+`mark-failed`/`refund`. Notificaciones y pago con puertos placeholder
+(`LoggingNotificationPort`, `ManualPaymentPort`) hasta definir proveedor
+real. Sin migración nueva (tablas de LibraGenda ya migradas).
+
 ## Notas de testing
 
 - Igual que Gestiolibra: la suite usa cookies de sesión firmadas con

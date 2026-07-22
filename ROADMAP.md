@@ -56,8 +56,17 @@ LibraGenda, más su propio dominio clínico encima.
   `0004_business_config` en el Alembic propio de MedLibra.
   `AppointmentService.create()`/`reschedule()` validan el horario
   comercial cuando está configurado.
+- Recordatorios y señas (completo). Mismo alcance y mismo código que
+  Gestiolibra, portado verbatim el mismo día: `POST /reminders/dispatch`
+  (admin-only, avisos 24h y 2h antes, fijo) sobre `ReminderDispatcher` de
+  LibraGenda; `POST`/`GET /appointments/{id}/deposit` (admin+staff) y
+  `POST /deposits/{id}/mark-paid`/`mark-failed`/`refund` (admin-only)
+  sobre `DepositManager` de LibraGenda. Sin proveedor de notificaciones ni
+  de pago todavía: `NotificationPort`/`PaymentPort` implementados como
+  placeholders (`LoggingNotificationPort`, `ManualPaymentPort`) — ver
+  `DECISIONS.md` ADR-010. Sin migración nueva (`deposits`/`sent_reminders`
+  son tablas de LibraGenda, ya migradas por su propia cadena).
 - Recetas, estudios, documentos clínicos, consentimientos.
-- Recordatorios y señas (composición de LibraGenda).
 - Facturación/caja, solo si se decide incorporar LibraCore.
 - Dashboard y reportes.
 

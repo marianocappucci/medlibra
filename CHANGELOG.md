@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Recordatorios y señas: mismo alcance y código que Gestiolibra, portado
+  verbatim. `POST /reminders/dispatch` (admin-only, dispara avisos vencidos
+  — 24h y 2h antes, fijo) y `POST`/`GET /appointments/{id}/deposit`
+  (admin+staff) + `POST /deposits/{id}/mark-paid`/`mark-failed`/`refund`
+  (admin-only). Notificaciones y pago sin proveedor real todavía: puertos
+  placeholder (`LoggingNotificationPort`, `ManualPaymentPort`) — ver
+  ADR-010. Sin migración nueva (`deposits`/`sent_reminders` son tablas de
+  LibraGenda).
 - Configuración comercial del consultorio: `/branches/{id}/hours` (horario
   comercial semanal por sucursal, opt-in), `/services/{id}/prices` (precio
   por servicio y sucursal), `/branches` ahora acepta `phone`/`address`,

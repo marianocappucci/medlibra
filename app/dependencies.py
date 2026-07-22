@@ -2,8 +2,10 @@
 
 from fastapi import Request
 
+from libragenda import DepositManager, ReminderDispatcher
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from libragenda.repositories import DepositRepository
 
 from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
@@ -53,3 +55,15 @@ def get_service_price_repository(request: Request) -> ServicePriceRepository:
 
 def get_business_settings_repository(request: Request) -> BusinessSettingsRepository:
     return request.app.state.business_settings
+
+
+def get_reminder_dispatcher(request: Request) -> ReminderDispatcher:
+    return request.app.state.reminder_dispatcher
+
+
+def get_deposit_manager(request: Request) -> DepositManager:
+    return request.app.state.deposit_manager
+
+
+def get_deposit_repository(request: Request) -> DepositRepository:
+    return request.app.state.deposits

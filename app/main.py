@@ -3,15 +3,18 @@ clinical-note extensions, and mounts the routers."""
 
 from fastapi import Depends, FastAPI
 
+from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.database import configure, get_engine, get_session_factory
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base, SqlAlchemyAppointmentRepository
 
 from .auth import build_session_auth, require_admin, require_staff
+from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
+from .payments import ManualPaymentPort
 from .routers import (
     agenda, appointments, availability, branch_hours, branches, business_settings,
-    clinical_notes, health, resources, service_prices, services,
+    clinical_notes, deposits, health, reminders, resources, service_prices, services,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -36,6 +39,7 @@ def create_app(database_url: str) -> FastAPI:
     availability_repository = SqlAlchemyAvailabilityRepository(sessions)
     user_repository = UserRepository(sessions)
     branch_hours_repository = BranchHoursRepository(sessions)
+    deposit_repository = SqlAlchemyDepositRepository(sessions)
     ensure_default_admin(user_repository)
 
     app = FastAPI(title="MedLibra")
@@ -52,6 +56,12 @@ def create_app(database_url: str) -> FastAPI:
     app.state.clinical_notes = ClinicalNoteRepository(sessions)
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
+    app.state.reminder_dispatcher = ReminderDispatcher(
+        appointment_repository, SqlAlchemyReminderRepository(sessions),
+        LoggingNotificationPort(), DEFAULT_REMINDER_POLICIES,
+    )
+    app.state.deposits = deposit_repository
+    app.state.deposit_manager = DepositManager(deposit_repository, ManualPaymentPort())
 
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -67,6 +77,8 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(business_settings.router, dependencies=admin_only)
     app.include_router(users_router.router, dependencies=admin_only)
+    app.include_router(reminders.router, dependencies=admin_only)
+    app.include_router(deposits.admin_router, dependencies=admin_only)
     # Clinical surface: staff (medical professionals) read/write patients and
     # write historia clinica -- that's their actual job, unlike Gestiolibra's
     # staff which never touches the catalog. Deleting a patient or a note is
@@ -76,5 +88,6 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(clinical_notes.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
     app.include_router(agenda.router, dependencies=staff_or_admin)
+    app.include_router(deposits.request_router, dependencies=staff_or_admin)
 
     return app

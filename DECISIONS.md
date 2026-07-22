@@ -140,3 +140,30 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
 - Consecuencias: mismo razonamiento que ADR-008 de Gestiolibra sobre no
   subir esto a LibraGenda todavía — si en el futuro se repite en un
   tercer vertical, evaluar la extracción al motor común en ese momento.
+
+## ADR-010 — Recordatorios y señas: mismo alcance y puertos placeholder que Gestiolibra
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: mismo ítem pendiente que resolvió Gestiolibra el mismo día
+  (ver `DECISIONS.md` de ese repo, ADR-009): LibraGenda ya resuelve el
+  dominio (`ReminderDispatcher`, `DepositManager`) vía dos puertos
+  (`NotificationPort`, `PaymentPort`) que el consumidor debe implementar, y
+  ni Gestiolibra ni MedLibra tienen todavía un proveedor de notificaciones
+  ni de pago elegido.
+- Decisión: portar `app/notifications.py` (`LoggingNotificationPort`,
+  `DEFAULT_REMINDER_POLICIES`), `app/payments.py` (`ManualPaymentPort`),
+  `app/routers/reminders.py` y `app/routers/deposits.py` de Gestiolibra
+  verbatim — ninguna de las cuatro piezas tiene lógica clínica ni
+  específica del vertical (un recordatorio de turno y una seña son igual
+  de genéricos en un consultorio que en una peluquería). Gating de rol
+  igual que Gestiolibra: `/reminders/dispatch` y confirmación de señas
+  (`/deposits/{id}/...`) admin-only; pedir/consultar una seña
+  (`/appointments/{id}/deposit`) admin+staff, coherente con que el
+  personal médico ya gestiona sus propios turnos.
+- Consecuencias: mismo trade-off que Gestiolibra — la feature es usable en
+  producción sin esperar una integración externa, a costa de seguimiento
+  manual (logs para recordatorios, confirmación a mano para señas) hasta
+  que se reemplacen los puertos. Ningún campo clínico involucrado, así que
+  no hay divergencia de dominio que documentar como en ADR-007 (roles) o
+  ADR-005 (paciente).

@@ -35,11 +35,17 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
   `business_settings.py`: configuración comercial del consultorio — mismo
   código que Gestiolibra, portado verbatim (ver "Configuración comercial"
   abajo).
+- `app/notifications.py`, `app/payments.py`: implementaciones placeholder
+  de los puertos `NotificationPort`/`PaymentPort` de LibraGenda — mismo
+  código que Gestiolibra, portado verbatim (ver "Recordatorios y señas"
+  abajo).
 - `app/routers/`: health (público), auth (login/logout/me), users
   (admin-only), branches (+ horario, + contacto)/resources/services (+
   precio por sucursal)/availability (admin-only), negocio (`/business`),
   patients/clinical_notes (admin+staff, DELETE admin-only), appointments/
-  agenda (admin+staff).
+  agenda (admin+staff), recordatorios (`/reminders/dispatch`, admin-only) y
+  señas (`/appointments/{id}/deposit` admin+staff,
+  `/deposits/{id}/...` admin-only).
 - `MODULES.md`: inventario operativo de módulos.
 - LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
   migraciones propias.
@@ -67,6 +73,28 @@ conoce precios por diseño, un servicio puede costar distinto por
 consultorio), y contacto de sucursal + datos globales del negocio. Ver
 `DECISIONS.md` ADR-009 y la entrada equivalente en Gestiolibra (ADR-008
 de ese repo) para el detalle completo de las decisiones de diseño.
+
+## Recordatorios y señas
+
+Mismo feature que Gestiolibra, mismo día, código portado verbatim (sin
+lógica propia del vertical): el dominio ya está resuelto en LibraGenda
+(`ReminderDispatcher`/`due_reminders()`, `DepositManager`), lo que faltaba
+era conectarlo a un canal real, y todavía no hay uno elegido para
+MedLibra tampoco.
+
+- **Recordatorios**: `LoggingNotificationPort` implementa `NotificationPort`
+  logueando en vez de enviar. `DEFAULT_REMINDER_POLICIES` (24h y 2h antes,
+  fijo) se pasa a `ReminderDispatcher` al construir la app.
+  `POST /reminders/dispatch` (admin-only) está pensado para un cron/
+  scheduler externo, no hay uno corriendo dentro de este repo.
+- **Señas**: `ManualPaymentPort` implementa `PaymentPort`; no cobra ni
+  reintegra solo, solo loguea la intención. La confirmación de la seña
+  (efectivo, transferencia, link de MercadoPago enviado a mano) la hace un
+  admin vía `POST /deposits/{id}/mark-paid`/`mark-failed`/`refund`.
+- Ninguna de las dos piezas necesitó una migración nueva: `deposits` y
+  `sent_reminders` son tablas propias de LibraGenda, ya migradas por su
+  propia cadena. Ver `DECISIONS.md` ADR-010 y la entrada equivalente en
+  Gestiolibra (ADR-009 de ese repo) para el detalle completo.
 
 ## Dominio clínico vs. motor genérico
 
