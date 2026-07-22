@@ -74,7 +74,17 @@ LibraGenda, más su propio dominio clínico encima.
   de MedLibra). `POST`/`GET /patients/{id}/prescriptions` (admin+staff),
   `DELETE` admin-only. Migración `0005_prescriptions`. Ver `DECISIONS.md`
   ADR-011.
-- Estudios, documentos clínicos, consentimientos.
+- Estudios (completo). El usuario eligió este ítem entre el resto de la
+  Fase 2 y definió el alcance concreto (`AskUserQuestion`): un pedido de
+  estudios puede tener varios items (análisis de sangre, radiografía,
+  etc.), y cada item puede tener uno o más resultados propios como
+  registros separados vinculados al item — nunca se edita el pedido
+  original, mismo espíritu append-only que recetas/notas clínicas.
+  `POST`/`GET /patients/{id}/study-orders` y
+  `POST /patients/{id}/study-orders/{order_id}/items/{item_id}/results`
+  (admin+staff), `DELETE` de pedido o resultado admin-only. Migración
+  `0006_study_orders`. Ver `DECISIONS.md` ADR-012.
+- Documentos clínicos, consentimientos.
 - Facturación/caja, solo si se decide incorporar LibraCore.
 - Dashboard y reportes.
 

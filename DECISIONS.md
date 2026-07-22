@@ -211,3 +211,48 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   a `clinical_notes`/pacientes desde ADR-005, solo que ningún camino de
   verificación anterior había ejercido el borrado de un paciente sin
   registros clínicos contra Postgres real hasta ahora.
+
+## ADR-012 — Estudios: varios items por pedido, resultado como registro separado por item
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: el usuario eligió "estudios" entre el resto de la Fase 2
+  pendiente (`AskUserQuestion`). Antes de codificar, dos preguntas de
+  modelado sin respuesta obvia: (1) ¿"estudios" cubre solo el pedido
+  (qué se solicita) o también el resultado, cuando llega?; (2) ¿un pedido
+  puede incluir varios estudios a la vez (ej. análisis de sangre +
+  radiografía en una sola solicitud) o es un estudio por pedido?
+  Preguntado al usuario (`AskUserQuestion`): eligió pedido + resultado
+  como registros separados, y varios items por pedido.
+- Decisión: `StudyOrderRow` (header: paciente, autor, fecha) +
+  `StudyOrderItemRow` (tipo de estudio, motivo opcional), uno a muchos,
+  mismo patrón que `PrescriptionRow`/`PrescriptionItemRow` (ADR-011,
+  incluida la columna `position` propia por el mismo motivo: el `id` es
+  un UUID, no sirve para ordenar). El resultado se modela como una tabla
+  separada, `StudyResultRow`, con FK al **item** (no al pedido): cada
+  estudio solicitado produce su propio resultado, que puede llegar en un
+  momento distinto al de los demás items del mismo pedido (un análisis de
+  sangre y una radiografía no se resuelven el mismo día necesariamente).
+  Esta granularidad a nivel item, no decidida explícitamente por el
+  usuario, es una extensión directa de las dos decisiones que sí tomó
+  ("pedido + resultado separados" + "varios items por pedido") — no
+  requirió una tercera pregunta porque no hay otra forma razonable de
+  combinar ambas. Un item admite más de un resultado (ej. un resultado
+  ampliado o corregido más adelante, sin sobreescribir el anterior).
+  `create()` del pedido exige al menos un item (422 si la lista viene
+  vacía). Mismo criterio append-only que recetas/notas clínicas en las
+  tres capas (pedido, item, resultado): sin endpoint de actualización en
+  ninguna, solo crear/listar/obtener/borrar (DELETE admin-only, para
+  errores de carga). Sin estado de "pendiente"/"completado" en el
+  pedido — se infiere de si sus items tienen o no resultados cargados,
+  no se persiste como un campo aparte.
+- Consecuencias: tres tablas nuevas (`study_orders`, `study_order_items`,
+  `study_results`), migración `0006_study_orders`, con cascada de borrado
+  a nivel ORM en las dos relaciones (`cascade="all, delete-orphan"`) para
+  que borrar un pedido borre sus items y los resultados de esos items sin
+  dejar nada huérfano. Borrar un paciente con pedidos de estudios
+  existentes queda bloqueado (409), mismo mecanismo ya usado para notas y
+  recetas — `PatientRepository.delete()` ahora chequea las tres tablas.
+  El router valida la cadena completa de pertenencia (patient → order →
+  item) antes de aceptar un resultado, para no permitir cargar un
+  resultado sobre un item de un pedido de otro paciente.

@@ -28,6 +28,11 @@ obtener/borrar sin editar, `admin`+`staff`, borrar es admin-only);
 `/patients/{id}/prescriptions` (recetas — una receta con uno o más items
 de medicamento/dosis/indicaciones, mismo criterio append-only que las
 notas clínicas, `admin`+`staff`, borrar es admin-only);
+`/patients/{id}/study-orders` (pedidos de estudios — un pedido con uno o
+más items de tipo de estudio/motivo, `admin`+`staff`, borrar es
+admin-only) y `/patients/{id}/study-orders/{order_id}/items/{item_id}/results`
+(resultado de un estudio, como registro separado vinculado al item,
+`admin`+`staff`, borrar es admin-only);
 `/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
 valida contra la disponibilidad real configurada y el horario comercial de
 la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
@@ -36,8 +41,8 @@ de fechas); `/reminders/dispatch` (solo `admin`, dispara los recordatorios
 vencidos — 24h y 2h antes de cada turno, fijo); y
 `/appointments/{id}/deposit` (pedir/consultar una seña, `admin`+`staff`) +
 `/deposits/{id}/mark-paid`/`mark-failed`/`refund` (solo `admin`, confirma
-el estado de la seña). Evoluciones estructuradas, diagnósticos, estudios y
-consentimientos quedan para fases siguientes.
+el estado de la seña). Evoluciones estructuradas, diagnósticos,
+documentos clínicos y consentimientos quedan para fases siguientes.
 
 Recordatorios y señas todavía no tienen un canal real conectado (mismo
 estado que Gestiolibra): los recordatorios se loguean
@@ -84,9 +89,9 @@ LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
 
 **2. Migraciones propias de MedLibra** (`users`, `patients`,
 `clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
-`business_settings`, `prescriptions`, `prescription_items` — no
-pertenecen al dominio de LibraGenda, ver `MODULES.md`). Viajan en este
-mismo repo:
+`business_settings`, `prescriptions`, `prescription_items`,
+`study_orders`, `study_order_items`, `study_results` — no pertenecen al
+dominio de LibraGenda, ver `MODULES.md`). Viajan en este mismo repo:
 
 ```bash
 DATABASE_URL="$DATABASE_URL" alembic upgrade head

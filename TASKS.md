@@ -9,7 +9,7 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Definir alcance de Fase 2 restante (estudios, documentos clínicos,
+- [ ] Definir alcance de Fase 2 restante (documentos clínicos,
       consentimientos, facturación si se decide LibraCore, dashboard) —
       ver `ROADMAP.md`.
 
@@ -48,6 +48,13 @@ encontrado y corregido en el camino: `PatientRepository.delete()` borraba
 el `Client` antes que la fila de extensión `PatientRow` (que tiene FK
 hacia `clients.id`) — funcionaba por accidente en SQLite (no fuerza FKs)
 pero rompía en PostgreSQL real; orden invertido.
+
+Resuelto (2026-07-22): estudios — un pedido puede tener varios items
+(tipo de estudio, motivo), y cada item puede tener uno o más resultados
+propios como registros separados (nunca se edita el pedido). `POST`/
+`GET /patients/{id}/study-orders`, `POST .../items/{item_id}/results`
+(admin+staff), `DELETE` de pedido/resultado admin-only. Migración
+`0006_study_orders`.
 
 ## Notas de testing
 

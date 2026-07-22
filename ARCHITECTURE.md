@@ -32,6 +32,10 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/services/prescriptions.py`: recetas médicas — una receta con uno o
   más items (medicamento, dosis, indicaciones), append-only, mismo
   criterio que `clinical_notes` (ver "Recetas" abajo).
+- `app/services/study_orders.py`: pedidos de estudios/análisis — un pedido
+  con uno o más items (tipo de estudio, motivo), cada uno con uno o más
+  resultados propios como registros separados, append-only en las tres
+  capas (ver "Estudios" abajo).
 - `app/services/users.py`: tabla y repositorio de usuarios propios de
   MedLibra (no pertenecen al dominio de LibraGenda).
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
@@ -45,10 +49,10 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/routers/`: health (público), auth (login/logout/me), users
   (admin-only), branches (+ horario, + contacto)/resources/services (+
   precio por sucursal)/availability (admin-only), negocio (`/business`),
-  patients/clinical_notes/prescriptions (admin+staff, DELETE admin-only),
-  appointments/agenda (admin+staff), recordatorios (`/reminders/dispatch`,
-  admin-only) y señas (`/appointments/{id}/deposit` admin+staff,
-  `/deposits/{id}/...` admin-only).
+  patients/clinical_notes/prescriptions/study_orders (admin+staff, DELETE
+  admin-only), appointments/agenda (admin+staff), recordatorios
+  (`/reminders/dispatch`, admin-only) y señas (`/appointments/{id}/deposit`
+  admin+staff, `/deposits/{id}/...` admin-only).
 - `MODULES.md`: inventario operativo de módulos.
 - LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
   migraciones propias.
@@ -114,16 +118,35 @@ mismo mecanismo que ya bloqueaba el borrado con notas clínicas —
 `PatientRepository.delete()` chequea ambas tablas. Ver `DECISIONS.md`
 ADR-011.
 
+## Estudios
+
+Un pedido de estudios tiene uno o más items (análisis de sangre,
+radiografía, etc.) — mismo patrón que recetas, una consulta suele generar
+un pedido con varios estudios a la vez. Tres tablas propias de MedLibra:
+`study_orders` (header: paciente, autor, fecha), `study_order_items` (FK
+al pedido, con `position` propio) y `study_results` (FK al item, no al
+pedido — cada estudio produce su propio resultado, que puede llegar en un
+momento distinto al de los demás items del mismo pedido).
+**Append-only en las tres capas**: agregar un resultado nunca edita el
+pedido ni el item, es un registro nuevo vinculado al item — mismo
+espíritu que `clinical_notes`/`prescriptions` (ver ADR-006/ADR-011). Un
+item puede tener más de un resultado (ej. un resultado ampliado o
+corregido más adelante, sin sobreescribir el anterior). Borrar un
+paciente con pedidos de estudios existentes está bloqueado (409), mismo
+mecanismo que ya bloqueaba el borrado con notas/recetas —
+`PatientRepository.delete()` chequea las tres tablas. Ver `DECISIONS.md`
+ADR-012.
+
 ## Dominio clínico vs. motor genérico
 
 LibraGenda no sabe nada de pacientes ni historia clínica — solo conoce
 `Client` (identidad genérica para agendar) y `Resource`/`Service`/
 `Appointment`. MedLibra extiende esa identidad con lo clínico en sus
 propias tablas (`patients`, `clinical_notes`, `prescriptions`/
-`prescription_items`), vinculadas por FK al `id` del `Client` — mismo
-principio que "no duplicar reglas de LibraGenda" de `CONVENTIONS.md`,
-aplicado en la dirección inversa: lo clínico no contamina el motor, vive
-enteramente en MedLibra.
+`prescription_items`, `study_orders`/`study_order_items`/`study_results`),
+vinculadas por FK al `id` del `Client` — mismo principio que "no duplicar
+reglas de LibraGenda" de `CONVENTIONS.md`, aplicado en la dirección
+inversa: lo clínico no contamina el motor, vive enteramente en MedLibra.
 
 ## Persistencia e integración
 
@@ -132,9 +155,10 @@ La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa Pos
 `pyproject.toml` pinea LibraGenda `v0.5.0` (actualizado desde `v0.3.0`, ver
 `DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`users`,
 `patients`, `clinical_notes`, desde `0004_business_config` también
-`branch_contacts`/`branch_hours`/`service_prices`/`business_settings`, y
-desde `0005_prescriptions` también `prescriptions`/`prescription_items`)
-tienen su propio Alembic (`migrations/` de este repo), cadena independiente
+`branch_contacts`/`branch_hours`/`service_prices`/`business_settings`,
+desde `0005_prescriptions` también `prescriptions`/`prescription_items`, y
+desde `0006_study_orders` también `study_orders`/`study_order_items`/
+`study_results`) tienen su propio Alembic (`migrations/` de este repo), cadena independiente
 de la de LibraGenda con su propia tabla de versión (`alembic_version_medlibra`,
 para no colisionar sobre la misma base física — ver `DECISIONS.md` ADR-008).
 `Base.metadata.create_all()`

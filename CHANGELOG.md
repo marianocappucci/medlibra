@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Estudios: `POST`/`GET /patients/{id}/study-orders`,
+  `GET`/`DELETE /patients/{id}/study-orders/{order_id}` y
+  `POST /patients/{id}/study-orders/{order_id}/items/{item_id}/results`
+  (+ `DELETE` de resultado) — admin+staff, DELETE admin-only. Un pedido
+  tiene uno o más items (tipo de estudio, motivo); cada item puede tener
+  uno o más resultados propios como registros separados, append-only en
+  las tres capas — ver ADR-012. Migración `0006_study_orders`. Borrar un
+  paciente con pedidos existentes queda bloqueado (409), mismo mecanismo
+  ya usado para notas/recetas.
 - Recetas: `POST`/`GET /patients/{id}/prescriptions` y
   `GET`/`DELETE /patients/{id}/prescriptions/{prescription_id}`
   (admin+staff, DELETE admin-only). Una receta tiene uno o más items

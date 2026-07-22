@@ -34,6 +34,15 @@
   que `clinical_notes`**: sin update, solo `create`/`get`/`list_by_patient`/
   `delete` (admin-only, para errores de carga). `create()` exige al menos
   un item.
+- `app/services/study_orders.py`: `StudyOrderRepository` — pedidos de
+  estudios/análisis por paciente. Un pedido tiene uno o más items (tipo de
+  estudio, motivo) — `StudyOrderRow` (header) + `StudyOrderItemRow` (con
+  `position` propio, mismo motivo que en recetas). Cada item puede tener
+  uno o más resultados propios (`StudyResultRow`, FK al item): el resultado
+  es un registro nuevo vinculado al item cuando llega, nunca una edición
+  del pedido — **append-only en las tres capas** (pedido, item, resultado),
+  mismo criterio que `clinical_notes`/`prescriptions`. `create()` exige al
+  menos un item.
 - `app/auth.py`: reusa `libracore.auth.SessionAuth` (cookie firmada, ya
   probada en producción por Contalibra/Restolibra/Gestiolibra) para la
   mecánica de sesión — con dependencias FastAPI propias
@@ -54,9 +63,9 @@
   escribe historia clínica, gestiona turnos; **no** puede borrar pacientes
   ni notas, ni tocar catálogo/usuarios). A diferencia de Gestiolibra, donde
   `staff` solo toca turnos: acá el personal médico necesita acceso clínico
-  para hacer su trabajo, así que `patients`/`clinical_notes`/`prescriptions`
-  están gateados a `admin`+`staff` con un `Depends(require_admin)` extra
-  solo en los endpoints `DELETE`.
+  para hacer su trabajo, así que `patients`/`clinical_notes`/`prescriptions`/
+  `study_orders` están gateados a `admin`+`staff` con un
+  `Depends(require_admin)` extra solo en los endpoints `DELETE`.
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
   `business_settings.py`: configuración comercial del consultorio, todas
   tablas propias de MedLibra — mismo feature, mismo código (portado
@@ -76,6 +85,8 @@
   excepciones, admin-only), `patients.py` (CRUD completo, admin+staff
   salvo `DELETE`), `clinical_notes.py` (`/patients/{id}/notes`,
   admin+staff salvo `DELETE`), `prescriptions.py` (`/patients/{id}/prescriptions`,
+  admin+staff salvo `DELETE`), `study_orders.py`
+  (`/patients/{id}/study-orders` y `/patients/{id}/study-orders/{order_id}/items/{item_id}/results`,
   admin+staff salvo `DELETE`), `appointments.py` (crear/confirmar/
   cancelar/reprogramar, admin+staff — `create`/`reschedule` validan
   además el horario comercial si está configurado), `agenda.py`
@@ -91,7 +102,7 @@
 
 ## Después del MVP
 
-- Estudios, documentos clínicos, consentimientos.
+- Documentos clínicos, consentimientos.
 - Canal real de notificaciones (email/SMS/WhatsApp) para reemplazar
   `LoggingNotificationPort`.
 - Proveedor de pago real para reemplazar `ManualPaymentPort` y automatizar

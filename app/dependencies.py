@@ -15,6 +15,7 @@ from .services.clinical_notes import ClinicalNoteRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
+from .services.study_orders import StudyOrderRepository
 from .services.users import UserRepository
 
 
@@ -40,6 +41,10 @@ def get_clinical_note_repository(request: Request) -> ClinicalNoteRepository:
 
 def get_prescription_repository(request: Request) -> PrescriptionRepository:
     return request.app.state.prescriptions
+
+
+def get_study_order_repository(request: Request) -> StudyOrderRepository:
+    return request.app.state.study_orders
 
 
 def get_user_repository(request: Request) -> UserRepository:
