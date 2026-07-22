@@ -13,6 +13,7 @@ from .services.branches import BranchRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
+from .services.consents import ConsentRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
@@ -42,6 +43,10 @@ def get_clinical_note_repository(request: Request) -> ClinicalNoteRepository:
 
 def get_clinical_document_repository(request: Request) -> ClinicalDocumentRepository:
     return request.app.state.clinical_documents
+
+
+def get_consent_repository(request: Request) -> ConsentRepository:
+    return request.app.state.consents
 
 
 def get_prescription_repository(request: Request) -> PrescriptionRepository:

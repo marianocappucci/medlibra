@@ -9,8 +9,8 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Definir alcance de Fase 2 restante (consentimientos, facturación si
-      se decide LibraCore, dashboard) — ver `ROADMAP.md`.
+- [ ] Decidir facturación/caja (LibraCore) y dashboard/reportes — únicos
+      ítems no clínicos que quedan de Fase 2, ver `ROADMAP.md`.
 
 ## Decisiones pendientes
 
@@ -61,6 +61,13 @@ paciente. `POST /patients/{id}/documents` (multipart), descarga vía
 `/{document_id}/file`, `DELETE` admin-only (borra fila y archivo).
 PDF/PNG/JPG/JPEG, hasta 20MB. Migración `0007_clinical_documents`. Suma
 `python-multipart` como dependencia nueva.
+
+Resuelto (2026-07-22): consentimientos informados — solo el registro
+(procedimiento, quién autoriza, texto libre), sin archivo firmado
+embebido; append-only sin revocación editable. `POST`/
+`GET /patients/{id}/consents`, `DELETE` admin-only. Migración
+`0008_consents`. Cierra el dominio clínico completo de Fase 2 — quedan
+solo facturación/caja y dashboard/reportes, ninguno clínico.
 
 ## Notas de testing
 

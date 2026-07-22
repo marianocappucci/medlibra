@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Consentimientos: `POST`/`GET /patients/{id}/consents` y
+  `GET`/`DELETE /patients/{id}/consents/{consent_id}` — admin+staff,
+  DELETE admin-only. Registro de consentimiento informado (procedimiento,
+  quién autoriza — paciente o tutor/responsable —, texto libre), sin
+  archivo firmado embebido (se sube aparte como documento clínico si hace
+  falta), append-only sin revocación editable — retirar un consentimiento
+  se registra como uno nuevo, nunca editando el original — ver ADR-014.
+  Migración `0008_consents`. Cierra la Fase 2 clínica completa (recetas,
+  estudios, documentos, consentimientos); resta solo facturación/caja y
+  dashboard, ninguno clínico.
 - Documentos clínicos: `POST /patients/{id}/documents` (multipart:
   archivo + título + descripción opcional + autor), `GET`/`DELETE
   /patients/{id}/documents/{document_id}`, descarga vía

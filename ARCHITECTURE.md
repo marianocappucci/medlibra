@@ -39,6 +39,9 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/services/clinical_documents.py`: archivos adjuntos por paciente —
   metadata en la base, archivo en filesystem local (ver "Documentos
   clínicos" abajo).
+- `app/services/consents.py`: consentimientos informados — procedimiento,
+  quién autoriza, texto libre, append-only sin revocación editable (ver
+  "Consentimientos" abajo).
 - `app/services/users.py`: tabla y repositorio de usuarios propios de
   MedLibra (no pertenecen al dominio de LibraGenda).
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
@@ -52,10 +55,10 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/routers/`: health (público), auth (login/logout/me), users
   (admin-only), branches (+ horario, + contacto)/resources/services (+
   precio por sucursal)/availability (admin-only), negocio (`/business`),
-  patients/clinical_notes/prescriptions/study_orders/clinical_documents
-  (admin+staff, DELETE admin-only), appointments/agenda (admin+staff),
-  recordatorios (`/reminders/dispatch`, admin-only) y señas
-  (`/appointments/{id}/deposit` admin+staff, `/deposits/{id}/...`
+  patients/clinical_notes/prescriptions/study_orders/clinical_documents/
+  consents (admin+staff, DELETE admin-only), appointments/agenda
+  (admin+staff), recordatorios (`/reminders/dispatch`, admin-only) y
+  señas (`/appointments/{id}/deposit` admin+staff, `/deposits/{id}/...`
   admin-only).
 - `MODULES.md`: inventario operativo de módulos.
 - LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
@@ -175,6 +178,28 @@ en ningún producto Libra:
 
 Ver `DECISIONS.md` ADR-013.
 
+## Consentimientos
+
+Registro de que se otorgó consentimiento informado para un procedimiento:
+`procedure`, `granted_by` (paciente, o nombre y relación de un tutor/
+responsable si aplica) y `text` con el detalle acordado en texto libre.
+**Solo el registro, sin archivo firmado embebido** — decisión explícita
+del usuario: si hace falta el PDF firmado escaneado, se sube aparte como
+documento clínico (`/patients/{id}/documents`), sin acoplar ambas
+features. **Append-only, sin revocación editable** — mismo criterio que
+el resto del dominio clínico: un consentimiento es un hecho histórico
+(se otorgó tal día, para tal procedimiento); si el paciente cambia de
+opinión más adelante, se registra un consentimiento **nuevo** que deja
+constancia del retiro, nunca se edita ni se borra el original (el
+`DELETE` sigue existiendo, admin-only, pero es para corregir errores de
+carga, no para revocar). Sin endpoint de transición de estado: a
+diferencia de una receta o un pedido de estudios, un consentimiento no
+tiene ciclo de vida propio en absoluto, ni siquiera implícito. Borrar un
+paciente con consentimientos existentes está bloqueado (409), mismo
+mecanismo que ya bloqueaba el borrado con notas/recetas/estudios/
+documentos — `PatientRepository.delete()` chequea las cinco tablas. Ver
+`DECISIONS.md` ADR-014.
+
 ## Dominio clínico vs. motor genérico
 
 LibraGenda no sabe nada de pacientes ni historia clínica — solo conoce
@@ -182,10 +207,10 @@ LibraGenda no sabe nada de pacientes ni historia clínica — solo conoce
 `Appointment`. MedLibra extiende esa identidad con lo clínico en sus
 propias tablas (`patients`, `clinical_notes`, `prescriptions`/
 `prescription_items`, `study_orders`/`study_order_items`/`study_results`,
-`clinical_documents`), vinculadas por FK al `id` del `Client` — mismo
-principio que "no duplicar reglas de LibraGenda" de `CONVENTIONS.md`,
-aplicado en la dirección inversa: lo clínico no contamina el motor, vive
-enteramente en MedLibra.
+`clinical_documents`, `consents`), vinculadas por FK al `id` del `Client`
+— mismo principio que "no duplicar reglas de LibraGenda" de
+`CONVENTIONS.md`, aplicado en la dirección inversa: lo clínico no
+contamina el motor, vive enteramente en MedLibra.
 
 ## Persistencia e integración
 
@@ -197,8 +222,9 @@ La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa Pos
 `branch_contacts`/`branch_hours`/`service_prices`/`business_settings`,
 desde `0005_prescriptions` también `prescriptions`/`prescription_items`,
 desde `0006_study_orders` también `study_orders`/`study_order_items`/
-`study_results`, y desde `0007_clinical_documents` también
-`clinical_documents`) tienen su propio Alembic (`migrations/` de este repo), cadena independiente
+`study_results`, desde `0007_clinical_documents` también
+`clinical_documents`, y desde `0008_consents` también `consents`) tienen
+su propio Alembic (`migrations/` de este repo), cadena independiente
 de la de LibraGenda con su propia tabla de versión (`alembic_version_medlibra`,
 para no colisionar sobre la misma base física — ver `DECISIONS.md` ADR-008).
 `Base.metadata.create_all()`

@@ -307,3 +307,40 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   resuelva. Borrar un paciente con documentos existentes queda bloqueado
   (409), mismo mecanismo ya usado para notas/recetas/estudios —
   `PatientRepository.delete()` ahora chequea las cuatro tablas.
+
+## ADR-014 — Consentimientos: solo registro, append-only sin revocación editable
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: el usuario eligió "consentimientos" entre el resto de la Fase
+  2 pendiente (`AskUserQuestion`), último ítem clínico de la fase. Antes
+  de codificar, dos preguntas reales sin respuesta obvia: (1) ¿un
+  consentimiento requiere adjuntar el documento firmado (PDF/imagen) en
+  el mismo endpoint, o alcanza con el registro?; (2) ¿un consentimiento
+  puede revocarse más adelante (estado editable) o es un registro fijo
+  desde que se otorga? Preguntado al usuario (`AskUserQuestion`): eligió
+  solo el registro (sin archivo embebido) y append-only sin revocación
+  editable.
+- Decisión: `ConsentRow` — `procedure` (procedimiento/tratamiento),
+  `granted_by` (texto libre: "paciente", o nombre + relación de un tutor/
+  responsable), `text` (detalle acordado), `author` (quién lo obtuvo) y
+  `created_at`. Sin archivo adjunto embebido: si hace falta el PDF
+  firmado escaneado, se sube por separado como documento clínico
+  (`/patients/{id}/documents`, ADR-013) — decisión explícita de no
+  acoplar ambas features, aunque documentos clínicos ya existía como
+  capacidad disponible para reusar. Mismo criterio append-only que
+  `clinical_notes` (ADR-006): sin endpoint de actualización ni de
+  transición de estado. Retirar un consentimiento no es una operación
+  soportada por el dominio — se modela registrando un consentimiento
+  **nuevo** cuyo `text` deja constancia del retiro, el original nunca se
+  toca. `DELETE` sigue existiendo (admin-only), con el mismo alcance que
+  el resto del dominio: corregir un error de carga, no revocar.
+- Consecuencias: es la pieza más simple de las cuatro que resolvió la
+  Fase 2 clínica (recetas, estudios, documentos, consentimientos) — una
+  sola tabla, sin items ni relaciones adicionales, mismo shape que
+  `clinical_notes` con dos columnas más. Con esto, la Fase 2 clínica
+  queda completa; lo que resta de Fase 2 (facturación/caja, dashboard) no
+  es dominio clínico. Borrar un paciente con consentimientos existentes
+  queda bloqueado (409), mismo mecanismo ya usado para notas/recetas/
+  estudios/documentos — `PatientRepository.delete()` ahora chequea las
+  cinco tablas.

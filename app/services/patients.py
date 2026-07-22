@@ -17,6 +17,7 @@ from libragenda.sqlalchemy_repository import Base
 
 from .clinical_documents import ClinicalDocumentRow
 from .clinical_notes import ClinicalNoteRow
+from .consents import ConsentRow
 from .prescriptions import PrescriptionRow
 from .study_orders import StudyOrderRow
 
@@ -31,13 +32,13 @@ class PatientRow(Base):
 
 class PatientHasClinicalNotes(Exception):
     """Raised on delete() when the patient still has historia clínica,
-    recetas, pedidos de estudios o documentos clínicos.
+    recetas, pedidos de estudios, documentos clínicos o consentimientos.
 
     Deleting the patient would either violate a FK (PostgreSQL) or silently
     orphan the records (SQLite, no FK enforcement by default) -- neither is
     acceptable for medical records. The caller must be explicit about what
-    happens to the notes/prescriptions/study orders/documents first;
-    there's no cascade here.
+    happens to the notes/prescriptions/study orders/documents/consents
+    first; there's no cascade here.
     """
 
 
@@ -109,7 +110,10 @@ class PatientRepository:
             has_documents = session.scalar(
                 select(ClinicalDocumentRow.id).where(ClinicalDocumentRow.patient_id == patient_id).limit(1)
             ) is not None
-        if has_notes or has_prescriptions or has_study_orders or has_documents:
+            has_consents = session.scalar(
+                select(ConsentRow.id).where(ConsentRow.patient_id == patient_id).limit(1)
+            ) is not None
+        if has_notes or has_prescriptions or has_study_orders or has_documents or has_consents:
             raise PatientHasClinicalNotes(patient_id)
         # Borrar primero la extension (PatientRow.id tiene FK a clients.id):
         # borrar el Client antes violaria esa FK en Postgres real -- en

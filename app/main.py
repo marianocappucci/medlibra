@@ -16,8 +16,8 @@ from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
     agenda, appointments, availability, branch_hours, branches, business_settings,
-    clinical_documents, clinical_notes, deposits, health, prescriptions, reminders,
-    resources, service_prices, services, study_orders,
+    clinical_documents, clinical_notes, consents, deposits, health, prescriptions,
+    reminders, resources, service_prices, services, study_orders,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -28,6 +28,7 @@ from .services.branches import BranchRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
+from .services.consents import ConsentRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
@@ -64,6 +65,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.study_orders = StudyOrderRepository(sessions)
     documents_dir = os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents")
     app.state.clinical_documents = ClinicalDocumentRepository(sessions, documents_dir)
+    app.state.consents = ConsentRepository(sessions)
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
     app.state.reminder_dispatcher = ReminderDispatcher(
@@ -90,17 +92,19 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(reminders.router, dependencies=admin_only)
     app.include_router(deposits.admin_router, dependencies=admin_only)
     # Clinical surface: staff (medical professionals) read/write patients,
-    # write historia clinica, issue recetas, pedidos de estudios and upload
-    # documentos clinicos -- that's their actual job, unlike Gestiolibra's
-    # staff which never touches the catalog. Deleting a patient, note,
-    # prescription, study order or document is still admin-only (see the
-    # per-route dependencies on those routers).
+    # write historia clinica, issue recetas, pedidos de estudios, upload
+    # documentos clinicos and record consentimientos -- that's their actual
+    # job, unlike Gestiolibra's staff which never touches the catalog.
+    # Deleting a patient, note, prescription, study order, document or
+    # consent is still admin-only (see the per-route dependencies on those
+    # routers).
     staff_or_admin = [Depends(require_staff)]
     app.include_router(patients_router.router, dependencies=staff_or_admin)
     app.include_router(clinical_notes.router, dependencies=staff_or_admin)
     app.include_router(prescriptions.router, dependencies=staff_or_admin)
     app.include_router(study_orders.router, dependencies=staff_or_admin)
     app.include_router(clinical_documents.router, dependencies=staff_or_admin)
+    app.include_router(consents.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
     app.include_router(agenda.router, dependencies=staff_or_admin)
     app.include_router(deposits.request_router, dependencies=staff_or_admin)

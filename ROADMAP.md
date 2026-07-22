@@ -94,7 +94,21 @@ LibraGenda, más su propio dominio clínico encima.
   `GET /patients/{id}/documents/{document_id}/file`. Formatos aceptados:
   PDF/PNG/JPG/JPEG, hasta 20MB. Migración `0007_clinical_documents`. Ver
   `DECISIONS.md` ADR-013.
-- Consentimientos.
+- Consentimientos informados (completo). El usuario eligió este ítem
+  entre el resto de la Fase 2 y definió el alcance concreto
+  (`AskUserQuestion`): solo el registro (procedimiento, quién autoriza —
+  paciente o tutor/responsable —, texto libre), sin archivo firmado
+  embebido (si hace falta, se sube aparte como documento clínico); y
+  append-only sin revocación editable — retirar un consentimiento se
+  registra como un consentimiento nuevo, nunca editando el original.
+  `POST`/`GET /patients/{id}/consents`, `DELETE` admin-only. Migración
+  `0008_consents`. Ver `DECISIONS.md` ADR-014.
+
+Con esto, el dominio clínico completo de la Fase 2 (configuración
+comercial, recordatorios/señas, recetas, estudios, documentos clínicos y
+consentimientos) queda cerrado. Quedan pendientes de Fase 2 solo las
+decisiones no clínicas: facturación/caja (si se incorpora LibraCore) y
+dashboard/reportes.
 - Facturación/caja, solo si se decide incorporar LibraCore.
 - Dashboard y reportes.
 

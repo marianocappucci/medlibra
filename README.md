@@ -36,7 +36,9 @@ admin-only) y `/patients/{id}/study-orders/{order_id}/items/{item_id}/results`
 (documentos clínicos — subida `multipart/form-data` de un archivo PDF/PNG/
 JPG/JPEG hasta 20MB con título/descripción/autor, `admin`+`staff`, borrar
 es admin-only) y `/patients/{id}/documents/{document_id}/file` (descarga
-del archivo); `/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
+del archivo); `/patients/{id}/consents` (consentimientos informados —
+procedimiento, quién autoriza, texto libre, append-only sin revocación
+editable, `admin`+`staff`, borrar es admin-only); `/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
 valida contra la disponibilidad real configurada y el horario comercial de
 la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
 opcional); `/resources/{id}/agenda` (turnos de un profesional en un rango
@@ -44,8 +46,8 @@ de fechas); `/reminders/dispatch` (solo `admin`, dispara los recordatorios
 vencidos — 24h y 2h antes de cada turno, fijo); y
 `/appointments/{id}/deposit` (pedir/consultar una seña, `admin`+`staff`) +
 `/deposits/{id}/mark-paid`/`mark-failed`/`refund` (solo `admin`, confirma
-el estado de la seña). Evoluciones estructuradas, diagnósticos y
-consentimientos quedan para fases siguientes.
+el estado de la seña). Evoluciones estructuradas y diagnósticos
+quedan para fases siguientes.
 
 Recordatorios y señas todavía no tienen un canal real conectado (mismo
 estado que Gestiolibra): los recordatorios se loguean
@@ -99,8 +101,8 @@ LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
 `clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
 `business_settings`, `prescriptions`, `prescription_items`,
 `study_orders`, `study_order_items`, `study_results`,
-`clinical_documents` — no pertenecen al dominio de LibraGenda, ver
-`MODULES.md`). Viajan en este mismo repo:
+`clinical_documents`, `consents` — no pertenecen al dominio de
+LibraGenda, ver `MODULES.md`). Viajan en este mismo repo:
 
 ```bash
 DATABASE_URL="$DATABASE_URL" alembic upgrade head

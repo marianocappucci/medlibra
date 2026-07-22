@@ -52,6 +52,14 @@
   patrón ya probado en Contalibra/Restolibra (`web/routers/config.py`),
   sin sumar S3/MinIO. Se vincula solo al paciente, no a un registro
   puntual. `delete()` borra la fila y el archivo del disco.
+- `app/services/consents.py`: `ConsentRepository` — consentimientos
+  informados por paciente (`procedure`, `granted_by` — paciente o tutor/
+  responsable —, `text` con el detalle acordado). **Append-only, sin
+  revocación editable**: un consentimiento es un hecho histórico; si el
+  paciente retira su consentimiento más adelante, se carga un registro
+  nuevo (no hay endpoint de update ni de estado). Sin archivo adjunto
+  embebido — el PDF firmado escaneado, si hace falta, se sube aparte
+  como documento clínico.
 - `app/auth.py`: reusa `libracore.auth.SessionAuth` (cookie firmada, ya
   probada en producción por Contalibra/Restolibra/Gestiolibra) para la
   mecánica de sesión — con dependencias FastAPI propias
@@ -73,8 +81,9 @@
   ni notas, ni tocar catálogo/usuarios). A diferencia de Gestiolibra, donde
   `staff` solo toca turnos: acá el personal médico necesita acceso clínico
   para hacer su trabajo, así que `patients`/`clinical_notes`/`prescriptions`/
-  `study_orders`/`clinical_documents` están gateados a `admin`+`staff` con
-  un `Depends(require_admin)` extra solo en los endpoints `DELETE`.
+  `study_orders`/`clinical_documents`/`consents` están gateados a
+  `admin`+`staff` con un `Depends(require_admin)` extra solo en los
+  endpoints `DELETE`.
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
   `business_settings.py`: configuración comercial del consultorio, todas
   tablas propias de MedLibra — mismo feature, mismo código (portado
@@ -98,7 +107,9 @@
   (`/patients/{id}/study-orders` y `/patients/{id}/study-orders/{order_id}/items/{item_id}/results`,
   admin+staff salvo `DELETE`), `clinical_documents.py`
   (`/patients/{id}/documents` — subida multipart + descarga vía
-  `/{document_id}/file`, admin+staff salvo `DELETE`), `appointments.py` (crear/confirmar/
+  `/{document_id}/file`, admin+staff salvo `DELETE`), `consents.py`
+  (`/patients/{id}/consents`, admin+staff salvo `DELETE`),
+  `appointments.py` (crear/confirmar/
   cancelar/reprogramar, admin+staff — `create`/`reschedule` validan
   además el horario comercial si está configurado), `agenda.py`
   (admin+staff), `reminders.py` (`/reminders/dispatch`, admin-only),
@@ -113,7 +124,6 @@
 
 ## Después del MVP
 
-- Consentimientos.
 - Canal real de notificaciones (email/SMS/WhatsApp) para reemplazar
   `LoggingNotificationPort`.
 - Proveedor de pago real para reemplazar `ManualPaymentPort` y automatizar
