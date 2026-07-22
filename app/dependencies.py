@@ -8,6 +8,7 @@ from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from .services.appointments import AppointmentService
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.patients import PatientRepository
+from .services.users import UserRepository
 
 
 def get_catalog_repository(request: Request) -> SqlAlchemyCatalogRepository:
@@ -28,3 +29,7 @@ def get_patient_repository(request: Request) -> PatientRepository:
 
 def get_clinical_note_repository(request: Request) -> ClinicalNoteRepository:
     return request.app.state.clinical_notes
+
+
+def get_user_repository(request: Request) -> UserRepository:
+    return request.app.state.users

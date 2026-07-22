@@ -6,10 +6,11 @@
   en `app.state`, monta routers.
 - `app/dependencies.py`: providers de FastAPI que leen `app.state`.
 - `app/services/appointments.py`: `AppointmentService` — capa de aplicación
-  sobre `InMemoryScheduler` de LibraGenda. Ventana de disponibilidad
-  hardcodeada 9-18 (mismo comportamiento que tenía el demo original,
-  portado sin cambios de conducta) — disponibilidad real configurable es
-  un ítem de "Próximas" en `TASKS.md`, no de esta ronda.
+  sobre `InMemoryScheduler` de LibraGenda. Lee la disponibilidad real del
+  recurso (ventanas + bloqueos + excepciones) en vez de una ventana
+  hardcodeada; `cancel()`/`reschedule()` aceptan `reason` opcional (motivo
+  agregado en LibraGenda `v0.5.0`); `agenda()` filtra turnos por rango de
+  fechas.
 - `app/services/patients.py`: `PatientRepository` — coordina el `Client`
   genérico de LibraGenda (identidad/agenda) con la extensión clínica propia
   de MedLibra (`PatientRow`: `dni`, `birth_date`), dos tablas mantenidas en
@@ -25,22 +26,41 @@
   `delete` (esta última pensada para corregir errores de carga, no para
   edición). Diagnósticos estructurados, recetas, estudios y consentimientos
   quedan para la Fase 2 (ver `ROADMAP.md`).
-- `app/routers/`: `health.py` (público), `demo.py` (`/demo/seed` — bootstrap
-  placeholder de sucursal/recurso/servicio, mismo rol que tuvo en Gestiolibra
-  antes de su CRUD real; los pacientes ya NO pasan por acá, son reales desde
-  el día uno), `patients.py` (CRUD completo), `clinical_notes.py`
-  (`/patients/{id}/notes` — crear/listar/obtener/borrar, sin `PUT`),
-  `appointments.py` (crear/confirmar) — traducen excepciones de dominio a
-  códigos HTTP (404/409/422).
+- `app/auth.py`: reusa `libracore.auth.SessionAuth` (cookie firmada, ya
+  probada en producción por Contalibra/Restolibra/Gestiolibra) para la
+  mecánica de sesión — con dependencias FastAPI propias
+  (`get_current_user`, `require_role`) que devuelven 401/403 JSON en vez de
+  los redirects 307 de `SessionAuth.require_auth`/`require_role` (pensados
+  para una app server-rendered, no para esta API JSON pura).
+- `app/security.py`: hashing de contraseñas PBKDF2, mismo algoritmo que
+  `libracore.db.usuarios` y que Gestiolibra (ver `DECISIONS.md`
+  de ese repo, ADR-005) — reimplementado porque ese módulo está acoplado a
+  SQLite y MedLibra usa PostgreSQL/SQLAlchemy.
+- `app/services/users.py`: `UserRow` (tabla propia de MedLibra) +
+  `UserRepository` + `ensure_default_admin()` (bootstrap fail-closed, igual
+  criterio que `SECRET_KEY`: sin `MEDLIBRA_ADMIN_PASSWORD` la app no
+  levanta, salvo `ENV=development`).
+- Roles: `admin` (CRUD completo de sucursales/recursos/servicios/
+  disponibilidad/usuarios; único que puede borrar pacientes o notas
+  clínicas) y `staff` (personal médico — crea/lee/actualiza pacientes,
+  escribe historia clínica, gestiona turnos; **no** puede borrar pacientes
+  ni notas, ni tocar catálogo/usuarios). A diferencia de Gestiolibra, donde
+  `staff` solo toca turnos: acá el personal médico necesita acceso clínico
+  para hacer su trabajo, así que `patients`/`clinical_notes` están
+  gateados a `admin`+`staff` con un `Depends(require_admin)` extra solo en
+  los endpoints `DELETE`.
+- `app/routers/`: `health.py` (público), `auth.py` (`/auth/login`,
+  `/auth/logout`, `/auth/me`), `users.py` (CRUD de usuarios, admin-only),
+  `branches.py`, `resources.py`, `services.py` (CRUD completo, admin-only),
+  `availability.py` (CRUD de ventanas/bloqueos/excepciones, admin-only),
+  `patients.py` (CRUD completo, admin+staff salvo `DELETE`),
+  `clinical_notes.py` (`/patients/{id}/notes`, admin+staff salvo `DELETE`),
+  `appointments.py` (crear/confirmar/cancelar/reprogramar, admin+staff),
+  `agenda.py` (admin+staff) — traducen excepciones de dominio a códigos
+  HTTP (404/409/422). `/demo/seed` fue reemplazado por el CRUD real.
 
 ## Próximos
 
-- Disponibilidad real configurable por profesional (hoy hardcodeada 9-18).
-- CRUD real de sucursales/recursos/servicios (hoy vía `/demo/seed`).
-- Cancelar/reprogramar turnos con motivo (ya existe en LibraGenda `v0.5.0`
-  y en Gestiolibra; falta el lado de MedLibra).
-- Login y roles básicos (mismo patrón que Gestiolibra: `SessionAuth` de
-  LibraCore + tabla propia).
 - `billing` (opcional, no decidido): composición de LibraCore para facturación/caja.
 
 ## Después del MVP

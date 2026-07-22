@@ -20,10 +20,12 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
 
 ## ADR-003 — Mantener facturación con LibraCore como decisión abierta
 
-- Estado: propuesta pendiente
+- Estado: propuesta pendiente (actualizada 2026-07-21: LibraCore sí se sumó
+  como dependencia, pero solo por `libracore.auth.SessionAuth` — ver
+  ADR-007. Facturación/caja sigue sin decidir.)
 - Fecha: 2026-07-18
 - Contexto: algunos productos Libra usan LibraCore, pero el MVP clínico todavía no requiere facturación definida.
-- Decisión: no incorporar LibraCore hasta confirmar el alcance de facturación y caja.
+- Decisión: no incorporar LibraCore *para facturación* hasta confirmar el alcance de facturación y caja.
 - Consecuencias: se evita acoplar el scaffold a un componente no necesario para el MVP.
 
 ## ADR-004 — Versionar LibraGenda con pin exacto
@@ -69,3 +71,28 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   nueva, no por editar la anterior — coherente con la práctica clínica real
   de un registro auditable. Reabrir esta decisión si aparece una necesidad
   real de edición (ej. corrección de un error tipográfico menor).
+
+## ADR-007 — Reusar SessionAuth de LibraCore; staff con acceso clínico, a diferencia de Gestiolibra
+
+- Estado: aceptada
+- Fecha: 2026-07-21
+- Contexto: MedLibra necesita login y roles. Gestiolibra ya resolvió el
+  mismo problema (`libracore.auth.SessionAuth` + tabla `users` propia en
+  SQLAlchemy/Postgres, ver `DECISIONS.md` de ese repo ADR-005/006) — mismo
+  motor, mismo stack de persistencia, sin motivo para reinventar. La única
+  pregunta real era el modelo de roles: en Gestiolibra `staff` solo toca
+  turnos, pero en MedLibra el rol `staff` representa personal médico, que
+  necesita leer y escribir historia clínica para hacer su trabajo — un
+  `staff` sin acceso a pacientes/notas clínicas sería inútil acá.
+- Decisión: portar `SessionAuth`/`security.py`/`services/users.py`/
+  `routers/auth.py`/`routers/users.py` de Gestiolibra sin cambios de fondo
+  (cookie `ml_session` propia para no colisionar si algún día conviven).
+  Dos roles (`admin`/`staff`), pero `patients`/`clinical_notes` quedan
+  gateados a `admin`+`staff` (no solo `admin` como el resto del catálogo),
+  con un `Depends(require_admin)` adicional solo en los endpoints `DELETE`
+  de esos dos routers (borrar sigue siendo admin-only, coherente con
+  ADR-006).
+- Consecuencias: el modelo de permisos de MedLibra diverge intencionalmente
+  del de Gestiolibra en este punto — no es un error de copiar-pegar, es una
+  decisión de dominio: cada vertical define qué significa "staff" según su
+  propio negocio.

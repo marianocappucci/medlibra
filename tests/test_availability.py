@@ -1,10 +1,10 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 
-
-def _seeded_client():
-    client = TestClient(create_app("sqlite:///:memory:"))
+@pytest.fixture
+def seeded_client(admin_client: TestClient) -> TestClient:
+    client = admin_client
     client.post("/branches", json={"id": "branch-1", "name": "Consultorio demo"})
     client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1"})
     client.post("/services", json={"id": "service-1", "name": "Consulta", "duration_minutes": 30})
@@ -19,8 +19,8 @@ def _book(client, hour=10):
     })
 
 
-def test_availability_window_crud_round_trip():
-    client = _seeded_client()
+def test_availability_window_crud_round_trip(seeded_client: TestClient):
+    client = seeded_client
     created = client.post("/resources/resource-1/availability", json={
         "weekday": 0, "starts_at": "09:00:00", "ends_at": "18:00:00",
     })
@@ -40,16 +40,16 @@ def test_availability_window_crud_round_trip():
     assert client.get("/resources/resource-1/availability").json() == []
 
 
-def test_availability_window_not_found_returns_404():
-    client = _seeded_client()
+def test_availability_window_not_found_returns_404(seeded_client: TestClient):
+    client = seeded_client
     assert client.put("/resources/resource-1/availability/999", json={
         "weekday": 0, "starts_at": "09:00:00", "ends_at": "18:00:00",
     }).status_code == 404
     assert client.delete("/resources/resource-1/availability/999").status_code == 404
 
 
-def test_block_crud_round_trip():
-    client = _seeded_client()
+def test_block_crud_round_trip(seeded_client: TestClient):
+    client = seeded_client
     created = client.post("/resources/resource-1/blocks", json={
         "starts_at": "2026-07-20T12:00:00", "ends_at": "2026-07-20T13:00:00", "reason": "almuerzo",
     })
@@ -67,8 +67,8 @@ def test_block_crud_round_trip():
     assert client.get("/resources/resource-1/blocks").json() == []
 
 
-def test_exception_crud_round_trip():
-    client = _seeded_client()
+def test_exception_crud_round_trip(seeded_client: TestClient):
+    client = seeded_client
     created = client.post("/resources/resource-1/exceptions", json={
         "day": "2026-12-25", "starts_at": "00:00:00", "ends_at": "23:59:00", "available": False,
     })
@@ -85,22 +85,21 @@ def test_exception_crud_round_trip():
     assert client.get("/resources/resource-1/exceptions").json() == []
 
 
-def test_booking_requires_configured_availability():
-    client = _seeded_client()
-    response = _book(client)
+def test_booking_requires_configured_availability(seeded_client: TestClient):
+    response = _book(seeded_client)
     assert response.status_code == 409
 
 
-def test_booking_succeeds_once_a_window_is_configured():
-    client = _seeded_client()
+def test_booking_succeeds_once_a_window_is_configured(seeded_client: TestClient):
+    client = seeded_client
     client.post("/resources/resource-1/availability", json={
         "weekday": 0, "starts_at": "09:00:00", "ends_at": "18:00:00",
     })
     assert _book(client).status_code == 201
 
 
-def test_block_prevents_booking_within_an_otherwise_open_window():
-    client = _seeded_client()
+def test_block_prevents_booking_within_an_otherwise_open_window(seeded_client: TestClient):
+    client = seeded_client
     client.post("/resources/resource-1/availability", json={
         "weekday": 0, "starts_at": "09:00:00", "ends_at": "18:00:00",
     })

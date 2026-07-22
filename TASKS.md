@@ -4,28 +4,26 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada.
+Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
+`ROADMAP.md`.
 
 ## Próximas
 
-- [ ] CRUD de profesionales y consultorios (hoy solo vía `/demo/seed`; los
-      pacientes ya tienen CRUD real en `/patients`).
-- [ ] Agenda diaria/semanal y disponibilidad configurable por profesional
-      (hoy ventana hardcodeada 9-18, portada tal cual del demo original).
-- [ ] Cancelación y reprogramación con motivos (LibraGenda `v0.5.0` y
-      Gestiolibra ya lo tienen; falta el lado de MedLibra — mismo patrón
-      que `POST /appointments/{id}/cancel`/`reschedule` de Gestiolibra).
-- [ ] Login y roles básicos (mismo patrón que Gestiolibra: `SessionAuth` de
-      LibraCore + tabla `users` propia).
-- [ ] MedLibra todavía no tiene Alembic propio: `patients`/`clinical_notes`
-      solo se crean vía `Base.metadata.create_all()` en `create_app()` —
-      documentado como "demo only" pero hoy es el único mecanismo real.
-      Definir migraciones propias antes de un deploy real (mismo pendiente
-      que tiene Gestiolibra con `users`).
+- [ ] Configuración comercial por consultorio más allá del CRUD básico de
+      sucursales (mismo ítem que tiene Gestiolibra pendiente).
+- [ ] MedLibra todavía no tiene Alembic propio: `patients`/`clinical_notes`/
+      `users` solo se crean vía `Base.metadata.create_all()` en
+      `create_app()` — documentado como "demo only" pero hoy es el único
+      mecanismo real. Definir migraciones propias antes de un deploy real
+      (mismo pendiente que tiene Gestiolibra).
+- [ ] Definir alcance de Fase 2 (recetas, estudios, documentos clínicos,
+      consentimientos, recordatorios/señas, facturación si se decide
+      LibraCore, dashboard) — ver `ROADMAP.md`.
 
 ## Decisiones pendientes
 
-- [ ] Decidir si MedLibra incorpora LibraCore para facturación y caja.
+- [ ] Decidir si MedLibra incorpora LibraCore además para facturación y
+      caja (ya se sumó como dependencia para `SessionAuth`).
 
 ## Bloqueadas
 
@@ -33,3 +31,14 @@ Ninguna bloqueada registrada.
 
 Resuelto (2026-07-21): LibraGenda actualizado a `v0.5.0` (desde `v0.3.0`,
 compatibilidad revisada — ver `CHANGELOG.md`).
+
+## Notas de testing
+
+- Igual que Gestiolibra: la suite usa cookies de sesión firmadas con
+  timestamp (`itsdangerous`, vía `libracore.auth.SessionAuth`). En entorno
+  WSL2 el reloj puede saltar hacia atrás ~20s en medio de una corrida
+  (desincronización WSL2↔host Windows), invalidando un cookie válido
+  (`SignatureExpired: age <0`) — 401 intermitente y no reproducible (~1
+  cada 10-15 corridas). No es un bug de la app ni ocurre en el servidor
+  real. Si un test de auth falla aislado sin cambios de código, reintentar
+  antes de investigar.

@@ -9,17 +9,36 @@ Compone:
   disponibilidad/bloqueos/excepciones, feriados y timezone por sucursal,
   recurrencias, recordatorios (puerto de notificaciones), señas (puerto de
   pagos) y motivo opcional de cancelación/reprogramación.
-- LibraCore — administración/facturación/caja, **solo si MedLibra incorpora
-  facturación** (no está decidido para el MVP).
+- LibraCore — solo `libracore.auth.SessionAuth` por ahora (login por cookie
+  firmada, mismo patrón que Gestiolibra); administración/facturación/caja,
+  **solo si MedLibra incorpora facturación** (no está decidido).
 
-MedLibra posee la API HTTP y el dominio clínico propio. API: `/patients`
-(CRUD completo — paciente = `Client` de LibraGenda + `dni`/`birth_date`
-propios); `/patients/{id}/notes` (historia clínica básica — notas de
-evolución en texto libre, solo crear/listar/obtener/borrar, sin editar);
-`/demo/seed` (placeholder de sucursal/recurso/servicio hasta que tengan su
-propio CRUD); `/appointments` (crear/confirmar, ventana de disponibilidad
-hoy hardcodeada 9-18). Evoluciones estructuradas, diagnósticos, recetas,
-estudios y consentimientos quedan para fases siguientes.
+MedLibra posee la API HTTP y el dominio clínico propio. API: `/auth/login`,
+`/auth/logout`, `/auth/me` (sesión por cookie); CRUD de usuarios en `/users`
+(solo `admin`); CRUD de `/branches`, `/resources`, `/services` y
+disponibilidad (`/resources/{id}/availability`/`/blocks`/`/exceptions`,
+solo `admin`); `/patients` (CRUD completo — paciente = `Client` de
+LibraGenda + `dni`/`birth_date` propios, `admin`+`staff`, borrar es
+admin-only); `/patients/{id}/notes` (historia clínica básica — notas de
+evolución en texto libre, solo crear/listar/obtener/borrar sin editar,
+`admin`+`staff`, borrar es admin-only); `/appointments` (crear/confirmar/
+cancelar/reprogramar — `admin`+`staff`, valida contra la disponibilidad
+real configurada, cancelar/reprogramar aceptan `reason` opcional);
+`/resources/{id}/agenda` (turnos de un profesional en un rango de fechas).
+Evoluciones estructuradas, diagnósticos, recetas, estudios y
+consentimientos quedan para fases siguientes.
+
+## Autenticación y roles
+
+Sesión por cookie firmada (`ml_session`), sin API keys ni JWT todavía. Al
+arrancar sin usuarios, se crea un admin de bootstrap
+(`MEDLIBRA_ADMIN_USERNAME`/`MEDLIBRA_ADMIN_PASSWORD`; sin contraseña
+configurada la app no levanta salvo `ENV=development`, donde usa
+`admin`/`admin`). Roles: `admin` (todo, incluido borrar pacientes/notas) y
+`staff` — personal médico: turnos + pacientes + historia clínica, sin poder
+borrar ninguno de los dos. A diferencia de Gestiolibra (donde `staff` solo
+toca turnos), acá el rol clínico necesita acceso a los datos del paciente
+para hacer su trabajo.
 
 LibraGenda permanece como paquete reutilizable con PostgreSQL dedicado y
 migraciones propias — base `medlibra` en el mismo Postgres 16 del VPS Donweb

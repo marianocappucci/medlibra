@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Login y roles básicos: `POST /auth/login`, `/auth/logout`, `GET /auth/me`,
+  CRUD de usuarios admin-only en `/users`. Reusa `libracore.auth.SessionAuth`
+  (mismo patrón que Gestiolibra). Dos roles: `admin` (todo) y `staff`
+  (personal médico — turnos + pacientes/historia clínica, sin poder
+  borrar). Completa la Fase 1 (MVP operativo). Suma `libracore` como
+  dependencia nueva.
+- CRUD de sucursales/recursos/servicios (`/branches`, `/resources`,
+  `/services`) y disponibilidad configurable por profesional
+  (`/resources/{id}/availability`/`/blocks`/`/exceptions`), reemplazando
+  `/demo/seed`. `/resources/{id}/agenda` para ver los turnos de un
+  profesional en un rango de fechas.
+- `POST /appointments/{id}/cancel` y `POST /appointments/{id}/reschedule`,
+  ambos con `reason` opcional (usa el campo agregado en LibraGenda `v0.5.0`).
+  `AppointmentService.create()`/`reschedule()` dejaron de usar la ventana
+  9-18 hardcodeada, leen la disponibilidad real configurada.
 - Routers y servicios de aplicación separados del demo monolítico
   (`app/routers/`, `app/services/`).
 - Dominio clínico inicial: `/patients` (CRUD completo, paciente = Client de

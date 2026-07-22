@@ -1,10 +1,10 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 
-
-def _seeded_client():
-    client = TestClient(create_app("sqlite:///:memory:"))
+@pytest.fixture
+def seeded_client(admin_client: TestClient) -> TestClient:
+    client = admin_client
     client.post("/branches", json={"id": "branch-1", "name": "Consultorio demo"})
     client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1"})
     client.post("/services", json={"id": "service-1", "name": "Consulta", "duration_minutes": 30})
@@ -16,8 +16,8 @@ def _seeded_client():
     return client
 
 
-def test_agenda_returns_appointments_within_range():
-    client = _seeded_client()
+def test_agenda_returns_appointments_within_range(seeded_client: TestClient):
+    client = seeded_client
     client.post("/appointments", json={
         "resource_id": "resource-1", "service_id": "service-1",
         "client_id": "patient-1", "starts_at": "2026-07-20T10:00:00",
@@ -36,8 +36,8 @@ def test_agenda_returns_appointments_within_range():
     assert body[0]["starts_at"] == "2026-07-20T10:00:00Z"
 
 
-def test_agenda_covers_a_full_week_and_is_sorted():
-    client = _seeded_client()
+def test_agenda_covers_a_full_week_and_is_sorted(seeded_client: TestClient):
+    client = seeded_client
     client.post("/appointments", json={
         "resource_id": "resource-1", "service_id": "service-1",
         "client_id": "patient-1", "starts_at": "2026-07-22T11:00:00",
@@ -56,8 +56,8 @@ def test_agenda_covers_a_full_week_and_is_sorted():
     ]
 
 
-def test_agenda_ignores_other_resources():
-    client = _seeded_client()
+def test_agenda_ignores_other_resources(seeded_client: TestClient):
+    client = seeded_client
     client.post("/resources", json={"id": "resource-2", "name": "Consultorio 2"})
     for weekday in range(7):
         client.post("/resources/resource-2/availability", json={
@@ -74,9 +74,8 @@ def test_agenda_ignores_other_resources():
     assert response.json() == []
 
 
-def test_agenda_rejects_date_to_before_date_from():
-    client = _seeded_client()
-    response = client.get("/resources/resource-1/agenda", params={
+def test_agenda_rejects_date_to_before_date_from(seeded_client: TestClient):
+    response = seeded_client.get("/resources/resource-1/agenda", params={
         "date_from": "2026-07-20", "date_to": "2026-07-19",
     })
     assert response.status_code == 422

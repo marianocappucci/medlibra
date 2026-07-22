@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
+from ..auth import require_admin
 from ..dependencies import get_clinical_note_repository, get_patient_repository
 from ..services.clinical_notes import ClinicalNoteRepository
 from ..services.patients import PatientRepository
@@ -63,7 +64,7 @@ def get_note(
     return note
 
 
-@router.delete("/{note_id}", status_code=204)
+@router.delete("/{note_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_note(
     patient_id: str,
     note_id: str,

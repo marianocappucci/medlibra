@@ -1,14 +1,8 @@
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 
-
-def _client():
-    return TestClient(create_app("sqlite:///:memory:"))
-
-
-def test_resource_crud_round_trip():
-    client = _client()
+def test_resource_crud_round_trip(admin_client: TestClient):
+    client = admin_client
     client.post("/branches", json={"id": "branch-1", "name": "Centro"})
     created = client.post("/resources", json={
         "id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1",
@@ -29,15 +23,13 @@ def test_resource_crud_round_trip():
     assert client.get("/resources/resource-1").status_code == 404
 
 
-def test_resource_not_found_returns_404():
-    client = _client()
-    assert client.get("/resources/missing").status_code == 404
-    assert client.put("/resources/missing", json={"name": "x"}).status_code == 404
-    assert client.delete("/resources/missing").status_code == 404
+def test_resource_not_found_returns_404(admin_client: TestClient):
+    assert admin_client.get("/resources/missing").status_code == 404
+    assert admin_client.put("/resources/missing", json={"name": "x"}).status_code == 404
+    assert admin_client.delete("/resources/missing").status_code == 404
 
 
-def test_resource_duplicate_id_returns_409():
-    client = _client()
-    client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1"})
-    response = client.post("/resources", json={"id": "resource-1", "name": "Otro"})
+def test_resource_duplicate_id_returns_409(admin_client: TestClient):
+    admin_client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1"})
+    response = admin_client.post("/resources", json={"id": "resource-1", "name": "Otro"})
     assert response.status_code == 409

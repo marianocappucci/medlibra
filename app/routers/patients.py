@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
+from ..auth import require_admin
 from ..dependencies import get_patient_repository
 from ..services.patients import PatientHasClinicalNotes, PatientRepository
 
@@ -82,7 +83,7 @@ def update_patient(
         raise HTTPException(404, "patient not found")
 
 
-@router.delete("/{patient_id}", status_code=204)
+@router.delete("/{patient_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_patient(patient_id: str, patients: PatientRepository = Depends(get_patient_repository)):
     try:
         patients.delete(patient_id)
