@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Routers y servicios de aplicación separados del demo monolítico
+  (`app/routers/`, `app/services/`).
+- Dominio clínico inicial: `/patients` (CRUD completo, paciente = Client de
+  LibraGenda + `dni`/`birth_date` propios) y `/patients/{id}/notes`
+  (historia clínica básica: notas de evolución en texto libre, append-only,
+  sin endpoint de actualización). Borrar un paciente con notas existentes
+  devuelve 409.
 - LibraGenda actualizado de `v0.3.0` a `v0.5.0` (incorpora CRUD completo de
   catálogo, fix de datetimes cross-dialecto y motivo opcional en
   cancelación/reprogramación). Base `medlibra` migrada a

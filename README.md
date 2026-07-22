@@ -12,8 +12,15 @@ Compone:
 - LibraCore — administración/facturación/caja, **solo si MedLibra incorpora
   facturación** (no está decidido para el MVP).
 
-MedLibra posee la API HTTP y el dominio clínico propio (pacientes, historia
-clínica, evoluciones, diagnósticos — a definir en fases siguientes).
+MedLibra posee la API HTTP y el dominio clínico propio. API: `/patients`
+(CRUD completo — paciente = `Client` de LibraGenda + `dni`/`birth_date`
+propios); `/patients/{id}/notes` (historia clínica básica — notas de
+evolución en texto libre, solo crear/listar/obtener/borrar, sin editar);
+`/demo/seed` (placeholder de sucursal/recurso/servicio hasta que tengan su
+propio CRUD); `/appointments` (crear/confirmar, ventana de disponibilidad
+hoy hardcodeada 9-18). Evoluciones estructuradas, diagnósticos, recetas,
+estudios y consentimientos quedan para fases siguientes.
+
 LibraGenda permanece como paquete reutilizable con PostgreSQL dedicado y
 migraciones propias — base `medlibra` en el mismo Postgres 16 del VPS Donweb
 que aloja la de LibraGenda, migrada con las migraciones del propio paquete

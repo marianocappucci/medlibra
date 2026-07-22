@@ -4,15 +4,24 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-- [ ] Separar el demo en routers y servicios de aplicación.
-- [ ] Definir el dominio clínico inicial: paciente e historia clínica básica.
+Ninguna en curso registrada.
 
 ## Próximas
 
-- [ ] CRUD de profesionales, consultorios, servicios y pacientes.
-- [ ] Agenda diaria/semanal y disponibilidad configurable por profesional.
-- [ ] Cancelación y reprogramación con motivos.
-- [ ] Login y roles básicos.
+- [ ] CRUD de profesionales y consultorios (hoy solo vía `/demo/seed`; los
+      pacientes ya tienen CRUD real en `/patients`).
+- [ ] Agenda diaria/semanal y disponibilidad configurable por profesional
+      (hoy ventana hardcodeada 9-18, portada tal cual del demo original).
+- [ ] Cancelación y reprogramación con motivos (LibraGenda `v0.5.0` y
+      Gestiolibra ya lo tienen; falta el lado de MedLibra — mismo patrón
+      que `POST /appointments/{id}/cancel`/`reschedule` de Gestiolibra).
+- [ ] Login y roles básicos (mismo patrón que Gestiolibra: `SessionAuth` de
+      LibraCore + tabla `users` propia).
+- [ ] MedLibra todavía no tiene Alembic propio: `patients`/`clinical_notes`
+      solo se crean vía `Base.metadata.create_all()` en `create_app()` —
+      documentado como "demo only" pero hoy es el único mecanismo real.
+      Definir migraciones propias antes de un deploy real (mismo pendiente
+      que tiene Gestiolibra con `users`).
 
 ## Decisiones pendientes
 
