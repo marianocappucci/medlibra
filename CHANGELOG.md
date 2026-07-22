@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- CI (GitHub Actions): `pytest` + smoke check de las dos cadenas de Alembic
+  (LibraGenda + propia) contra Postgres de servicio, en cada push/PR a
+  `main`. Requiere el secret `LIBRA_PAT` (ver `README.md`).
 - Alembic propio (`migrations/`) para `users`/`patients`/`clinical_notes`
   — antes solo se creaban vía `create_all()`, sin efecto en un deploy real.
   Cadena de versión independiente (`alembic_version_medlibra`) para no

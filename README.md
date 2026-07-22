@@ -80,6 +80,23 @@ apuntar el autogenerate ahí vería también las tablas de LibraGenda como
 propias de esta cadena. Las migraciones se escriben a mano, mismo criterio
 que LibraGenda y Gestiolibra.
 
+## CI
+
+`.github/workflows/ci.yml`: en cada push/PR a `main` — instala el paquete,
+corre `pytest`, y como smoke check aplica las dos cadenas de Alembic
+(LibraGenda + propia) contra un Postgres 16 de servicio, mismo orden que
+un deploy real.
+
+**Requiere un secret `LIBRA_PAT`** en este repo (Settings → Secrets and
+variables → Actions): `libragenda` y `libracore` son privados, y el
+`GITHUB_TOKEN` automático de Actions no tiene acceso a otros repos. Crear
+un fine-grained PAT en <https://github.com/settings/tokens?type=beta>
+scoped **solo** a `libragenda` y `libracore`, permiso **Contents:
+Read-only**, y cargarlo como ese secret (mismo token se puede reusar en
+Gestiolibra, cargándolo como secret ahí también — los secrets no se
+comparten automáticamente entre repos). Sin este secret, el paso "Install
+package + dev deps" falla (no un bug del workflow).
+
 ## Documentación
 
 - [ROADMAP.md](ROADMAP.md) — dirección estratégica.
