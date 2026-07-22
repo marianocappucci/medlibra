@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Documentos clínicos: `POST /patients/{id}/documents` (multipart:
+  archivo + título + descripción opcional + autor), `GET`/`DELETE
+  /patients/{id}/documents/{document_id}`, descarga vía
+  `GET .../{document_id}/file` — admin+staff, DELETE admin-only. Solo
+  metadata en la base; archivo en filesystem local bajo
+  `MEDLIBRA_DOCUMENTS_DIR` (mismo patrón que Contalibra/Restolibra, sin
+  S3/MinIO), nombre en disco normalizado (UUID) — ver ADR-013. Formatos
+  aceptados: PDF/PNG/JPG/JPEG, hasta 20MB. Vinculado solo al paciente.
+  Migración `0007_clinical_documents`. Suma `python-multipart` como
+  dependencia nueva.
 - Estudios: `POST`/`GET /patients/{id}/study-orders`,
   `GET`/`DELETE /patients/{id}/study-orders/{order_id}` y
   `POST /patients/{id}/study-orders/{order_id}/items/{item_id}/results`

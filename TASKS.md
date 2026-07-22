@@ -9,9 +9,8 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Definir alcance de Fase 2 restante (documentos clínicos,
-      consentimientos, facturación si se decide LibraCore, dashboard) —
-      ver `ROADMAP.md`.
+- [ ] Definir alcance de Fase 2 restante (consentimientos, facturación si
+      se decide LibraCore, dashboard) — ver `ROADMAP.md`.
 
 ## Decisiones pendientes
 
@@ -55,6 +54,13 @@ propios como registros separados (nunca se edita el pedido). `POST`/
 `GET /patients/{id}/study-orders`, `POST .../items/{item_id}/results`
 (admin+staff), `DELETE` de pedido/resultado admin-only. Migración
 `0006_study_orders`.
+
+Resuelto (2026-07-22): documentos clínicos — filesystem local (mismo
+patrón que Contalibra/Restolibra, sin S3/MinIO), vinculado solo al
+paciente. `POST /patients/{id}/documents` (multipart), descarga vía
+`/{document_id}/file`, `DELETE` admin-only (borra fila y archivo).
+PDF/PNG/JPG/JPEG, hasta 20MB. Migración `0007_clinical_documents`. Suma
+`python-multipart` como dependencia nueva.
 
 ## Notas de testing
 

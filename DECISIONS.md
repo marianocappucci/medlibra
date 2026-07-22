@@ -256,3 +256,54 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   El router valida la cadena completa de pertenencia (patient → order →
   item) antes de aceptar un resultado, para no permitir cargar un
   resultado sobre un item de un pedido de otro paciente.
+
+## ADR-013 — Documentos clínicos: filesystem local, vinculado solo al paciente
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: el usuario eligió "documentos clínicos" entre el resto de la
+  Fase 2 pendiente (`AskUserQuestion`). Antes de codificar, dos preguntas
+  reales sin respuesta obvia: (1) ¿dónde se guardan los archivos subidos?
+  — ningún repo de LibraGenda/Gestiolibra/MedLibra maneja archivos
+  todavía; (2) ¿un documento se vincula solo al paciente o también puede
+  asociarse a un registro puntual (ej. el PDF de un resultado de
+  estudio)? Antes de preguntar se investigó si algún repo de la familia
+  Libra ya resolvía esto: Contalibra/Restolibra sí tienen un patrón
+  probado (`web/routers/config.py` — logo/certificados ARCA/backups en un
+  directorio dedicado bajo `DATA_DIR`, `open(...,"wb")`, sin S3/MinIO).
+  Preguntado al usuario con esa información como contexto
+  (`AskUserQuestion`): eligió replicar ese mismo patrón filesystem, y
+  vincular el documento solo al paciente.
+- Decisión: `ClinicalDocumentRow` con solo metadata en la base (`title`,
+  `description` opcional, `author`, `original_filename`, `content_type`,
+  `size_bytes`); el archivo vive en filesystem bajo
+  `MEDLIBRA_DOCUMENTS_DIR` (env var, default `./data/medlibra_documents`,
+  mismo patrón que `DATA_DIR` de Contalibra). El nombre en disco es un
+  UUID + extensión — nunca el nombre original del usuario — para evitar
+  path traversal y colisiones de nombre; el original se guarda como
+  metadata. `POST /patients/{id}/documents` usa `multipart/form-data`
+  (`UploadFile` de FastAPI + campos `Form`), única excepción a que el
+  resto de la API sea JSON puro — inevitable para un archivo binario.
+  Validación en el borde: extensión en whitelist (`.pdf`, `.png`, `.jpg`,
+  `.jpeg` — 422 si no matchea) y tamaño máximo 20MB (422 si se excede),
+  ninguna de las dos pedida explícitamente por el usuario pero razonable
+  para el caso de uso descrito (informes/estudios escaneados) y para no
+  dejar el endpoint abierto a cualquier archivo de cualquier tamaño.
+  `GET /patients/{id}/documents/{document_id}/file` sirve el archivo con
+  `FileResponse`, gateado por el mismo rol que el resto del router (no
+  `StaticFiles`, que no tiene auth). `delete()` borra la fila y el
+  archivo del disco. Sin endpoint de reemplazo/actualización — para
+  corregir un documento mal cargado, se borra (admin-only) y se sube de
+  nuevo, mismo espíritu append-only que el resto del dominio clínico
+  aunque un archivo no es exactamente "append-only" en el mismo sentido
+  que una nota de texto.
+- Consecuencias: suma `python-multipart` como dependencia nueva (requerida
+  por FastAPI para parsear `multipart/form-data`, no estaba en ningún repo
+  de la familia). El almacenamiento en filesystem local ata los archivos
+  al filesystem del contenedor/host donde corre MedLibra — si el deploy
+  real usa un volumen no persistente, los documentos se perderían en un
+  redeploy; esto es responsabilidad del deploy (mismo supuesto que ya
+  asume `DATA_DIR` en Contalibra/Restolibra), no algo que esta feature
+  resuelva. Borrar un paciente con documentos existentes queda bloqueado
+  (409), mismo mecanismo ya usado para notas/recetas/estudios —
+  `PatientRepository.delete()` ahora chequea las cuatro tablas.

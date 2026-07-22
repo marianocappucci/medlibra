@@ -32,8 +32,11 @@ notas clínicas, `admin`+`staff`, borrar es admin-only);
 más items de tipo de estudio/motivo, `admin`+`staff`, borrar es
 admin-only) y `/patients/{id}/study-orders/{order_id}/items/{item_id}/results`
 (resultado de un estudio, como registro separado vinculado al item,
-`admin`+`staff`, borrar es admin-only);
-`/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
+`admin`+`staff`, borrar es admin-only); `/patients/{id}/documents`
+(documentos clínicos — subida `multipart/form-data` de un archivo PDF/PNG/
+JPG/JPEG hasta 20MB con título/descripción/autor, `admin`+`staff`, borrar
+es admin-only) y `/patients/{id}/documents/{document_id}/file` (descarga
+del archivo); `/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
 valida contra la disponibilidad real configurada y el horario comercial de
 la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
 opcional); `/resources/{id}/agenda` (turnos de un profesional en un rango
@@ -41,8 +44,8 @@ de fechas); `/reminders/dispatch` (solo `admin`, dispara los recordatorios
 vencidos — 24h y 2h antes de cada turno, fijo); y
 `/appointments/{id}/deposit` (pedir/consultar una seña, `admin`+`staff`) +
 `/deposits/{id}/mark-paid`/`mark-failed`/`refund` (solo `admin`, confirma
-el estado de la seña). Evoluciones estructuradas, diagnósticos,
-documentos clínicos y consentimientos quedan para fases siguientes.
+el estado de la seña). Evoluciones estructuradas, diagnósticos y
+consentimientos quedan para fases siguientes.
 
 Recordatorios y señas todavía no tienen un canal real conectado (mismo
 estado que Gestiolibra): los recordatorios se loguean
@@ -71,6 +74,11 @@ No confundir con los sistemas de salud del Servidor Homei (PACS, Farmacia,
 Portal de Pacientes) — son proyectos completamente separados, sin relación
 ni infraestructura compartida.
 
+Los documentos clínicos subidos se guardan en filesystem local bajo
+`MEDLIBRA_DOCUMENTS_DIR` (default `./data/medlibra_documents` — en
+producción, un volumen persistente montado en ese path, mismo patrón que
+`DATA_DIR` de Contalibra/Restolibra; ver `DECISIONS.md` ADR-013).
+
 ## Migraciones
 
 Dos cadenas de Alembic independientes corren contra la **misma** base
@@ -90,8 +98,9 @@ LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
 **2. Migraciones propias de MedLibra** (`users`, `patients`,
 `clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
 `business_settings`, `prescriptions`, `prescription_items`,
-`study_orders`, `study_order_items`, `study_results` — no pertenecen al
-dominio de LibraGenda, ver `MODULES.md`). Viajan en este mismo repo:
+`study_orders`, `study_order_items`, `study_results`,
+`clinical_documents` — no pertenecen al dominio de LibraGenda, ver
+`MODULES.md`). Viajan en este mismo repo:
 
 ```bash
 DATABASE_URL="$DATABASE_URL" alembic upgrade head

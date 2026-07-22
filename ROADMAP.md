@@ -84,7 +84,17 @@ LibraGenda, más su propio dominio clínico encima.
   `POST /patients/{id}/study-orders/{order_id}/items/{item_id}/results`
   (admin+staff), `DELETE` de pedido o resultado admin-only. Migración
   `0006_study_orders`. Ver `DECISIONS.md` ADR-012.
-- Documentos clínicos, consentimientos.
+- Documentos clínicos (completo). El usuario eligió este ítem entre el
+  resto de la Fase 2 y definió el alcance concreto (`AskUserQuestion`):
+  almacenamiento en filesystem local (mismo patrón ya probado en
+  Contalibra/Restolibra, sin sumar S3/MinIO) y un documento se vincula
+  solo al paciente, no a un registro puntual. `POST /patients/{id}/documents`
+  (multipart: archivo + título + descripción opcional + autor),
+  `GET`/`DELETE` (admin+staff, DELETE admin-only), descarga vía
+  `GET /patients/{id}/documents/{document_id}/file`. Formatos aceptados:
+  PDF/PNG/JPG/JPEG, hasta 20MB. Migración `0007_clinical_documents`. Ver
+  `DECISIONS.md` ADR-013.
+- Consentimientos.
 - Facturación/caja, solo si se decide incorporar LibraCore.
 - Dashboard y reportes.
 

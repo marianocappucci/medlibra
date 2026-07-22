@@ -5,11 +5,14 @@ from app.main import create_app
 
 
 @pytest.fixture(autouse=True)
-def _dev_env(monkeypatch):
+def _dev_env(monkeypatch, tmp_path):
     # SessionAuth's SECRET_KEY resolution and the admin bootstrap both
     # fail closed unless ENV=development -- see app/auth.py and
     # app/services/users.py::ensure_default_admin.
     monkeypatch.setenv("ENV", "development")
+    # Uploaded clinical documents go to a per-test temp dir instead of the
+    # repo's default ./data path -- pytest cleans tmp_path up automatically.
+    monkeypatch.setenv("MEDLIBRA_DOCUMENTS_DIR", str(tmp_path / "medlibra_documents"))
 
 
 def https_client(app) -> TestClient:

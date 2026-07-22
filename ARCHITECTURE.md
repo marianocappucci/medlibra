@@ -36,6 +36,9 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
   con uno o más items (tipo de estudio, motivo), cada uno con uno o más
   resultados propios como registros separados, append-only en las tres
   capas (ver "Estudios" abajo).
+- `app/services/clinical_documents.py`: archivos adjuntos por paciente —
+  metadata en la base, archivo en filesystem local (ver "Documentos
+  clínicos" abajo).
 - `app/services/users.py`: tabla y repositorio de usuarios propios de
   MedLibra (no pertenecen al dominio de LibraGenda).
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
@@ -49,10 +52,11 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/routers/`: health (público), auth (login/logout/me), users
   (admin-only), branches (+ horario, + contacto)/resources/services (+
   precio por sucursal)/availability (admin-only), negocio (`/business`),
-  patients/clinical_notes/prescriptions/study_orders (admin+staff, DELETE
-  admin-only), appointments/agenda (admin+staff), recordatorios
-  (`/reminders/dispatch`, admin-only) y señas (`/appointments/{id}/deposit`
-  admin+staff, `/deposits/{id}/...` admin-only).
+  patients/clinical_notes/prescriptions/study_orders/clinical_documents
+  (admin+staff, DELETE admin-only), appointments/agenda (admin+staff),
+  recordatorios (`/reminders/dispatch`, admin-only) y señas
+  (`/appointments/{id}/deposit` admin+staff, `/deposits/{id}/...`
+  admin-only).
 - `MODULES.md`: inventario operativo de módulos.
 - LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
   migraciones propias.
@@ -137,16 +141,51 @@ mecanismo que ya bloqueaba el borrado con notas/recetas —
 `PatientRepository.delete()` chequea las tres tablas. Ver `DECISIONS.md`
 ADR-012.
 
+## Documentos clínicos
+
+Archivos adjuntos por paciente (informes externos, estudios escaneados,
+cualquier PDF/imagen que traiga el paciente). Un documento se vincula
+**solo al paciente** — no a un registro puntual (nota, receta, pedido de
+estudio) — decisión explícita del usuario. Ningún repo de LibraGenda/
+Gestiolibra/MedLibra manejaba archivos todavía; se replicó el patrón ya
+probado en Contalibra/Restolibra (`web/routers/config.py`: directorio
+dedicado + `open(...,"wb")`) en vez de introducir S3/MinIO, sin precedente
+en ningún producto Libra:
+
+- **Solo metadata en la base** (`clinical_documents`: `title`,
+  `description`, `original_filename`, `content_type`, `size_bytes`); el
+  archivo vive en filesystem bajo `MEDLIBRA_DOCUMENTS_DIR` (default
+  `./data/medlibra_documents`, mismo patrón que `DATA_DIR` de Contalibra).
+- **Nombre en disco normalizado** (UUID + extensión), nunca el nombre
+  original del usuario — evita path traversal y colisiones. El nombre
+  original se guarda como metadata para mostrarlo/descargarlo tal cual.
+- `POST /patients/{id}/documents` recibe `multipart/form-data`
+  (`UploadFile` + campos `Form`), a diferencia del resto de la API que es
+  JSON puro — inevitable para subir un archivo binario. Formatos
+  aceptados: PDF/PNG/JPG/JPEG (422 si no matchea), hasta 20MB (422 si se
+  excede).
+- `GET /patients/{id}/documents/{document_id}/file` sirve el archivo con
+  `FileResponse`, gateado por el mismo rol que el resto del router (no
+  `StaticFiles` directo, que no tiene auth) — mismo criterio que
+  Contalibra sirve su logo.
+- `delete()` borra la fila y el archivo del disco (no soft-delete).
+  Borrar un paciente con documentos existentes está bloqueado (409),
+  mismo mecanismo que ya bloqueaba el borrado con notas/recetas/estudios
+  — `PatientRepository.delete()` chequea las cuatro tablas.
+
+Ver `DECISIONS.md` ADR-013.
+
 ## Dominio clínico vs. motor genérico
 
 LibraGenda no sabe nada de pacientes ni historia clínica — solo conoce
 `Client` (identidad genérica para agendar) y `Resource`/`Service`/
 `Appointment`. MedLibra extiende esa identidad con lo clínico en sus
 propias tablas (`patients`, `clinical_notes`, `prescriptions`/
-`prescription_items`, `study_orders`/`study_order_items`/`study_results`),
-vinculadas por FK al `id` del `Client` — mismo principio que "no duplicar
-reglas de LibraGenda" de `CONVENTIONS.md`, aplicado en la dirección
-inversa: lo clínico no contamina el motor, vive enteramente en MedLibra.
+`prescription_items`, `study_orders`/`study_order_items`/`study_results`,
+`clinical_documents`), vinculadas por FK al `id` del `Client` — mismo
+principio que "no duplicar reglas de LibraGenda" de `CONVENTIONS.md`,
+aplicado en la dirección inversa: lo clínico no contamina el motor, vive
+enteramente en MedLibra.
 
 ## Persistencia e integración
 
@@ -156,9 +195,10 @@ La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa Pos
 `DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`users`,
 `patients`, `clinical_notes`, desde `0004_business_config` también
 `branch_contacts`/`branch_hours`/`service_prices`/`business_settings`,
-desde `0005_prescriptions` también `prescriptions`/`prescription_items`, y
+desde `0005_prescriptions` también `prescriptions`/`prescription_items`,
 desde `0006_study_orders` también `study_orders`/`study_order_items`/
-`study_results`) tienen su propio Alembic (`migrations/` de este repo), cadena independiente
+`study_results`, y desde `0007_clinical_documents` también
+`clinical_documents`) tienen su propio Alembic (`migrations/` de este repo), cadena independiente
 de la de LibraGenda con su propia tabla de versión (`alembic_version_medlibra`,
 para no colisionar sobre la misma base física — ver `DECISIONS.md` ADR-008).
 `Base.metadata.create_all()`

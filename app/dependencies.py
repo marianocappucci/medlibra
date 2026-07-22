@@ -11,6 +11,7 @@ from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
 from .services.branches import BranchRepository
 from .services.business_settings import BusinessSettingsRepository
+from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
@@ -37,6 +38,10 @@ def get_patient_repository(request: Request) -> PatientRepository:
 
 def get_clinical_note_repository(request: Request) -> ClinicalNoteRepository:
     return request.app.state.clinical_notes
+
+
+def get_clinical_document_repository(request: Request) -> ClinicalDocumentRepository:
+    return request.app.state.clinical_documents
 
 
 def get_prescription_repository(request: Request) -> PrescriptionRepository:
