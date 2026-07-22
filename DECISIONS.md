@@ -344,3 +344,46 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   queda bloqueado (409), mismo mecanismo ya usado para notas/recetas/
   estudios/documentos — `PatientRepository.delete()` ahora chequea las
   cinco tablas.
+
+## ADR-015 — SQLite como destino de producción por defecto
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: al scopear si MedLibra debía componer LibraCore para
+  facturación, salió a la luz que Contalibra/Restolibra despliegan con
+  arquitectura silo real (instancia + base SQLite aislada por cliente) y
+  que Gestiolibra/MedLibra ya prevén exactamente el mismo patrón de
+  despliegue. Mantener MedLibra en PostgreSQL mientras el resto de la
+  familia usa SQLite no aportaba nada real y complicaba cualquier
+  composición futura con LibraCore (SQLite-only, sin capa de
+  abstracción). Decisión del usuario, registrada como estándar de
+  familia en LibraGenda (ver `DECISIONS.md` de ese repo, ADR-005) y en
+  `estandares-desarrollo.md` del wiki. Mismo cambio aplicado el mismo
+  día en Gestiolibra (ver `DECISIONS.md` de ese repo, ADR-010).
+- Decisión: `DATABASE_URL` pasa a apuntar a un archivo SQLite por
+  defecto en vez de una base Postgres. Sin cambios de código propios:
+  `LibraGenda.configure(url)` ya activa `PRAGMA foreign_keys=ON`
+  automáticamente para cualquier conexión SQLite (ver ADR-005 de
+  LibraGenda). Al verificar contra un archivo real con FKs activas
+  (nunca antes ejercido — solo se probaba contra SQLite en memoria en
+  tests o contra Postgres real), salió a la luz un bug preexistente
+  idéntico al de `PatientRepository` (ADR-011): `BranchRepository.delete()`
+  — portado verbatim desde Gestiolibra el mismo día que se construyó la
+  configuración comercial — borraba el `Branch` genérico antes que
+  `BranchContactRow` (extensión con FK a `branches.id`). Postgres ya lo
+  hubiera bloqueado siempre; nunca se ejerció ese camino específico
+  contra Postgres real en las verificaciones anteriores. Corregido
+  invirtiendo el orden, mismo fix que ya se aplicó en Gestiolibra. De
+  paso se encontró que `DELETE /branches/{id}`, `/resources/{id}` y
+  `/services/{id}` no traducían `IntegrityError` a un 409 limpio (solo
+  capturaban `KeyError`) — devolvían 500 crudo al borrar una entidad de
+  catálogo con dependientes. Agregado el `except IntegrityError`
+  faltante en los tres routers (`/patients` ya tenía su propio manejo
+  vía `PatientHasClinicalNotes`, no necesitaba el fix).
+- Consecuencias: CI simplificado (sin servicio Postgres, smoke check
+  contra un archivo SQLite plano). Verificado con la suite completa y
+  end-to-end contra un archivo SQLite real: todo el dominio clínico
+  (recetas, estudios, documentos, consentimientos) más los tres casos de
+  borrado bloqueado por FK (sucursal con recurso, recurso y servicio con
+  turno) devolviendo 409 en vez de 500. Postgres sigue funcionando si se
+  pasa esa `DATABASE_URL`; no se retira como opción.

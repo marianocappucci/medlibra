@@ -28,18 +28,19 @@ def upgrade():
     )
     op.create_index("ix_branch_hours_branch_id", "branch_hours", ["branch_id"])
 
+    # Unique constraint declared at create_table time (not a later ALTER):
+    # SQLite can't ALTER a constraint onto a live table, only bake it in
+    # at creation -- also just cleaner than a separate ALTER either way.
     op.create_table(
         "service_prices",
         sa.Column("id", sa.String(100), primary_key=True),
         sa.Column("service_id", sa.String(100), sa.ForeignKey("services.id"), nullable=False),
         sa.Column("branch_id", sa.String(100), sa.ForeignKey("branches.id"), nullable=False),
         sa.Column("price", sa.Numeric(12, 2), nullable=False),
+        sa.UniqueConstraint("service_id", "branch_id", name="uq_service_prices_service_branch"),
     )
     op.create_index("ix_service_prices_service_id", "service_prices", ["service_id"])
     op.create_index("ix_service_prices_branch_id", "service_prices", ["branch_id"])
-    op.create_unique_constraint(
-        "uq_service_prices_service_branch", "service_prices", ["service_id", "branch_id"],
-    )
 
     op.create_table(
         "business_settings",
@@ -50,7 +51,9 @@ def upgrade():
 
 def downgrade():
     op.drop_table("business_settings")
-    op.drop_constraint("uq_service_prices_service_branch", "service_prices", type_="unique")
+    # No need to drop the unique constraint separately -- drop_table below
+    # takes it with it on every dialect, and SQLite can't ALTER a
+    # constraint off a live table anyway.
     op.drop_index("ix_service_prices_branch_id", table_name="service_prices")
     op.drop_index("ix_service_prices_service_id", table_name="service_prices")
     op.drop_table("service_prices")

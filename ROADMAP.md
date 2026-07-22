@@ -109,7 +109,28 @@ comercial, recordatorios/señas, recetas, estudios, documentos clínicos y
 consentimientos) queda cerrado. Quedan pendientes de Fase 2 solo las
 decisiones no clínicas: facturación/caja (si se incorpora LibraCore) y
 dashboard/reportes.
-- Facturación/caja, solo si se decide incorporar LibraCore.
+- SQLite como destino de producción por defecto (completo). Al scopear
+  facturación con LibraCore salió a la luz que Contalibra/Restolibra
+  despliegan con arquitectura silo real (instancia + SQLite aislada por
+  cliente) y que MedLibra ya prevé el mismo patrón — mantenerlo en
+  Postgres no aportaba nada y complicaba cualquier composición futura
+  con LibraCore (SQLite-only). LibraGenda actualizado a `v0.6.0`
+  (`PRAGMA foreign_keys=ON` automático en SQLite). Bug real corregido de
+  paso: `BranchRepository.delete()` con orden de borrado invertido
+  (mismo patrón que `PatientRepository`, portado verbatim desde
+  Gestiolibra). `DELETE` de sucursales/recursos/servicios ahora 409 en
+  vez de 500 con dependientes. Postgres sigue soportado. Ver
+  `DECISIONS.md` ADR-015.
+- Facturación/caja con LibraCore — decisión de fondo tomada (sí
+  integrar), **pausada** al scopearla en detalle: toca tres repos
+  (LibraGenda necesita un `complete()` de turno; LibraCore necesita
+  extraer a un módulo reutilizable la orquestación de facturación ARCA
+  que hoy solo vive en el código propio de Contalibra, no en el paquete
+  `libracore`, y migrar Contalibra a consumirla; MedLibra construye la
+  integración) y requiere credenciales AFIP reales que solo el usuario
+  puede cargar. Retomar con ese plan cuando haya tiempo para revisar con
+  cuidado el cambio a una librería fiscal ya en producción real. Ver
+  `TASKS.md`.
 - Dashboard y reportes.
 
 ## Fase 3 — producto

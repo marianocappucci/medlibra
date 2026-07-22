@@ -92,4 +92,6 @@ def delete_resource(
         catalog.delete_resource(resource_id)
     except KeyError:
         raise HTTPException(404, "resource not found")
+    except IntegrityError:
+        raise HTTPException(409, "resource still has dependent records")
     return Response(status_code=204)

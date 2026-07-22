@@ -51,3 +51,11 @@ def test_branch_duplicate_id_returns_409(admin_client: TestClient):
 def test_branch_rejects_invalid_data(admin_client: TestClient):
     response = admin_client.post("/branches", json={"id": "", "name": "Centro"})
     assert response.status_code == 422
+
+
+def test_cannot_delete_a_branch_with_a_resource_pointing_at_it(admin_client: TestClient):
+    client = admin_client
+    client.post("/branches", json={"id": "branch-1", "name": "Centro"})
+    client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1"})
+    response = client.delete("/branches/branch-1")
+    assert response.status_code == 409

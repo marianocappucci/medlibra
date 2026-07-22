@@ -81,4 +81,6 @@ def delete_branch(branch_id: str, branches: BranchRepository = Depends(get_branc
         branches.delete(branch_id)
     except KeyError:
         raise HTTPException(404, "branch not found")
+    except IntegrityError:
+        raise HTTPException(409, "branch still has dependent records")
     return Response(status_code=204)

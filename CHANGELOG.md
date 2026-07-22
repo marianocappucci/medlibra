@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- **SQLite pasa a ser el destino de producción por defecto** (arquitectura
+  silo, mismo estándar que toda la familia Libra) — Postgres sigue
+  soportado, ver `DECISIONS.md` ADR-015. LibraGenda actualizado a
+  `v0.6.0` (activa `PRAGMA foreign_keys=ON` en toda conexión SQLite). CI
+  ya no levanta un servicio Postgres, corre contra un archivo SQLite.
+  Bug real corregido de paso: `BranchRepository.delete()` borraba el
+  `Branch` antes que `BranchContactRow` (FK invertida) — mismo patrón que
+  `PatientRepository`, portado verbatim desde Gestiolibra. `DELETE` de
+  sucursales, recursos y servicios ahora devuelve 409 (antes 500) cuando
+  todavía tienen registros dependientes.
 - Consentimientos: `POST`/`GET /patients/{id}/consents` y
   `GET`/`DELETE /patients/{id}/consents/{consent_id}` — admin+staff,
   DELETE admin-only. Registro de consentimiento informado (procedimiento,

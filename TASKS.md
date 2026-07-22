@@ -9,13 +9,31 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Decidir facturación/caja (LibraCore) y dashboard/reportes — únicos
-      ítems no clínicos que quedan de Fase 2, ver `ROADMAP.md`.
+- [ ] Retomar la integración de facturación/caja con LibraCore (decisión
+      de fondo ya tomada: sí integrar) — pausada el 2026-07-22 por
+      alcance real mayor al esperado (toca 3 repos, incluida la
+      orquestación de facturación ARCA que hoy solo vive en el código de
+      Contalibra, no en el paquete `libracore`; requiere credenciales
+      AFIP reales que solo el usuario puede cargar). Plan acordado antes
+      de pausar: (1) LibraGenda agrega `complete()` al turno; (2)
+      LibraCore extrae la orquestación de facturación de Contalibra a un
+      módulo reutilizable y Contalibra migra a consumirlo; (3) MedLibra
+      construye la integración (CUIT/condición de IVA como extensión del
+      paciente, config ARCA del consultorio, disparo automático al
+      completar turno/cobrar seña, y falta definir el campo "medio de
+      pago" que hoy no existe en ningún lado de LibraGenda). El cambio a
+      SQLite (ver más abajo) simplifica un poco el punto de la base
+      separada para LibraCore que se había identificado al scopear esto
+      — sigue siendo dos schemas/conexiones distintos (SQLAlchemy para
+      LibraGenda/MedLibra, `sqlite3` crudo para LibraCore), pero ya no
+      hace falta correr dos motores de base de datos en paralelo; a
+      confirmar en detalle cuando se retome. Ver `ROADMAP.md`.
+- [ ] Dashboard/reportes — único ítem de Fase 2 sin alcance definido.
 
 ## Decisiones pendientes
 
-- [ ] Decidir si MedLibra incorpora LibraCore además para facturación y
-      caja (ya se sumó como dependencia para `SessionAuth`).
+Ninguna. (SQLite vs. Postgres se resolvió — ver más abajo. Facturación
+con LibraCore ya tiene decisión de fondo tomada, ver "Próximas".)
 
 ## Bloqueadas
 
@@ -68,6 +86,14 @@ embebido; append-only sin revocación editable. `POST`/
 `GET /patients/{id}/consents`, `DELETE` admin-only. Migración
 `0008_consents`. Cierra el dominio clínico completo de Fase 2 — quedan
 solo facturación/caja y dashboard/reportes, ninguno clínico.
+
+Resuelto (2026-07-22): SQLite como destino de producción por defecto
+(estándar de familia, ver `DECISIONS.md` ADR-015). LibraGenda a
+`v0.6.0`. Bug real corregido: `BranchRepository.delete()` con orden de
+borrado invertido (FK), portado verbatim desde Gestiolibra el mismo día
+que la configuración comercial. `DELETE` de sucursales/recursos/
+servicios ahora devuelve 409 en vez de 500 con dependientes. CI
+simplificado (sin servicio Postgres).
 
 ## Notas de testing
 

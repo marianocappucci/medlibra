@@ -61,7 +61,7 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
   señas (`/appointments/{id}/deposit` admin+staff, `/deposits/{id}/...`
   admin-only).
 - `MODULES.md`: inventario operativo de módulos.
-- LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
+- LibraGenda `v0.6.0`: dependencia versionada para dominio, persistencia y
   migraciones propias.
 - LibraCore: dependencia versionada solo por `libracore.auth.SessionAuth`
   (facturación/caja sigue sin decidir, ver `DECISIONS.md` ADR-003).
@@ -214,9 +214,9 @@ contamina el motor, vive enteramente en MedLibra.
 
 ## Persistencia e integración
 
-La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa PostgreSQL dedicado para MedLibra. Las migraciones de LibraGenda se ejecutan desde un checkout del repositorio upstream en la versión exacta pineada, antes de iniciar la API; no se usa `create_all()` en producción para las tablas de LibraGenda.
+La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL`. **SQLite es el destino de producción por defecto** (arquitectura silo: una base aislada por instancia/cliente, mismo estándar que toda la familia Libra — ver `DECISIONS.md` ADR-015); PostgreSQL sigue soportado para el caso puntual que lo amerite, sin cambios de código. Las migraciones de LibraGenda se ejecutan desde un checkout del repositorio upstream en la versión exacta pineada, antes de iniciar la API; no se usa `create_all()` en producción para las tablas de LibraGenda.
 
-`pyproject.toml` pinea LibraGenda `v0.5.0` (actualizado desde `v0.3.0`, ver
+`pyproject.toml` pinea LibraGenda `v0.6.0` (actualizado desde `v0.3.0`, ver
 `DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`users`,
 `patients`, `clinical_notes`, desde `0004_business_config` también
 `branch_contacts`/`branch_hours`/`service_prices`/`business_settings`,

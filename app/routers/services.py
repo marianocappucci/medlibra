@@ -94,4 +94,6 @@ def delete_service(
         catalog.delete_service(service_id)
     except KeyError:
         raise HTTPException(404, "service not found")
+    except IntegrityError:
+        raise HTTPException(409, "service still has dependent records")
     return Response(status_code=204)

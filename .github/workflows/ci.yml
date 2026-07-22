@@ -10,23 +10,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: medlibra
-          POSTGRES_USER: medlibra_ci
-          POSTGRES_PASSWORD: medlibra_ci_only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U medlibra_ci -d medlibra"
-          --health-interval 3s
-          --health-timeout 3s
-          --health-retries 10
-
+    # SQLite is the production default for the whole Libra family (silo
+    # deployment: one isolated instance per client) -- no service
+    # container needed, the smoke check below runs against a plain file.
     env:
-      DATABASE_URL: postgresql+psycopg://medlibra_ci:medlibra_ci_only@localhost:5432/medlibra
+      DATABASE_URL: sqlite:///${{ github.workspace }}/ci.db
 
     steps:
       - uses: actions/checkout@v4

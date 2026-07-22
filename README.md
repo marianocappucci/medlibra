@@ -5,7 +5,7 @@ centros médicos.
 
 Compone:
 
-- LibraGenda `v0.5.0` — agenda, recursos, servicios, ciclo de vida de turnos,
+- LibraGenda `v0.6.0` — agenda, recursos, servicios, ciclo de vida de turnos,
   disponibilidad/bloqueos/excepciones, feriados y timezone por sucursal,
   recurrencias, recordatorios (puerto de notificaciones), señas (puerto de
   pagos) y motivo opcional de cancelación/reprogramación.
@@ -66,11 +66,9 @@ borrar ninguno de los dos. A diferencia de Gestiolibra (donde `staff` solo
 toca turnos), acá el rol clínico necesita acceso a los datos del paciente
 para hacer su trabajo.
 
-LibraGenda permanece como paquete reutilizable con PostgreSQL dedicado y
-migraciones propias — base `medlibra` en el mismo Postgres 16 del VPS Donweb
-que aloja la de LibraGenda, migrada con las migraciones del propio paquete
-de LibraGenda (no se distribuyen en el wheel de pip, se aplican desde un
-checkout de esa versión exacta contra `DATABASE_URL`).
+LibraGenda permanece como paquete reutilizable con migraciones propias,
+migradas desde un checkout de esa versión exacta contra `DATABASE_URL`
+(no se distribuyen en el wheel de pip).
 
 No confundir con los sistemas de salud del Servidor Homei (PACS, Farmacia,
 Portal de Pacientes) — son proyectos completamente separados, sin relación
@@ -81,6 +79,16 @@ Los documentos clínicos subidos se guardan en filesystem local bajo
 producción, un volumen persistente montado en ese path, mismo patrón que
 `DATA_DIR` de Contalibra/Restolibra; ver `DECISIONS.md` ADR-013).
 
+## Base de datos
+
+**SQLite es el destino de producción por defecto**, mismo estándar que
+toda la familia Libra (arquitectura silo: una instancia/base aislada por
+cliente, igual que Contalibra/Restolibra — ver `DECISIONS.md` ADR-015).
+`LibraGenda.configure(url)` activa `PRAGMA foreign_keys=ON`
+automáticamente para cualquier conexión SQLite. PostgreSQL sigue
+soportado vía la misma `DATABASE_URL` para el caso puntual que lo
+amerite, sin cambios de código.
+
 ## Migraciones
 
 Dos cadenas de Alembic independientes corren contra la **misma** base
@@ -90,10 +98,10 @@ ambas, en este orden, antes de levantar la API:
 
 **1. Migraciones de LibraGenda** (schema del motor). No viajan en el wheel
 instalado por pip, se aplican clonando el repo en el tag pineado en
-`pyproject.toml` (hoy `v0.5.0`):
+`pyproject.toml` (hoy `v0.6.0`):
 
 ```bash
-LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
+LIBRAGENDA_REF=v0.6.0 DATABASE_URL="sqlite:///data/medlibra.db" \
   bash path/a/libragenda/scripts/run_migrations.sh
 ```
 
@@ -118,8 +126,8 @@ que LibraGenda y Gestiolibra.
 
 `.github/workflows/ci.yml`: en cada push/PR a `main` — instala el paquete,
 corre `pytest`, y como smoke check aplica las dos cadenas de Alembic
-(LibraGenda + propia) contra un Postgres 16 de servicio, mismo orden que
-un deploy real.
+(LibraGenda + propia) contra un archivo SQLite, mismo orden que un
+deploy real. Sin servicio de base de datos que levantar.
 
 **Requiere un secret `LIBRA_PAT`** en este repo (Settings → Secrets and
 variables → Actions): `libragenda` y `libracore` son privados, y el
@@ -151,5 +159,5 @@ pytest
 uvicorn app.main:app --reload
 ```
 
-La base PostgreSQL y las migraciones de LibraGenda deben estar configuradas
-antes de iniciar la aplicación real.
+Las migraciones de LibraGenda y las propias deben aplicarse (`alembic
+upgrade head` en ambas cadenas) antes de iniciar la aplicación real.

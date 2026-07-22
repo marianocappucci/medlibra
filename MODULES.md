@@ -68,8 +68,9 @@
   para una app server-rendered, no para esta API JSON pura).
 - `app/security.py`: hashing de contraseñas PBKDF2, mismo algoritmo que
   `libracore.db.usuarios` y que Gestiolibra (ver `DECISIONS.md`
-  de ese repo, ADR-005) — reimplementado porque ese módulo está acoplado a
-  SQLite y MedLibra usa PostgreSQL/SQLAlchemy.
+  de ese repo, ADR-005) — reimplementado en vez de importar las funciones
+  privadas (prefijo `_`) de ese módulo, no pensado para reuso directo
+  (razón que se sostiene aunque ambos usen SQLite hoy).
 - `app/services/users.py`: `UserRow` (tabla propia de MedLibra) +
   `UserRepository` + `ensure_default_admin()` (bootstrap fail-closed, igual
   criterio que `SECRET_KEY`: sin `MEDLIBRA_ADMIN_PASSWORD` la app no
