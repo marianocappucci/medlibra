@@ -387,3 +387,101 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   borrado bloqueado por FK (sucursal con recurso, recurso y servicio con
   turno) devolviendo 409 en vez de 500. Postgres sigue funcionando si se
   pasa esa `DATABASE_URL`; no se retira como opción.
+
+## ADR-016 — Facturación/caja con LibraCore: una factura por turno completado
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: retomó la decisión pausada el mismo día (ver TASKS.md) de
+  incorporar LibraCore para facturación/caja. El plan acordado antes de
+  pausar tenía tres pasos: (1) LibraGenda expone `complete()` para el
+  turno (hecho, `v0.7.0`); (2) LibraCore extrae la orquestación de
+  numeración/CAE de `web/helpers/arca_helper.py` de Contalibra a un
+  módulo reutilizable propio (hecho, `libracore.arca_facturacion`,
+  `v0.16.0` — resultó mucho más simple de lo estimado: toda la capa de
+  datos (`libracore.db.facturas`/`arca_config`/`caja`) ya estaba
+  centralizada desde la Fase 3 de LibraCore, solo faltaba mover la
+  función de glue); (3) MedLibra construye la integración — este ADR.
+  De paso, Contalibra y Restolibra migraron su propio `arca_helper.py` a
+  un shim de 3 líneas sobre ese módulo nuevo (mismo patrón que el resto
+  de LibraCore), con confirmación explícita del usuario en cada paso de
+  producción.
+
+  Antes de codificar la integración de MedLibra se resolvieron dos
+  preguntas reales con el usuario (`AskUserQuestion`): (1) **cuándo se
+  factura** — una sola factura al completar el turno (no una por seña +
+  otra por saldo); (2) **cómo se determina el tipo de comprobante** —
+  A si el paciente es Responsable Inscripto, B en cualquier otro caso
+  (Consumidor Final, Monotributista, etc. — sin discriminar C).
+
+- Decisión — arquitectura: `libracore.db` es sqlite3 crudo con una
+  conexión propia (`libracore.db.core.configure()`), completamente
+  separada del engine SQLAlchemy que usa LibraGenda/MedLibra para el
+  resto del dominio — dos archivos SQLite distintos, sin capa de
+  abstracción compartida entre ambos (ver TASKS.md previo, que ya
+  anticipaba esto). `app/services/billing.py` es el único punto que
+  conoce `libracore.db`; el resto de la app no lo importa directo.
+  `billing.configure(path)` se llama una vez al arrancar (mismo patrón
+  que `libragenda.database.configure()`), asegura el schema compartido
+  (`init_core_schema`, `CREATE TABLE IF NOT EXISTS` — no hay Alembic
+  para esta parte, LibraCore nunca lo tuvo) y una caja por defecto.
+
+- Decisión — dominio: **CUIT y condición de IVA como extensión del
+  paciente** (`patients.cuit`/`condicion_iva`, mismo patrón que
+  `dni`/`birth_date`, migración `0009_patient_billing_fields`). MedLibra
+  es de **instancia única por cliente** (arquitectura silo, igual que
+  Contalibra/Restolibra) — una sola "empresa" ARCA, constante fija
+  (`EMPRESA = "consultorio"`), sin tabla de empresas para elegir.
+  `POST /appointments/{id}/complete` (nuevo endpoint, junto con
+  `AppointmentService.complete()`/`InMemoryScheduler.complete()` de
+  LibraGenda `v0.7.0`) completa el turno y, **solo si hay un precio
+  configurado** para el servicio en esa sucursal (`service_prices`,
+  opt-in — sin precio, no factura nada, mismo criterio que
+  `branch_hours`), factura el total. La seña ya cobrada (si existe,
+  vía `Deposit`/`medio_pago` de LibraGenda `v0.8.0`) y el saldo restante
+  se registran como **dos movimientos de caja separados** — cada uno
+  con su propio medio de pago — apuntando a la **misma** factura; la
+  seña nunca genera su propia factura. Si hay saldo positivo sin
+  `medio_pago` en el body, 422 (validado **antes** de completar el
+  turno en LibraGenda — si se validara después, un turno podría quedar
+  completado sin facturar y sin forma de reintentar, ya que `COMPLETED`
+  no admite otra transición).
+
+- Decisión — tipo de comprobante e IVA: `IVA_CODES` (dict chico,
+  replicado de `IVA_CODES` de Contalibra en
+  `web/routers/facturas.py`, no migrado a LibraCore por ser estable y
+  minúsculo) mapea la condición de IVA del paciente al código que exige
+  ARCA. El cálculo de IVA (`_split_iva`, 21% sobre el monto final)
+  es una **simplificación documentada**: no contempla servicios de salud
+  exentos ni otras alícuotas — a revisar con un contador antes de
+  facturar contra ARCA real (el modo dev sigue usando CAE simulado,
+  ver `TASKS.md`).
+
+- Decisión — certificados ARCA: `PUT /config/arca` acepta
+  `certificado_path`/`clave_path` como **strings** (rutas en el
+  filesystem del servidor), no upload multipart — a diferencia de
+  `clinical_documents`, que sí sube archivos. El admin coloca los
+  archivos a mano (mismo patrón que Contalibra usaba antes de tener
+  cualquier UI de carga). Upload propio queda como mejora futura si
+  hace falta, no bloqueante para el flujo de facturación en sí.
+
+- Consecuencias: `libragenda` actualizado a `v0.8.0`, `libracore` a
+  `v0.16.1` (incluye el fix de `python-multipart` como dependencia
+  runtime faltante, encontrado al revisar el CI de LibraCore de paso).
+  36 tests nuevos (11 en `test_billing.py`, 2 en `test_patients.py`, 1
+  en `test_deposits.py`, más los de LibraGenda). Verificado con la
+  suite completa (con reruns para descartar el flake ya documentado del
+  reloj de WSL2 — esta ronda encontró además un bug real preexistente y
+  no relacionado, `test_reminders.py::test_dispatch_sends_due_
+  reminders_and_is_idempotent`, reproducible en checkout limpio antes de
+  cualquier cambio de esta sesión — flagueado aparte, no corregido acá)
+  + end-to-end completo contra archivos SQLite reales (no `:memory:` —
+  `libracore.db` abre una conexión nueva por llamada, así que
+  `:memory:` le daría una base vacía distinta cada vez): login, config
+  ARCA, turno con seña parcial (mercadopago) + saldo (efectivo),
+  factura tipo B con CAE simulado, dos movimientos de caja apuntando a
+  la misma factura, verificado leyendo ambos archivos SQLite
+  directamente. Migración `0009` verificada con `upgrade head` →
+  `downgrade -1` → `upgrade head` contra un archivo real, después de
+  aplicar primero la cadena de LibraGenda (la de MedLibra depende de
+  `clients`).

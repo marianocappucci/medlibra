@@ -9,31 +9,21 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Retomar la integración de facturación/caja con LibraCore (decisión
-      de fondo ya tomada: sí integrar) — pausada el 2026-07-22 por
-      alcance real mayor al esperado (toca 3 repos, incluida la
-      orquestación de facturación ARCA que hoy solo vive en el código de
-      Contalibra, no en el paquete `libracore`; requiere credenciales
-      AFIP reales que solo el usuario puede cargar). Plan acordado antes
-      de pausar: (1) LibraGenda agrega `complete()` al turno; (2)
-      LibraCore extrae la orquestación de facturación de Contalibra a un
-      módulo reutilizable y Contalibra migra a consumirlo; (3) MedLibra
-      construye la integración (CUIT/condición de IVA como extensión del
-      paciente, config ARCA del consultorio, disparo automático al
-      completar turno/cobrar seña, y falta definir el campo "medio de
-      pago" que hoy no existe en ningún lado de LibraGenda). El cambio a
-      SQLite (ver más abajo) simplifica un poco el punto de la base
-      separada para LibraCore que se había identificado al scopear esto
-      — sigue siendo dos schemas/conexiones distintos (SQLAlchemy para
-      LibraGenda/MedLibra, `sqlite3` crudo para LibraCore), pero ya no
-      hace falta correr dos motores de base de datos en paralelo; a
-      confirmar en detalle cuando se retome. Ver `ROADMAP.md`.
 - [ ] Dashboard/reportes — único ítem de Fase 2 sin alcance definido.
+- [ ] Upload real de certificado/clave ARCA (`PUT /config/arca` hoy acepta
+      solo paths en el filesystem del servidor, el admin coloca los
+      archivos a mano — ver ADR-016). Mejora futura, no bloqueante.
+- [ ] Revisar el cálculo de IVA de facturación (`_split_iva`, 21% fijo
+      sobre el monto final) con un contador antes de facturar contra ARCA
+      real — no contempla servicios de salud exentos ni otras alícuotas
+      (ver ADR-016).
+- [ ] Cargar credenciales ARCA reales (CUIT, certificado, alta de
+      servicio WSFE) cuando el usuario las tenga — hoy solo funciona en
+      modo mock (`ENV=development`).
 
 ## Decisiones pendientes
 
-Ninguna. (SQLite vs. Postgres se resolvió — ver más abajo. Facturación
-con LibraCore ya tiene decisión de fondo tomada, ver "Próximas".)
+Ninguna.
 
 ## Bloqueadas
 
@@ -94,6 +84,26 @@ borrado invertido (FK), portado verbatim desde Gestiolibra el mismo día
 que la configuración comercial. `DELETE` de sucursales/recursos/
 servicios ahora devuelve 409 en vez de 500 con dependientes. CI
 simplificado (sin servicio Postgres).
+
+Resuelto (2026-07-22): facturación/caja con LibraCore (ver ADR-016).
+CUIT/condición de IVA como extensión del paciente (migración
+`0009_patient_billing_fields`). `POST /appointments/{id}/complete`
+completa el turno (LibraGenda `v0.7.0`) y, si el servicio tiene precio
+configurado en la sucursal, factura el total con
+`libracore.arca_facturacion` (LibraCore `v0.16.1`) — una sola factura,
+tipo A/B según condición de IVA del paciente, seña ya cobrada y saldo
+restante como dos movimientos de caja separados apuntando a la misma
+factura. `PUT`/`GET /config/arca` (admin-only) para la config ARCA del
+consultorio (instancia única, "empresa" fija). `libragenda` a `v0.8.0`
+(agrega `medio_pago` opcional a `Deposit`). Contalibra/Restolibra
+migraron su `arca_helper.py` propio a un shim sobre el módulo nuevo de
+LibraCore, con confirmación explícita del usuario en cada paso de
+producción. 36 tests nuevos, verificado además end-to-end contra
+archivos SQLite reales (no memoria — `libracore.db` abre una conexión
+nueva por llamada). Bug real preexistente encontrado y flagueado aparte
+(no corregido en esta ronda): `test_reminders.py::test_dispatch_
+sends_due_reminders_and_is_idempotent` falla con 409 al crear un turno,
+reproducible en un checkout limpio sin ningún cambio de esta sesión.
 
 ## Notas de testing
 

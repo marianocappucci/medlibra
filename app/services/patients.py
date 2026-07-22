@@ -28,6 +28,8 @@ class PatientRow(Base):
     id: Mapped[str] = mapped_column(ForeignKey("clients.id"), primary_key=True)
     dni: Mapped[str | None] = mapped_column(String(20), nullable=True)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cuit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    condicion_iva: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class PatientHasClinicalNotes(Exception):
@@ -57,12 +59,15 @@ class PatientRepository:
     def create(
         self, id: str, name: str, phone: str | None, email: str | None, active: bool,
         dni: str | None, birth_date: date | None,
+        cuit: str | None = None, condicion_iva: str | None = None,
     ) -> dict:
         client = Client(id, name, phone, email, active)
         self.catalog.add_client(client)  # raises IntegrityError on duplicate id
         with self.session_factory.begin() as session:
-            session.add(PatientRow(id=id, dni=dni, birth_date=birth_date))
-        return self._to_out(client, dni, birth_date)
+            session.add(PatientRow(
+                id=id, dni=dni, birth_date=birth_date, cuit=cuit, condicion_iva=condicion_iva,
+            ))
+        return self._to_out(client, dni, birth_date, cuit, condicion_iva)
 
     def get(self, patient_id: str) -> dict | None:
         client = self.catalog.get_client(patient_id)
@@ -78,6 +83,8 @@ class PatientRepository:
                 client,
                 extensions[client.id].dni if client.id in extensions else None,
                 extensions[client.id].birth_date if client.id in extensions else None,
+                extensions[client.id].cuit if client.id in extensions else None,
+                extensions[client.id].condicion_iva if client.id in extensions else None,
             )
             for client in self.catalog.list_clients()
         ]
@@ -85,6 +92,7 @@ class PatientRepository:
     def update(
         self, patient_id: str, name: str, phone: str | None, email: str | None, active: bool,
         dni: str | None, birth_date: date | None,
+        cuit: str | None = None, condicion_iva: str | None = None,
     ) -> dict:
         client = Client(patient_id, name, phone, email, active)
         self.catalog.update_client(patient_id, client)  # raises KeyError if missing
@@ -94,7 +102,8 @@ class PatientRepository:
                 row = PatientRow(id=patient_id)
                 session.add(row)
             row.dni, row.birth_date = dni, birth_date
-        return self._to_out(client, dni, birth_date)
+            row.cuit, row.condicion_iva = cuit, condicion_iva
+        return self._to_out(client, dni, birth_date, cuit, condicion_iva)
 
     def delete(self, patient_id: str) -> None:
         with self.session_factory() as session:
@@ -124,15 +133,23 @@ class PatientRepository:
                 session.delete(row)
         self.catalog.delete_client(patient_id)  # raises KeyError if missing
 
-    def _extension(self, patient_id: str) -> tuple[str | None, date | None]:
+    def _extension(
+        self, patient_id: str
+    ) -> tuple[str | None, date | None, str | None, str | None]:
         with self.session_factory() as session:
             row = session.get(PatientRow, patient_id)
-            return (row.dni, row.birth_date) if row else (None, None)
+            return (row.dni, row.birth_date, row.cuit, row.condicion_iva) if row else (
+                None, None, None, None,
+            )
 
     @staticmethod
-    def _to_out(client: Client, dni: str | None, birth_date: date | None) -> dict:
+    def _to_out(
+        client: Client, dni: str | None, birth_date: date | None,
+        cuit: str | None = None, condicion_iva: str | None = None,
+    ) -> dict:
         return {
             "id": client.id, "name": client.name, "phone": client.phone,
             "email": client.email, "active": client.active,
             "dni": dni, "birth_date": birth_date,
+            "cuit": cuit, "condicion_iva": condicion_iva,
         }

@@ -13,12 +13,24 @@
   fechas.
 - `app/services/patients.py`: `PatientRepository` — coordina el `Client`
   genérico de LibraGenda (identidad/agenda) con la extensión clínica propia
-  de MedLibra (`PatientRow`: `dni`, `birth_date`), dos tablas mantenidas en
+  de MedLibra (`PatientRow`: `dni`, `birth_date`, y desde ADR-016
+  `cuit`/`condicion_iva` para facturación), dos tablas mantenidas en
   sync en el borde de la API en vez de mezclarse en una sola. `delete()`
   rechaza (409, vía `PatientHasClinicalNotes`) borrar un paciente que
   todavía tiene notas de historia clínica — sin esto, en PostgreSQL
   violaría la FK de `clinical_notes`, y en SQLite (sin FK forzada por
   default) las dejaría huérfanas silenciosamente.
+- `app/services/billing.py`: integración de facturación/caja con
+  `libracore.db` (sqlite3 crudo, conexión propia vía
+  `libracore.db.core.configure()`, separada del engine SQLAlchemy del
+  resto de la app). `configure(path)` asegura el schema compartido y
+  una caja por defecto; `get_arca_config()`/`set_arca_config()` — una
+  sola "empresa" fija (instancia única por cliente);
+  `invoice_appointment()` — una factura por el total del servicio (tipo
+  A/B según condición de IVA del paciente vía `arca_facturacion` de
+  LibraCore), seña ya cobrada y saldo restante como dos movimientos de
+  caja separados apuntando a la misma factura. Ver `DECISIONS.md`
+  ADR-016.
 - `app/services/clinical_notes.py`: `ClinicalNoteRepository` — historia
   clínica básica: notas de evolución en texto libre por paciente
   (`id`, `patient_id`, `created_at`, `author`, `text`). **Append-only por
@@ -111,17 +123,17 @@
   `/{document_id}/file`, admin+staff salvo `DELETE`), `consents.py`
   (`/patients/{id}/consents`, admin+staff salvo `DELETE`),
   `appointments.py` (crear/confirmar/
-  cancelar/reprogramar, admin+staff — `create`/`reschedule` validan
-  además el horario comercial si está configurado), `agenda.py`
+  cancelar/reprogramar/**completar**, admin+staff — `create`/`reschedule`
+  validan además el horario comercial si está configurado; `complete`
+  factura con LibraCore si el servicio tiene precio configurado, ver
+  ADR-016), `agenda.py`
   (admin+staff), `reminders.py` (`/reminders/dispatch`, admin-only),
   `deposits.py` (`/appointments/{id}/deposit` admin+staff,
-  `/deposits/{id}/mark-paid`/`mark-failed`/`refund` admin-only) —
+  `/deposits/{id}/mark-paid`/`mark-failed`/`refund` admin-only —
+  `mark-paid` acepta `medio_pago` opcional desde LibraGenda `v0.8.0`),
+  `billing.py` (`/config/arca`, admin-only) —
   traducen excepciones de dominio a códigos HTTP (404/409/422).
   `/demo/seed` fue reemplazado por el CRUD real.
-
-## Próximos
-
-- `billing` (opcional, no decidido): composición de LibraCore para facturación/caja.
 
 ## Después del MVP
 

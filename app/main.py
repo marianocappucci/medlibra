@@ -15,9 +15,9 @@ from .auth import build_session_auth, require_admin, require_staff
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
-    agenda, appointments, availability, branch_hours, branches, business_settings,
-    clinical_documents, clinical_notes, consents, deposits, health, prescriptions,
-    reminders, resources, service_prices, services, study_orders,
+    agenda, appointments, availability, billing as billing_router, branch_hours, branches,
+    business_settings, clinical_documents, clinical_notes, consents, deposits, health,
+    prescriptions, reminders, resources, service_prices, services, study_orders,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -34,12 +34,14 @@ from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from .services.users import UserRepository, ensure_default_admin
+from .services import billing
 
 
 def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
     Base.metadata.create_all(get_engine())  # demo only; deploy uses Alembic
+    billing.configure(os.environ.get("MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"))
     sessions = get_session_factory()
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
@@ -91,6 +93,7 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(users_router.router, dependencies=admin_only)
     app.include_router(reminders.router, dependencies=admin_only)
     app.include_router(deposits.admin_router, dependencies=admin_only)
+    app.include_router(billing_router.router, dependencies=admin_only)
     # Clinical surface: staff (medical professionals) read/write patients,
     # write historia clinica, issue recetas, pedidos de estudios, upload
     # documentos clinicos and record consentimientos -- that's their actual

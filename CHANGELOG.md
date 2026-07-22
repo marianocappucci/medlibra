@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- **Facturación/caja con LibraCore**: CUIT/condición de IVA como
+  extensión del paciente (migración `0009_patient_billing_fields`),
+  `PUT`/`GET /config/arca` (config ARCA de instancia única, admin-only),
+  `POST /appointments/{id}/complete` — una factura por turno completado
+  cuando el servicio tiene precio configurado (tipo A/B según condición
+  de IVA), seña ya cobrada y saldo restante como movimientos de caja
+  separados sobre la misma factura. `libragenda` a `v0.8.0`, `libracore`
+  a `v0.16.1`. Ver `DECISIONS.md` ADR-016.
 - **SQLite pasa a ser el destino de producción por defecto** (arquitectura
   silo, mismo estándar que toda la familia Libra) — Postgres sigue
   soportado, ver `DECISIONS.md` ADR-015. LibraGenda actualizado a

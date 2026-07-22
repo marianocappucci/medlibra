@@ -13,6 +13,10 @@ def _dev_env(monkeypatch, tmp_path):
     # Uploaded clinical documents go to a per-test temp dir instead of the
     # repo's default ./data path -- pytest cleans tmp_path up automatically.
     monkeypatch.setenv("MEDLIBRA_DOCUMENTS_DIR", str(tmp_path / "medlibra_documents"))
+    # libracore.db is raw sqlite3 (a fresh connection per call, unlike
+    # SQLAlchemy's pooled engine) -- ":memory:" would give every call an
+    # empty, unrelated database. A real temp file per test is required.
+    monkeypatch.setenv("MEDLIBRA_LIBRACORE_DB_PATH", str(tmp_path / "medlibra_libracore.db"))
 
 
 def https_client(app) -> TestClient:

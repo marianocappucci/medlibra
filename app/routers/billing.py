@@ -1,0 +1,54 @@
+"""Configuracion ARCA del consultorio (admin-only).
+
+MedLibra es de instancia unica por cliente -- una sola "empresa" ARCA, sin
+lista de empresas para elegir (a diferencia de Contalibra/Restolibra,
+multi-empresa por diseño). Certificado/clave se referencian por path en el
+filesystem del servidor (mismo patron que Contalibra usaba antes de tener
+upload propio) -- subir el archivo real es tarea manual del admin todavia,
+no hay endpoint de carga (ver TASKS.md, mejora futura si hace falta).
+"""
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from ..services import billing
+
+router = APIRouter(prefix="/config/arca", tags=["billing"])
+
+
+class ArcaConfigIn(BaseModel):
+    cuit: str
+    punto_venta: int
+    certificado_path: str
+    clave_path: str
+    ambiente: str = "homologacion"
+
+
+class ArcaConfigOut(BaseModel):
+    empresa: str
+    cuit: str
+    punto_venta: int
+    ambiente: str
+    certificado_path: str
+    clave_path: str
+
+
+def _to_out(cfg: dict) -> ArcaConfigOut:
+    return ArcaConfigOut(
+        empresa=cfg["empresa"], cuit=cfg["cuit"], punto_venta=cfg["punto_venta"],
+        ambiente=cfg["ambiente"], certificado_path=cfg["certificado_path"],
+        clave_path=cfg["clave_path"],
+    )
+
+
+@router.get("")
+def get_arca_config() -> ArcaConfigOut | None:
+    cfg = billing.get_arca_config()
+    return _to_out(cfg) if cfg else None
+
+
+@router.put("", response_model=ArcaConfigOut)
+def set_arca_config(data: ArcaConfigIn) -> ArcaConfigOut:
+    cfg = billing.set_arca_config(
+        data.cuit, data.punto_venta, data.clave_path, data.certificado_path, data.ambiente,
+    )
+    return _to_out(cfg)

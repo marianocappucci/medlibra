@@ -19,6 +19,8 @@ class PatientCreate(BaseModel):
     active: bool = True
     dni: str | None = None
     birth_date: date | None = None
+    cuit: str | None = None
+    condicion_iva: str | None = None
 
 
 class PatientUpdate(BaseModel):
@@ -28,6 +30,8 @@ class PatientUpdate(BaseModel):
     active: bool = True
     dni: str | None = None
     birth_date: date | None = None
+    cuit: str | None = None
+    condicion_iva: str | None = None
 
 
 class PatientOut(BaseModel):
@@ -38,6 +42,8 @@ class PatientOut(BaseModel):
     active: bool
     dni: str | None
     birth_date: date | None
+    cuit: str | None
+    condicion_iva: str | None
 
 
 @router.post("", status_code=201, response_model=PatientOut)
@@ -47,6 +53,7 @@ def create_patient(
     try:
         return patients.create(
             data.id, data.name, data.phone, data.email, data.active, data.dni, data.birth_date,
+            data.cuit, data.condicion_iva,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc))
@@ -76,6 +83,7 @@ def update_patient(
     try:
         return patients.update(
             patient_id, data.name, data.phone, data.email, data.active, data.dni, data.birth_date,
+            data.cuit, data.condicion_iva,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc))

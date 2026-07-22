@@ -121,17 +121,21 @@ dashboard/reportes.
   Gestiolibra). `DELETE` de sucursales/recursos/servicios ahora 409 en
   vez de 500 con dependientes. Postgres sigue soportado. Ver
   `DECISIONS.md` ADR-015.
-- Facturación/caja con LibraCore — decisión de fondo tomada (sí
-  integrar), **pausada** al scopearla en detalle: toca tres repos
-  (LibraGenda necesita un `complete()` de turno; LibraCore necesita
-  extraer a un módulo reutilizable la orquestación de facturación ARCA
-  que hoy solo vive en el código propio de Contalibra, no en el paquete
-  `libracore`, y migrar Contalibra a consumirla; MedLibra construye la
-  integración) y requiere credenciales AFIP reales que solo el usuario
-  puede cargar. Retomar con ese plan cuando haya tiempo para revisar con
-  cuidado el cambio a una librería fiscal ya en producción real. Ver
-  `TASKS.md`.
-- Dashboard y reportes.
+- Facturación/caja con LibraCore (completo). Retomada y cerrada el mismo
+  día que se pausó: LibraGenda expone `complete()` (`v0.7.0`) y
+  `Deposit.medio_pago` opcional (`v0.8.0`); LibraCore extrae la
+  orquestación de numeración/CAE a `libracore.arca_facturacion`
+  (`v0.16.1`, Contalibra/Restolibra migrados a un shim sobre ese
+  módulo); MedLibra agrega CUIT/condición de IVA al paciente
+  (migración `0009`), config ARCA de instancia única
+  (`PUT`/`GET /config/arca`) y `POST /appointments/{id}/complete` —
+  una sola factura por turno completado (tipo A/B según condición de
+  IVA), seña y saldo como dos movimientos de caja separados apuntando
+  a la misma factura. Ver `DECISIONS.md` ADR-016. Credenciales ARCA
+  reales y revisión del cálculo de IVA con un contador quedan
+  pendientes (ver `TASKS.md`) — el modo mock (`ENV=development`) ya
+  funciona de punta a punta.
+- Dashboard y reportes — único ítem restante de Fase 2.
 
 ## Fase 3 — producto
 

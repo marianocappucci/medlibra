@@ -17,17 +17,22 @@ class DepositRequest(BaseModel):
     amount: Decimal
 
 
+class MarkPaidRequest(BaseModel):
+    medio_pago: str | None = None
+
+
 class DepositOut(BaseModel):
     id: str
     appointment_id: str
     amount: Decimal
     status: str
+    medio_pago: str | None = None
 
 
 def _to_out(deposit: Deposit) -> DepositOut:
     return DepositOut(
         id=deposit.id, appointment_id=deposit.appointment_id,
-        amount=deposit.amount, status=deposit.status.value,
+        amount=deposit.amount, status=deposit.status.value, medio_pago=deposit.medio_pago,
     )
 
 
@@ -51,9 +56,12 @@ def get_deposit(appointment_id: str, deposits: DepositRepository = Depends(get_d
 
 
 @admin_router.post("/{deposit_id}/mark-paid", response_model=DepositOut)
-def mark_paid(deposit_id: str, manager: DepositManager = Depends(get_deposit_manager)):
+def mark_paid(
+    deposit_id: str, data: MarkPaidRequest = MarkPaidRequest(),
+    manager: DepositManager = Depends(get_deposit_manager),
+):
     try:
-        return _to_out(manager.mark_paid(deposit_id))
+        return _to_out(manager.mark_paid(deposit_id, medio_pago=data.medio_pago))
     except DepositNotFound:
         raise HTTPException(404, "deposit not found")
     except InvalidDepositTransition as exc:

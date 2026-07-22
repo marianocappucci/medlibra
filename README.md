@@ -79,6 +79,12 @@ Los documentos clínicos subidos se guardan en filesystem local bajo
 producción, un volumen persistente montado en ese path, mismo patrón que
 `DATA_DIR` de Contalibra/Restolibra; ver `DECISIONS.md` ADR-013).
 
+Facturación/caja usa `libracore.db` — sqlite3 crudo con su propia
+conexión, configurada aparte del engine SQLAlchemy de LibraGenda/MedLibra
+vía `MEDLIBRA_LIBRACORE_DB_PATH` (default `./data/medlibra_libracore.db`,
+mismo criterio de volumen persistente que `MEDLIBRA_DOCUMENTS_DIR`). Ver
+`DECISIONS.md` ADR-016.
+
 ## Base de datos
 
 **SQLite es el destino de producción por defecto**, mismo estándar que

@@ -48,6 +48,17 @@ def test_admin_marks_deposit_paid(admin_client: TestClient):
     assert paid.json()["status"] == "paid"
 
 
+def test_admin_marks_deposit_paid_with_medio_pago(admin_client: TestClient):
+    client = admin_client
+    appointment_id = _seeded_appointment(client)
+    created = client.post(f"/appointments/{appointment_id}/deposit", json={"amount": "1000.00"})
+    deposit_id = created.json()["id"]
+
+    paid = client.post(f"/deposits/{deposit_id}/mark-paid", json={"medio_pago": "transferencia"})
+    assert paid.status_code == 200
+    assert paid.json()["medio_pago"] == "transferencia"
+
+
 def test_admin_marks_deposit_failed(admin_client: TestClient):
     client = admin_client
     appointment_id = _seeded_appointment(client)

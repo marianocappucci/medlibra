@@ -11,6 +11,7 @@ def test_patient_crud_round_trip(admin_client: TestClient):
     assert created.json() == {
         "id": "patient-1", "name": "Ana", "phone": "123", "email": None,
         "active": True, "dni": "30111222", "birth_date": "1990-05-01",
+        "cuit": None, "condicion_iva": None,
     }
 
     fetched = client.get("/patients/patient-1")
@@ -35,6 +36,25 @@ def test_patient_dni_and_birth_date_are_optional(admin_client: TestClient):
     assert created.status_code == 201
     assert created.json()["dni"] is None
     assert created.json()["birth_date"] is None
+    assert created.json()["cuit"] is None
+    assert created.json()["condicion_iva"] is None
+
+
+def test_patient_cuit_and_condicion_iva_round_trip(admin_client: TestClient):
+    client = admin_client
+    created = client.post("/patients", json={
+        "id": "patient-1", "name": "Ana",
+        "cuit": "20111222339", "condicion_iva": "Responsable Inscripto",
+    })
+    assert created.status_code == 201
+    assert created.json()["cuit"] == "20111222339"
+    assert created.json()["condicion_iva"] == "Responsable Inscripto"
+
+    updated = client.put("/patients/patient-1", json={
+        "name": "Ana", "cuit": "20111222339", "condicion_iva": "Monotributista",
+    })
+    assert updated.status_code == 200
+    assert updated.json()["condicion_iva"] == "Monotributista"
 
 
 def test_patient_not_found_returns_404(admin_client: TestClient):

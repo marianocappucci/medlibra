@@ -83,6 +83,10 @@ class AppointmentService:
         scheduler = InMemoryScheduler(repository=self.appointments)
         return scheduler.cancel(appointment_id, reason=reason)
 
+    def complete(self, appointment_id: str) -> Appointment:
+        scheduler = InMemoryScheduler(repository=self.appointments)
+        return scheduler.complete(appointment_id)
+
     def reschedule(
         self, appointment_id: str, starts_at: datetime, reason: str | None = None
     ) -> Appointment:
