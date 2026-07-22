@@ -120,3 +120,23 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   real que las dos cadenas conviven sin pisarse y que las FKs cruzadas
   (`patients.id` → `clients.id`) se crean correctamente. Cualquier tabla
   nueva propia de MedLibra se agrega acá, nunca en el repo de LibraGenda.
+
+## ADR-009 — Configuración comercial: mismo alcance y código que Gestiolibra
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: mismo ítem pendiente que tenía Gestiolibra ("configuración
+  comercial" anotado sin detallar). El usuario ya había definido el
+  alcance concreto para Gestiolibra el mismo día (horario, precio,
+  contacto/marca) y pidió el mismo feature para MedLibra.
+- Decisión: portar `branches.py`/`branch_hours.py`/`service_prices.py`/
+  `business_settings.py` de Gestiolibra verbatim — ninguna de las cuatro
+  piezas tiene lógica clínica ni específica del vertical (horario de
+  consultorio, precio de consulta y contacto/marca son conceptos
+  igual de genéricos que en un negocio de servicios). Mismas decisiones
+  de diseño que ADR-008 de Gestiolibra: horario opt-in, precio por par
+  (servicio, sucursal) no un campo único en `Service`, `business_settings`
+  como fila única.
+- Consecuencias: mismo razonamiento que ADR-008 de Gestiolibra sobre no
+  subir esto a LibraGenda todavía — si en el futuro se repite en un
+  tercer vertical, evaluar la extracción al motor común en ese momento.

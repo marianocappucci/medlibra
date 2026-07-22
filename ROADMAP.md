@@ -45,8 +45,17 @@ motor con clínica" de la Fase 3 del roadmap de LibraGenda.
 Con esto, MedLibra alcanza paridad funcional con Gestiolibra sobre
 LibraGenda, más su propio dominio clínico encima.
 
-## Fase 2 — operación clínica
+## Fase 2 — operación clínica (en curso)
 
+- Configuración comercial del consultorio (completo). Mismo alcance y
+  mismo código que Gestiolibra (portado verbatim, sin lógica propia del
+  vertical): horario comercial por sucursal (`branch_hours`, opt-in),
+  precio por servicio y sucursal (`service_prices`), contacto de
+  sucursal (`branch_contacts`: teléfono, dirección) y datos globales del
+  negocio (`business_settings`: nombre comercial, moneda). Migración
+  `0004_business_config` en el Alembic propio de MedLibra.
+  `AppointmentService.create()`/`reschedule()` validan el horario
+  comercial cuando está configurado.
 - Recetas, estudios, documentos clínicos, consentimientos.
 - Recordatorios y señas (composición de LibraGenda).
 - Facturación/caja, solo si se decide incorporar LibraCore.

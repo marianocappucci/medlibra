@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Configuración comercial del consultorio: `/branches/{id}/hours` (horario
+  comercial semanal por sucursal, opt-in), `/services/{id}/prices` (precio
+  por servicio y sucursal), `/branches` ahora acepta `phone`/`address`,
+  `/business` (nombre comercial y moneda, singleton). Mismo feature y
+  mismo código que Gestiolibra, portado verbatim. Migración
+  `0004_business_config`.
 - CI (GitHub Actions): `pytest` + smoke check de las dos cadenas de Alembic
   (LibraGenda + propia) contra Postgres de servicio, en cada push/PR a
   `main`. Requiere el secret `LIBRA_PAT` (ver `README.md`).

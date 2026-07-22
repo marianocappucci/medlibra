@@ -49,15 +49,25 @@
   para hacer su trabajo, así que `patients`/`clinical_notes` están
   gateados a `admin`+`staff` con un `Depends(require_admin)` extra solo en
   los endpoints `DELETE`.
+- `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
+  `business_settings.py`: configuración comercial del consultorio, todas
+  tablas propias de MedLibra — mismo feature, mismo código (portado
+  verbatim), ya construido para Gestiolibra el mismo día.
 - `app/routers/`: `health.py` (público), `auth.py` (`/auth/login`,
   `/auth/logout`, `/auth/me`), `users.py` (CRUD de usuarios, admin-only),
-  `branches.py`, `resources.py`, `services.py` (CRUD completo, admin-only),
-  `availability.py` (CRUD de ventanas/bloqueos/excepciones, admin-only),
-  `patients.py` (CRUD completo, admin+staff salvo `DELETE`),
-  `clinical_notes.py` (`/patients/{id}/notes`, admin+staff salvo `DELETE`),
-  `appointments.py` (crear/confirmar/cancelar/reprogramar, admin+staff),
-  `agenda.py` (admin+staff) — traducen excepciones de dominio a códigos
-  HTTP (404/409/422). `/demo/seed` fue reemplazado por el CRUD real.
+  `branches.py` (CRUD de sucursales, incluye teléfono/dirección),
+  `branch_hours.py` (`/branches/{id}/hours` — horario comercial, opt-in),
+  `resources.py`, `services.py` (CRUD completo, admin-only),
+  `service_prices.py` (`/services/{id}/prices` — precio por servicio y
+  sucursal), `business_settings.py` (`/business` — nombre comercial y
+  moneda, singleton), `availability.py` (CRUD de ventanas/bloqueos/
+  excepciones, admin-only), `patients.py` (CRUD completo, admin+staff
+  salvo `DELETE`), `clinical_notes.py` (`/patients/{id}/notes`,
+  admin+staff salvo `DELETE`), `appointments.py` (crear/confirmar/
+  cancelar/reprogramar, admin+staff — `create`/`reschedule` validan
+  además el horario comercial si está configurado), `agenda.py`
+  (admin+staff) — traducen excepciones de dominio a códigos HTTP
+  (404/409/422). `/demo/seed` fue reemplazado por el CRUD real.
 
 ## Próximos
 

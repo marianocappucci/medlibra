@@ -15,17 +15,21 @@ Compone:
 
 MedLibra posee la API HTTP y el dominio clínico propio. API: `/auth/login`,
 `/auth/logout`, `/auth/me` (sesión por cookie); CRUD de usuarios en `/users`
-(solo `admin`); CRUD de `/branches`, `/resources`, `/services` y
-disponibilidad (`/resources/{id}/availability`/`/blocks`/`/exceptions`,
-solo `admin`); `/patients` (CRUD completo — paciente = `Client` de
-LibraGenda + `dni`/`birth_date` propios, `admin`+`staff`, borrar es
-admin-only); `/patients/{id}/notes` (historia clínica básica — notas de
-evolución en texto libre, solo crear/listar/obtener/borrar sin editar,
-`admin`+`staff`, borrar es admin-only); `/appointments` (crear/confirmar/
-cancelar/reprogramar — `admin`+`staff`, valida contra la disponibilidad
-real configurada, cancelar/reprogramar aceptan `reason` opcional);
-`/resources/{id}/agenda` (turnos de un profesional en un rango de fechas).
-Evoluciones estructuradas, diagnósticos, recetas, estudios y
+(solo `admin`); CRUD de `/branches` (incluye `phone`/`address`),
+`/resources`, `/services` y disponibilidad
+(`/resources/{id}/availability`/`/blocks`/`/exceptions`, solo `admin`);
+horario comercial por sucursal en `/branches/{id}/hours` (opt-in); precio
+por servicio y sucursal en `/services/{id}/prices`; datos globales del
+consultorio (nombre comercial, moneda) en `/business`; `/patients` (CRUD
+completo — paciente = `Client` de LibraGenda + `dni`/`birth_date` propios,
+`admin`+`staff`, borrar es admin-only); `/patients/{id}/notes` (historia
+clínica básica — notas de evolución en texto libre, solo crear/listar/
+obtener/borrar sin editar, `admin`+`staff`, borrar es admin-only);
+`/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
+valida contra la disponibilidad real configurada y el horario comercial de
+la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
+opcional); `/resources/{id}/agenda` (turnos de un profesional en un rango
+de fechas). Evoluciones estructuradas, diagnósticos, recetas, estudios y
 consentimientos quedan para fases siguientes.
 
 ## Autenticación y roles
@@ -67,7 +71,8 @@ LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
 ```
 
 **2. Migraciones propias de MedLibra** (`users`, `patients`,
-`clinical_notes` — no pertenecen al dominio de LibraGenda, ver
+`clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
+`business_settings` — no pertenecen al dominio de LibraGenda, ver
 `MODULES.md`). Viajan en este mismo repo:
 
 ```bash

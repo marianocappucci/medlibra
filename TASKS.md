@@ -9,11 +9,9 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Configuración comercial por consultorio más allá del CRUD básico de
-      sucursales (mismo ítem que tiene Gestiolibra pendiente).
-- [ ] Definir alcance de Fase 2 (recetas, estudios, documentos clínicos,
-      consentimientos, recordatorios/señas, facturación si se decide
-      LibraCore, dashboard) — ver `ROADMAP.md`.
+- [ ] Definir alcance de Fase 2 restante (recetas, estudios, documentos
+      clínicos, consentimientos, recordatorios/señas, facturación si se
+      decide LibraCore, dashboard) — ver `ROADMAP.md`.
 
 ## Decisiones pendientes
 
@@ -30,6 +28,10 @@ compatibilidad revisada — ver `CHANGELOG.md`).
 Resuelto (2026-07-21): Alembic propio de MedLibra para `users`/`patients`/
 `clinical_notes` (`alembic_version_medlibra`, cadena independiente de la de
 LibraGenda sobre la misma base) — ver `README.md`.
+
+Resuelto (2026-07-22): configuración comercial del consultorio — horario
+por sucursal, precio por servicio y sucursal, contacto de sucursal y datos
+globales del negocio. Migración `0004_business_config`.
 
 ## Notas de testing
 

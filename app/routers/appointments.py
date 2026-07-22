@@ -11,7 +11,7 @@ from libragenda import (
 )
 
 from ..dependencies import get_appointment_service
-from ..services.appointments import AppointmentService, ServiceNotFound
+from ..services.appointments import AppointmentService, OutsideBusinessHours, ServiceNotFound
 
 router = APIRouter()
 
@@ -43,6 +43,8 @@ def create_appointment(
         )
     except ServiceNotFound:
         raise HTTPException(404, "service not found")
+    except OutsideBusinessHours:
+        raise HTTPException(409, "outside business hours")
     except AppointmentConflict:
         raise HTTPException(409, "appointment conflict")
     except AppointmentUnavailable:
@@ -91,6 +93,8 @@ def reschedule_appointment(
         raise HTTPException(404, "appointment not found")
     except InvalidTransition as exc:
         raise HTTPException(409, str(exc))
+    except OutsideBusinessHours:
+        raise HTTPException(409, "outside business hours")
     except AppointmentConflict:
         raise HTTPException(409, "appointment conflict")
     except AppointmentUnavailable:
