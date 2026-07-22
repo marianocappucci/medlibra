@@ -9,9 +9,9 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Definir alcance de Fase 2 restante (recetas, estudios, documentos
-      clínicos, consentimientos, recordatorios/señas, facturación si se
-      decide LibraCore, dashboard) — ver `ROADMAP.md`.
+- [ ] Definir alcance de Fase 2 restante (estudios, documentos clínicos,
+      consentimientos, facturación si se decide LibraCore, dashboard) —
+      ver `ROADMAP.md`.
 
 ## Decisiones pendientes
 
@@ -39,6 +39,15 @@ Gestiolibra, portado verbatim: `POST /reminders/dispatch`, `POST`/
 `mark-failed`/`refund`. Notificaciones y pago con puertos placeholder
 (`LoggingNotificationPort`, `ManualPaymentPort`) hasta definir proveedor
 real. Sin migración nueva (tablas de LibraGenda ya migradas).
+
+Resuelto (2026-07-22): recetas — una receta puede tener varios items
+(medicamento, dosis, indicaciones), append-only sin ciclo de vida propio
+(mismo criterio que `clinical_notes`). `POST`/`GET /patients/{id}/prescriptions`
+(admin+staff), `DELETE` admin-only. Migración `0005_prescriptions`. Bug
+encontrado y corregido en el camino: `PatientRepository.delete()` borraba
+el `Client` antes que la fila de extensión `PatientRow` (que tiene FK
+hacia `clients.id`) — funcionaba por accidente en SQLite (no fuerza FKs)
+pero rompía en PostgreSQL real; orden invertido.
 
 ## Notas de testing
 

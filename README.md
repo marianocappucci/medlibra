@@ -25,6 +25,9 @@ completo — paciente = `Client` de LibraGenda + `dni`/`birth_date` propios,
 `admin`+`staff`, borrar es admin-only); `/patients/{id}/notes` (historia
 clínica básica — notas de evolución en texto libre, solo crear/listar/
 obtener/borrar sin editar, `admin`+`staff`, borrar es admin-only);
+`/patients/{id}/prescriptions` (recetas — una receta con uno o más items
+de medicamento/dosis/indicaciones, mismo criterio append-only que las
+notas clínicas, `admin`+`staff`, borrar es admin-only);
 `/appointments` (crear/confirmar/cancelar/reprogramar — `admin`+`staff`,
 valida contra la disponibilidad real configurada y el horario comercial de
 la sucursal si está configurado, cancelar/reprogramar aceptan `reason`
@@ -33,8 +36,8 @@ de fechas); `/reminders/dispatch` (solo `admin`, dispara los recordatorios
 vencidos — 24h y 2h antes de cada turno, fijo); y
 `/appointments/{id}/deposit` (pedir/consultar una seña, `admin`+`staff`) +
 `/deposits/{id}/mark-paid`/`mark-failed`/`refund` (solo `admin`, confirma
-el estado de la seña). Evoluciones estructuradas, diagnósticos, recetas,
-estudios y consentimientos quedan para fases siguientes.
+el estado de la seña). Evoluciones estructuradas, diagnósticos, estudios y
+consentimientos quedan para fases siguientes.
 
 Recordatorios y señas todavía no tienen un canal real conectado (mismo
 estado que Gestiolibra): los recordatorios se loguean
@@ -81,8 +84,9 @@ LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
 
 **2. Migraciones propias de MedLibra** (`users`, `patients`,
 `clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
-`business_settings` — no pertenecen al dominio de LibraGenda, ver
-`MODULES.md`). Viajan en este mismo repo:
+`business_settings`, `prescriptions`, `prescription_items` — no
+pertenecen al dominio de LibraGenda, ver `MODULES.md`). Viajan en este
+mismo repo:
 
 ```bash
 DATABASE_URL="$DATABASE_URL" alembic upgrade head

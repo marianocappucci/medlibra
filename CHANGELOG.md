@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Recetas: `POST`/`GET /patients/{id}/prescriptions` y
+  `GET`/`DELETE /patients/{id}/prescriptions/{prescription_id}`
+  (admin+staff, DELETE admin-only). Una receta tiene uno o más items
+  (medicamento, dosis, indicaciones), append-only, sin ciclo de vida
+  propio (mismo criterio que `clinical_notes`) — ver ADR-011. Migración
+  `0005_prescriptions`. Bug de fondo corregido de paso:
+  `PatientRepository.delete()` borraba el `Client` antes que la extensión
+  `PatientRow` (FK invertida), invisible en SQLite pero rompía contra
+  PostgreSQL real.
 - Recordatorios y señas: mismo alcance y código que Gestiolibra, portado
   verbatim. `POST /reminders/dispatch` (admin-only, dispara avisos vencidos
   — 24h y 2h antes, fijo) y `POST`/`GET /appointments/{id}/deposit`

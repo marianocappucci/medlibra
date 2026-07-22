@@ -66,7 +66,15 @@ LibraGenda, más su propio dominio clínico encima.
   placeholders (`LoggingNotificationPort`, `ManualPaymentPort`) — ver
   `DECISIONS.md` ADR-010. Sin migración nueva (`deposits`/`sent_reminders`
   son tablas de LibraGenda, ya migradas por su propia cadena).
-- Recetas, estudios, documentos clínicos, consentimientos.
+- Recetas (completo). El usuario eligió este ítem entre el resto de la
+  Fase 2 (`AskUserQuestion`) y definió el alcance concreto: una receta
+  puede tener varios items (medicamento, dosis, indicaciones) — no un
+  medicamento por receta — y es append-only, sin ciclo de vida propio
+  (igual que `clinical_notes`, la dispensa es resorte de la farmacia, no
+  de MedLibra). `POST`/`GET /patients/{id}/prescriptions` (admin+staff),
+  `DELETE` admin-only. Migración `0005_prescriptions`. Ver `DECISIONS.md`
+  ADR-011.
+- Estudios, documentos clínicos, consentimientos.
 - Facturación/caja, solo si se decide incorporar LibraCore.
 - Dashboard y reportes.
 

@@ -14,7 +14,8 @@ from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
     agenda, appointments, availability, branch_hours, branches, business_settings,
-    clinical_notes, deposits, health, reminders, resources, service_prices, services,
+    clinical_notes, deposits, health, prescriptions, reminders, resources,
+    service_prices, services,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -25,6 +26,7 @@ from .services.branches import BranchRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.patients import PatientRepository
+from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
 from .services.users import UserRepository, ensure_default_admin
 
@@ -54,6 +56,7 @@ def create_app(database_url: str) -> FastAPI:
     )
     app.state.patients = PatientRepository(catalog, sessions)
     app.state.clinical_notes = ClinicalNoteRepository(sessions)
+    app.state.prescriptions = PrescriptionRepository(sessions)
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
     app.state.reminder_dispatcher = ReminderDispatcher(
@@ -79,13 +82,15 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(users_router.router, dependencies=admin_only)
     app.include_router(reminders.router, dependencies=admin_only)
     app.include_router(deposits.admin_router, dependencies=admin_only)
-    # Clinical surface: staff (medical professionals) read/write patients and
-    # write historia clinica -- that's their actual job, unlike Gestiolibra's
-    # staff which never touches the catalog. Deleting a patient or a note is
-    # still admin-only (see the per-route dependencies on those two routers).
+    # Clinical surface: staff (medical professionals) read/write patients,
+    # write historia clinica and issue recetas -- that's their actual job,
+    # unlike Gestiolibra's staff which never touches the catalog. Deleting a
+    # patient, note or prescription is still admin-only (see the per-route
+    # dependencies on those routers).
     staff_or_admin = [Depends(require_staff)]
     app.include_router(patients_router.router, dependencies=staff_or_admin)
     app.include_router(clinical_notes.router, dependencies=staff_or_admin)
+    app.include_router(prescriptions.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
     app.include_router(agenda.router, dependencies=staff_or_admin)
     app.include_router(deposits.request_router, dependencies=staff_or_admin)

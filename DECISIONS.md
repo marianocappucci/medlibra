@@ -167,3 +167,47 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   que se reemplacen los puertos. Ningún campo clínico involucrado, así que
   no hay divergencia de dominio que documentar como en ADR-007 (roles) o
   ADR-005 (paciente).
+
+## ADR-011 — Recetas: varios items por receta, append-only sin ciclo de vida
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: el usuario eligió "recetas" entre el resto de la Fase 2
+  pendiente (`AskUserQuestion`). Antes de codificar, dos preguntas de
+  modelado real sin respuesta obvia: (1) ¿una receta tiene un solo
+  medicamento o varios?; (2) ¿la receta tiene estado propio (emitida/
+  dispensada/anulada) o es un registro simple como `clinical_notes`?
+  Preguntado al usuario (`AskUserQuestion`): eligió varios items por
+  receta y append-only sin estado.
+- Decisión: `PrescriptionRow` (header: paciente, autor, fecha) +
+  `PrescriptionItemRow` (medicamento, dosis, indicaciones opcionales), uno
+  a muchos. `create()` exige al menos un item (422 si la lista viene
+  vacía). Mismo criterio append-only que `clinical_notes` (ADR-006): sin
+  endpoint de actualización, solo crear/listar/obtener/borrar (DELETE
+  admin-only, para errores de carga). Sin estado de dispensa — eso es
+  resorte de la farmacia, no de MedLibra. Borrar un paciente con recetas
+  existentes queda bloqueado (409), mismo mecanismo ya usado para notas
+  clínicas — `PatientRepository.delete()` ahora chequea ambas tablas antes
+  de permitir el borrado.
+- Consecuencias: los items de una receta se ordenan por una columna
+  `position` propia (no por `id`, que es un UUID no secuencial) — sin
+  esto, el orden de carga se hubiera perdido o quedado ambiguo entre
+  motores (SQLite vs. PostgreSQL pueden devolver filas en orden distinto
+  sin un `ORDER BY` explícito sobre una columna con esa semántica).
+  Migración `0005_prescriptions` (dos tablas, con cascada de borrado a
+  nivel ORM — `cascade="all, delete-orphan"` en la relación — para que
+  borrar una receta borre sus items sin dejarlos huérfanos).
+
+  **Bug real encontrado en el camino, no relacionado con recetas en sí**:
+  al verificar contra PostgreSQL real, borrar un paciente sin notas ni
+  recetas (el camino "feliz" del flujo de borrado) fallaba con
+  `ForeignKeyViolation` — `PatientRepository.delete()` borraba el `Client`
+  genérico de LibraGenda **antes** que la fila `PatientRow` (que tiene FK
+  hacia `clients.id`), violando esa FK. En SQLite (usado en toda la suite
+  de tests) esto pasaba desapercibido porque no fuerza FKs por default, así
+  que el bug nunca se detectó hasta esta ronda de verificación con Postgres
+  real. Corregido invirtiendo el orden: primero se borra `PatientRow`,
+  después el `Client`. No es un bug introducido por recetas — ya afectaba
+  a `clinical_notes`/pacientes desde ADR-005, solo que ningún camino de
+  verificación anterior había ejercido el borrado de un paciente sin
+  registros clínicos contra Postgres real hasta ahora.

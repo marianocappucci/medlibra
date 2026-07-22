@@ -16,6 +16,7 @@ from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base
 
 from .clinical_notes import ClinicalNoteRow
+from .prescriptions import PrescriptionRow
 
 
 class PatientRow(Base):
@@ -27,12 +28,13 @@ class PatientRow(Base):
 
 
 class PatientHasClinicalNotes(Exception):
-    """Raised on delete() when the patient still has historia clínica.
+    """Raised on delete() when the patient still has historia clínica or
+    recetas.
 
-    Deleting the patient would either violate clinical_notes' FK (PostgreSQL)
-    or silently orphan the notes (SQLite, no FK enforcement by default) --
-    neither is acceptable for medical records. The caller must be explicit
-    about what happens to the notes first; there's no cascade here.
+    Deleting the patient would either violate a FK (PostgreSQL) or silently
+    orphan the records (SQLite, no FK enforcement by default) -- neither is
+    acceptable for medical records. The caller must be explicit about what
+    happens to the notes/prescriptions first; there's no cascade here.
     """
 
 
@@ -95,13 +97,19 @@ class PatientRepository:
             has_notes = session.scalar(
                 select(ClinicalNoteRow.id).where(ClinicalNoteRow.patient_id == patient_id).limit(1)
             ) is not None
-        if has_notes:
+            has_prescriptions = session.scalar(
+                select(PrescriptionRow.id).where(PrescriptionRow.patient_id == patient_id).limit(1)
+            ) is not None
+        if has_notes or has_prescriptions:
             raise PatientHasClinicalNotes(patient_id)
-        self.catalog.delete_client(patient_id)  # raises KeyError if missing
+        # Borrar primero la extension (PatientRow.id tiene FK a clients.id):
+        # borrar el Client antes violaria esa FK en Postgres real -- en
+        # SQLite pasaba desapercibido porque no fuerza FKs por default.
         with self.session_factory.begin() as session:
             row = session.get(PatientRow, patient_id)
             if row is not None:
                 session.delete(row)
+        self.catalog.delete_client(patient_id)  # raises KeyError if missing
 
     def _extension(self, patient_id: str) -> tuple[str | None, date | None]:
         with self.session_factory() as session:

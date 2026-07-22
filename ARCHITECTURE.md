@@ -29,6 +29,9 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
   de la API, no mezclada en el schema del motor.
 - `app/services/clinical_notes.py`: historia clínica básica — notas de
   evolución en texto libre, append-only (sin update).
+- `app/services/prescriptions.py`: recetas médicas — una receta con uno o
+  más items (medicamento, dosis, indicaciones), append-only, mismo
+  criterio que `clinical_notes` (ver "Recetas" abajo).
 - `app/services/users.py`: tabla y repositorio de usuarios propios de
   MedLibra (no pertenecen al dominio de LibraGenda).
 - `app/services/branches.py`, `branch_hours.py`, `service_prices.py`,
@@ -42,9 +45,9 @@ No confundir con PACS, Farmacia ni Portal de Pacientes del Servidor Homei; son p
 - `app/routers/`: health (público), auth (login/logout/me), users
   (admin-only), branches (+ horario, + contacto)/resources/services (+
   precio por sucursal)/availability (admin-only), negocio (`/business`),
-  patients/clinical_notes (admin+staff, DELETE admin-only), appointments/
-  agenda (admin+staff), recordatorios (`/reminders/dispatch`, admin-only) y
-  señas (`/appointments/{id}/deposit` admin+staff,
+  patients/clinical_notes/prescriptions (admin+staff, DELETE admin-only),
+  appointments/agenda (admin+staff), recordatorios (`/reminders/dispatch`,
+  admin-only) y señas (`/appointments/{id}/deposit` admin+staff,
   `/deposits/{id}/...` admin-only).
 - `MODULES.md`: inventario operativo de módulos.
 - LibraGenda `v0.5.0`: dependencia versionada para dominio, persistencia y
@@ -96,15 +99,31 @@ MedLibra tampoco.
   propia cadena. Ver `DECISIONS.md` ADR-010 y la entrada equivalente en
   Gestiolibra (ADR-009 de ese repo) para el detalle completo.
 
+## Recetas
+
+Una receta tiene uno o más items (medicamento, dosis, indicaciones) —
+refleja cómo se prescribe en la práctica real, una consulta suele generar
+una receta con varios fármacos. Dos tablas propias de MedLibra:
+`prescriptions` (header: paciente, autor, fecha) y `prescription_items`
+(FK a la receta, con `position` propio — el `id` de cada item es un UUID,
+no sirve para ordenar por inserción). **Append-only, mismo criterio que
+`clinical_notes`** (ver ADR-006): sin endpoint de actualización, solo
+crear/listar/obtener/borrar (el borrado admin-only, para corregir errores
+de carga). Borrar un paciente con recetas existentes está bloqueado (409),
+mismo mecanismo que ya bloqueaba el borrado con notas clínicas —
+`PatientRepository.delete()` chequea ambas tablas. Ver `DECISIONS.md`
+ADR-011.
+
 ## Dominio clínico vs. motor genérico
 
 LibraGenda no sabe nada de pacientes ni historia clínica — solo conoce
 `Client` (identidad genérica para agendar) y `Resource`/`Service`/
 `Appointment`. MedLibra extiende esa identidad con lo clínico en sus
-propias tablas (`patients`, `clinical_notes`), vinculadas por FK al `id`
-del `Client` — mismo principio que "no duplicar reglas de LibraGenda" de
-`CONVENTIONS.md`, aplicado en la dirección inversa: lo clínico no
-contamina el motor, vive enteramente en MedLibra.
+propias tablas (`patients`, `clinical_notes`, `prescriptions`/
+`prescription_items`), vinculadas por FK al `id` del `Client` — mismo
+principio que "no duplicar reglas de LibraGenda" de `CONVENTIONS.md`,
+aplicado en la dirección inversa: lo clínico no contamina el motor, vive
+enteramente en MedLibra.
 
 ## Persistencia e integración
 
@@ -112,8 +131,9 @@ La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa Pos
 
 `pyproject.toml` pinea LibraGenda `v0.5.0` (actualizado desde `v0.3.0`, ver
 `DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`users`,
-`patients`, `clinical_notes`, y desde `0004_business_config` también
-`branch_contacts`/`branch_hours`/`service_prices`/`business_settings`)
+`patients`, `clinical_notes`, desde `0004_business_config` también
+`branch_contacts`/`branch_hours`/`service_prices`/`business_settings`, y
+desde `0005_prescriptions` también `prescriptions`/`prescription_items`)
 tienen su propio Alembic (`migrations/` de este repo), cadena independiente
 de la de LibraGenda con su propia tabla de versión (`alembic_version_medlibra`,
 para no colisionar sobre la misma base física — ver `DECISIONS.md` ADR-008).
