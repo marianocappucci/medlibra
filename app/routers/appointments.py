@@ -23,6 +23,15 @@ class AppointmentRequest(BaseModel):
     starts_at: datetime
 
 
+class CancelRequest(BaseModel):
+    reason: str | None = None
+
+
+class RescheduleRequest(BaseModel):
+    starts_at: datetime
+    reason: str | None = None
+
+
 @router.post("/appointments", status_code=201)
 def create_appointment(
     data: AppointmentRequest,
@@ -53,3 +62,40 @@ def confirm_appointment(
     except InvalidTransition as exc:
         raise HTTPException(409, str(exc))
     return {"id": appointment.id, "status": appointment.status.value}
+
+
+@router.post("/appointments/{appointment_id}/cancel")
+def cancel_appointment(
+    appointment_id: str,
+    data: CancelRequest = CancelRequest(),
+    service: AppointmentService = Depends(get_appointment_service),
+):
+    try:
+        appointment = service.cancel(appointment_id, reason=data.reason)
+    except AppointmentNotFound:
+        raise HTTPException(404, "appointment not found")
+    except InvalidTransition as exc:
+        raise HTTPException(409, str(exc))
+    return {"id": appointment.id, "status": appointment.status.value, "reason": appointment.reason}
+
+
+@router.post("/appointments/{appointment_id}/reschedule")
+def reschedule_appointment(
+    appointment_id: str,
+    data: RescheduleRequest,
+    service: AppointmentService = Depends(get_appointment_service),
+):
+    try:
+        appointment = service.reschedule(appointment_id, data.starts_at, reason=data.reason)
+    except AppointmentNotFound:
+        raise HTTPException(404, "appointment not found")
+    except InvalidTransition as exc:
+        raise HTTPException(409, str(exc))
+    except AppointmentConflict:
+        raise HTTPException(409, "appointment conflict")
+    except AppointmentUnavailable:
+        raise HTTPException(409, "appointment unavailable")
+    return {
+        "id": appointment.id, "status": appointment.status.value,
+        "starts_at": appointment.starts_at, "reason": appointment.reason,
+    }

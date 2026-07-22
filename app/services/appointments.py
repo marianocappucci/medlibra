@@ -1,13 +1,17 @@
 """Application service for the appointment booking use case.
 
-Hardcoded 9-18 weekly window for now (same as the old app/main.py demo it
-was ported from) -- real configurable availability per resource is a later
-Fase 1 item (see TASKS.md "Próximas"), not this round's scope.
+Wraps LibraGenda's InMemoryScheduler with the one piece of app-specific
+validation the engine can't do on its own (does this service exist at
+all) — everything else is delegated straight to LibraGenda's own use
+cases and domain exceptions, per CONVENTIONS.md ("no duplicar reglas de
+LibraGenda").
 """
-from datetime import datetime, time, timezone
+
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from libragenda import Appointment, Availability, InMemoryScheduler
+from libragenda import Appointment, InMemoryScheduler
+from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import AppointmentRepository
 
@@ -24,10 +28,14 @@ def _as_utc(starts_at: datetime) -> datetime:
 
 class AppointmentService:
     def __init__(
-        self, catalog: SqlAlchemyCatalogRepository, appointments: AppointmentRepository,
+        self,
+        catalog: SqlAlchemyCatalogRepository,
+        appointments: AppointmentRepository,
+        availability: SqlAlchemyAvailabilityRepository,
     ) -> None:
         self.catalog = catalog
         self.appointments = appointments
+        self.availability = availability
 
     def create(
         self, resource_id: str, service_id: str, client_id: str, starts_at: datetime
@@ -36,13 +44,14 @@ class AppointmentService:
         service = services.get(service_id)
         if service is None:
             raise ServiceNotFound(service_id)
-        starts_at = _as_utc(starts_at)
+        windows = [item for _, item in self.availability.list_availability(resource_id)]
+        blocks = [item for _, item in self.availability.list_blocks(resource_id)]
+        exceptions = [item for _, item in self.availability.list_exceptions(resource_id)]
         scheduler = InMemoryScheduler(
-            [Availability(resource_id, starts_at.weekday(), time(9), time(18))],
-            repository=self.appointments,
+            windows, blocks, exceptions, repository=self.appointments,
         )
         appointment = Appointment(
-            str(uuid4()), resource_id, service_id, client_id, starts_at, service.duration,
+            str(uuid4()), resource_id, service_id, client_id, _as_utc(starts_at), service.duration,
         )
         scheduler.create(appointment)
         return appointment
@@ -50,3 +59,30 @@ class AppointmentService:
     def confirm(self, appointment_id: str) -> Appointment:
         scheduler = InMemoryScheduler(repository=self.appointments)
         return scheduler.confirm(appointment_id)
+
+    def cancel(self, appointment_id: str, reason: str | None = None) -> Appointment:
+        scheduler = InMemoryScheduler(repository=self.appointments)
+        return scheduler.cancel(appointment_id, reason=reason)
+
+    def reschedule(
+        self, appointment_id: str, starts_at: datetime, reason: str | None = None
+    ) -> Appointment:
+        current = self.appointments.get(appointment_id)
+        resource_id = current.resource_id if current is not None else ""
+        windows = [item for _, item in self.availability.list_availability(resource_id)]
+        blocks = [item for _, item in self.availability.list_blocks(resource_id)]
+        exceptions = [item for _, item in self.availability.list_exceptions(resource_id)]
+        scheduler = InMemoryScheduler(
+            windows, blocks, exceptions, repository=self.appointments,
+        )
+        return scheduler.reschedule(appointment_id, _as_utc(starts_at), reason=reason)
+
+    def agenda(self, resource_id: str, day_from: date, day_to: date) -> list[Appointment]:
+        return sorted(
+            (
+                item for item in self.appointments.list()
+                if item.resource_id == resource_id
+                and day_from <= item.starts_at.date() <= day_to
+            ),
+            key=lambda item: item.starts_at,
+        )
