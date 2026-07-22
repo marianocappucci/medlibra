@@ -67,11 +67,14 @@ contamina el motor, vive enteramente en MedLibra.
 La aplicación configura LibraGenda mediante `LIBRAGENDA_DATABASE_URL` y usa PostgreSQL dedicado para MedLibra. Las migraciones de LibraGenda se ejecutan desde un checkout del repositorio upstream en la versión exacta pineada, antes de iniciar la API; no se usa `create_all()` en producción para las tablas de LibraGenda.
 
 `pyproject.toml` pinea LibraGenda `v0.5.0` (actualizado desde `v0.3.0`, ver
-`DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`patients`,
-`clinical_notes`, `users`) todavía no tienen Alembic propio — solo se crean vía
-`Base.metadata.create_all()` en `create_app()`, igual que le pasaba a
-`users` en Gestiolibra antes de que decidiera su propio pipeline de
-migraciones; pendiente antes de un deploy real (ver `TASKS.md`).
+`DECISIONS.md` ADR-004). Las tablas propias de MedLibra (`users`,
+`patients`, `clinical_notes`) tienen su propio Alembic (`migrations/` de
+este repo), cadena independiente de la de LibraGenda con su propia tabla
+de versión (`alembic_version_medlibra`, para no colisionar sobre la misma
+base física — ver `DECISIONS.md` ADR-008). `Base.metadata.create_all()`
+sigue en `create_app()` pero solo importa para los tests con SQLite en
+memoria; en producción es un no-op una vez que ambas cadenas de Alembic ya
+crearon el schema real.
 
 ## Entornos y deploy
 

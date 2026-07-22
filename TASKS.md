@@ -11,11 +11,6 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 - [ ] Configuración comercial por consultorio más allá del CRUD básico de
       sucursales (mismo ítem que tiene Gestiolibra pendiente).
-- [ ] MedLibra todavía no tiene Alembic propio: `patients`/`clinical_notes`/
-      `users` solo se crean vía `Base.metadata.create_all()` en
-      `create_app()` — documentado como "demo only" pero hoy es el único
-      mecanismo real. Definir migraciones propias antes de un deploy real
-      (mismo pendiente que tiene Gestiolibra).
 - [ ] Definir alcance de Fase 2 (recetas, estudios, documentos clínicos,
       consentimientos, recordatorios/señas, facturación si se decide
       LibraCore, dashboard) — ver `ROADMAP.md`.
@@ -31,6 +26,10 @@ Ninguna bloqueada registrada.
 
 Resuelto (2026-07-21): LibraGenda actualizado a `v0.5.0` (desde `v0.3.0`,
 compatibilidad revisada — ver `CHANGELOG.md`).
+
+Resuelto (2026-07-21): Alembic propio de MedLibra para `users`/`patients`/
+`clinical_notes` (`alembic_version_medlibra`, cadena independiente de la de
+LibraGenda sobre la misma base) — ver `README.md`.
 
 ## Notas de testing
 

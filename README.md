@@ -50,6 +50,36 @@ No confundir con los sistemas de salud del Servidor Homei (PACS, Farmacia,
 Portal de Pacientes) — son proyectos completamente separados, sin relación
 ni infraestructura compartida.
 
+## Migraciones
+
+Dos cadenas de Alembic independientes corren contra la **misma** base
+`medlibra`, cada una con su propia tabla de versión (`alembic_version` es
+de LibraGenda, `alembic_version_medlibra` es de MedLibra). El deploy corre
+ambas, en este orden, antes de levantar la API:
+
+**1. Migraciones de LibraGenda** (schema del motor). No viajan en el wheel
+instalado por pip, se aplican clonando el repo en el tag pineado en
+`pyproject.toml` (hoy `v0.5.0`):
+
+```bash
+LIBRAGENDA_REF=v0.5.0 DATABASE_URL="$DATABASE_URL" \
+  bash path/a/libragenda/scripts/run_migrations.sh
+```
+
+**2. Migraciones propias de MedLibra** (`users`, `patients`,
+`clinical_notes` — no pertenecen al dominio de LibraGenda, ver
+`MODULES.md`). Viajan en este mismo repo:
+
+```bash
+DATABASE_URL="$DATABASE_URL" alembic upgrade head
+```
+
+`migrations/env.py` deja `target_metadata = None` a propósito: esos tres
+modelos están registrados en el `Base` compartido de LibraGenda, así que
+apuntar el autogenerate ahí vería también las tablas de LibraGenda como
+propias de esta cadena. Las migraciones se escriben a mano, mismo criterio
+que LibraGenda y Gestiolibra.
+
 ## Documentación
 
 - [ROADMAP.md](ROADMAP.md) — dirección estratégica.

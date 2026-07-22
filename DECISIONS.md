@@ -96,3 +96,27 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   del de Gestiolibra en este punto — no es un error de copiar-pegar, es una
   decisión de dominio: cada vertical define qué significa "staff" según su
   propio negocio.
+
+## ADR-008 — Alembic propio de MedLibra, cadena independiente de la de LibraGenda
+
+- Estado: aceptada
+- Fecha: 2026-07-21
+- Contexto: `users`, `patients` y `clinical_notes` solo se creaban vía
+  `Base.metadata.create_all()` en `create_app()` — sin efecto en un deploy
+  real, que corre las migraciones de LibraGenda pero no conoce estas tres
+  tablas propias de MedLibra. Mismo problema que resolvió Gestiolibra el
+  mismo día (ver `DECISIONS.md` de ese repo, ADR-007).
+- Decisión: `migrations/` propio (mismo layout que LibraGenda y
+  Gestiolibra: `alembic.ini`, `env.py`, `versions/`), con
+  `target_metadata = None` (los tres modelos comparten el `Base`
+  declarativo de LibraGenda; las migraciones se escriben a mano) y
+  `version_table = "alembic_version_medlibra"` (ambas cadenas corren
+  contra la misma base física, el nombre default colisionaría). Orden de
+  migraciones respeta las FKs: `users` (sin dependencias) → `patients`
+  (FK a `clients.id`, tabla de LibraGenda) → `clinical_notes` (FK a
+  `patients.id`).
+- Consecuencias: el deploy real de MedLibra corre dos pasos de Alembic
+  (LibraGenda primero, MedLibra después) — verificado contra PostgreSQL
+  real que las dos cadenas conviven sin pisarse y que las FKs cruzadas
+  (`patients.id` → `clients.id`) se crean correctamente. Cualquier tabla
+  nueva propia de MedLibra se agrega acá, nunca en el repo de LibraGenda.

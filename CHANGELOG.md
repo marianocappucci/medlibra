@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Alembic propio (`migrations/`) para `users`/`patients`/`clinical_notes`
+  — antes solo se creaban vía `create_all()`, sin efecto en un deploy real.
+  Cadena de versión independiente (`alembic_version_medlibra`) para no
+  colisionar con la de LibraGenda sobre la misma base.
 - Login y roles básicos: `POST /auth/login`, `/auth/logout`, `GET /auth/me`,
   CRUD de usuarios admin-only en `/users`. Reusa `libracore.auth.SessionAuth`
   (mismo patrón que Gestiolibra). Dos roles: `admin` (todo) y `staff`
