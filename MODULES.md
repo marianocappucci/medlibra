@@ -131,9 +131,21 @@
   `deposits.py` (`/appointments/{id}/deposit` admin+staff,
   `/deposits/{id}/mark-paid`/`mark-failed`/`refund` admin-only —
   `mark-paid` acepta `medio_pago` opcional desde LibraGenda `v0.8.0`),
-  `billing.py` (`/config/arca`, admin-only) —
+  `billing.py` (`/config/arca`, admin-only), `dashboard.py`
+  (`GET /dashboard?date_from=&date_to=`, admin-only) —
   traducen excepciones de dominio a códigos HTTP (404/409/422).
   `/demo/seed` fue reemplazado por el CRUD real.
+- `app/services/dashboard.py`: `DashboardService` — resumen de lectura
+  pura sobre repositorios ya existentes, sin tabla ni estado propio.
+  Turnos (total y por estado en el rango pedido, turnos de **hoy** —
+  fecha real del servidor, no del rango), pacientes (total activos vía
+  `PatientRepository.count_active()`, altas nuevas en el rango vía
+  `count_created_between()`, que lee `patients.created_at`), y
+  recordatorios enviados en el rango (`SentReminderRepository.
+  list_sent()` de LibraGenda `v0.9.0`) + señas pendientes sin acotar
+  por fecha (`DepositRepository.list_by_status()`, misma versión).
+  Facturación/caja queda fuera de este primer corte (decisión del
+  usuario) — ver `DECISIONS.md` ADR-017.
 
 ## Después del MVP
 

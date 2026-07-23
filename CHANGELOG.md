@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Dashboard**: `GET /dashboard?date_from=&date_to=` (admin-only) —
+  turnos (total y por estado en el rango, turnos de hoy), pacientes
+  (total activos, altas nuevas en el rango vía `patients.created_at`
+  nuevo, migración `0010_patient_created_at`) y recordatorios enviados/
+  señas pendientes. Facturación/caja queda para una entrega futura
+  (decisión del usuario). `libragenda` a `v0.9.0` (agrega
+  `list_sent()`/`list_by_status()`). Ver `DECISIONS.md` ADR-017.
 - **Facturación/caja con LibraCore**: CUIT/condición de IVA como
   extensión del paciente (migración `0009_patient_billing_fields`),
   `PUT`/`GET /config/arca` (config ARCA de instancia única, admin-only),

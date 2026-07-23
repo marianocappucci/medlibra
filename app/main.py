@@ -16,8 +16,8 @@ from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
     agenda, appointments, availability, billing as billing_router, branch_hours, branches,
-    business_settings, clinical_documents, clinical_notes, consents, deposits, health,
-    prescriptions, reminders, resources, service_prices, services, study_orders,
+    business_settings, clinical_documents, clinical_notes, consents, dashboard as dashboard_router,
+    deposits, health, prescriptions, reminders, resources, service_prices, services, study_orders,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -29,6 +29,7 @@ from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.consents import ConsentRepository
+from .services.dashboard import DashboardService
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
@@ -49,6 +50,8 @@ def create_app(database_url: str) -> FastAPI:
     user_repository = UserRepository(sessions)
     branch_hours_repository = BranchHoursRepository(sessions)
     deposit_repository = SqlAlchemyDepositRepository(sessions)
+    reminder_repository = SqlAlchemyReminderRepository(sessions)
+    patient_repository = PatientRepository(catalog, sessions)
     ensure_default_admin(user_repository)
 
     app = FastAPI(title="MedLibra")
@@ -61,7 +64,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.appointment_service = AppointmentService(
         catalog, appointment_repository, availability_repository, branch_hours_repository,
     )
-    app.state.patients = PatientRepository(catalog, sessions)
+    app.state.patients = patient_repository
     app.state.clinical_notes = ClinicalNoteRepository(sessions)
     app.state.prescriptions = PrescriptionRepository(sessions)
     app.state.study_orders = StudyOrderRepository(sessions)
@@ -71,11 +74,14 @@ def create_app(database_url: str) -> FastAPI:
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
     app.state.reminder_dispatcher = ReminderDispatcher(
-        appointment_repository, SqlAlchemyReminderRepository(sessions),
+        appointment_repository, reminder_repository,
         LoggingNotificationPort(), DEFAULT_REMINDER_POLICIES,
     )
     app.state.deposits = deposit_repository
     app.state.deposit_manager = DepositManager(deposit_repository, ManualPaymentPort())
+    app.state.dashboard = DashboardService(
+        appointment_repository, patient_repository, reminder_repository, deposit_repository,
+    )
 
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -94,6 +100,7 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(reminders.router, dependencies=admin_only)
     app.include_router(deposits.admin_router, dependencies=admin_only)
     app.include_router(billing_router.router, dependencies=admin_only)
+    app.include_router(dashboard_router.router, dependencies=admin_only)
     # Clinical surface: staff (medical professionals) read/write patients,
     # write historia clinica, issue recetas, pedidos de estudios, upload
     # documentos clinicos and record consentimientos -- that's their actual

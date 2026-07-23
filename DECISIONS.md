@@ -485,3 +485,54 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   `downgrade -1` → `upgrade head` contra un archivo real, después de
   aplicar primero la cadena de LibraGenda (la de MedLibra depende de
   `clients`).
+
+## ADR-017 — Dashboard: turnos, pacientes y recordatorios/señas
+
+- Estado: aceptada
+- Fecha: 2026-07-22
+- Contexto: último ítem de Fase 2 sin alcance definido. Antes de
+  codificar se le preguntó al usuario qué debía mostrar el primer corte
+  (`AskUserQuestion`, opciones múltiples): eligió turnos, pacientes y
+  recordatorios/señas — dejó **facturación/caja fuera** de este primer
+  corte (queda para una entrega futura, aunque `libracore.db.caja.
+  get_caja_resumen()` ya existiría listo para reusar cuando se pida).
+- Decisión — alcance de la consulta: `GET /dashboard?date_from=&date_to=`
+  (admin-only, fechas requeridas — sin default implícito de "este mes"
+  que pudiera sorprender). Devuelve: turnos (total en el rango, conteo
+  por estado, turnos de **hoy** — fecha real del servidor, no del
+  rango pedido), pacientes (total activos, altas nuevas en el rango) y
+  recordatorios enviados en el rango + señas pendientes (sin acotar por
+  fecha, es un conteo global de "lo que falta confirmar ahora").
+- Decisión — sin tabla ni estado propio: `DashboardService` es pura
+  lectura sobre repositorios que ya existían (`AppointmentRepository`,
+  `PatientRepository`, y dos métodos nuevos en LibraGenda —
+  `SentReminderRepository.list_sent()`/`DepositRepository.
+  list_by_status()`, ver ADR-008 de LibraGenda, agregados porque
+  ninguna de las dos consultas existía todavía). Nada se agrega a
+  `PatientRepository` salvo dos métodos de conteo puntuales
+  (`count_active()`, `count_created_between()`) — no se expone
+  `created_at` en el CRUD público de `/patients` para no romper el
+  schema existente, es un dato interno del dashboard.
+- Decisión — `patients.created_at` (migración `0010_patient_created_at`,
+  nullable, sin backfill): pacientes dados de alta antes de esta feature
+  quedan con `created_at=NULL` y nunca cuentan como "nuevos" en ningún
+  rango — comportamiento aceptado, no hay forma real de reconstruir esa
+  fecha para datos preexistentes.
+- Consecuencias: 7 tests nuevos (167 en total). Un bug real encontrado
+  y corregido **en el propio test**, no en el código de producto: el
+  primer intento de `test_dashboard_counts_appointments_by_status_and_
+  today` usaba un turno a "+2 horas" y comparaba contra el rango de
+  "hoy" calculado por separado — cerca de medianoche UTC (esta sesión
+  corrió a las 23:57 UTC) el turno cae en el día siguiente y el conteo
+  daba 0, no 1. No era un bug del dashboard: corregido derivando el
+  rango de consulta de la fecha real del turno creado, no de una
+  asunción de "hoy" separada. La verificación end-to-end posterior
+  contra archivos SQLite reales **reprodujo este mismo cruce de
+  medianoche en vivo** (corrió a las 23:58 UTC) y confirmó que cada
+  métrica se comporta correctamente cuando el turno cae en una fecha
+  distinta a "ahora": turnos.hoy=0 (turno es mañana), pacientes.
+  nuevos_en_periodo=0 y recordatorios_enviados_en_periodo=0 (paciente y
+  recordatorio se crearon "hoy", el rango consultado es "mañana"),
+  senas_pendientes=1 (no acota por fecha, cuenta global). Migración
+  `0010` verificada con el ciclo `upgrade`→`downgrade`→`upgrade` contra
+  un archivo real. `libragenda` actualizado a `v0.9.0`.

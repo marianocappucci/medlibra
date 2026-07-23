@@ -9,7 +9,9 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 
 ## Próximas
 
-- [ ] Dashboard/reportes — único ítem de Fase 2 sin alcance definido.
+- [ ] Dashboard: sumar facturación/caja (dejado fuera del primer corte
+      a pedido explícito del usuario) — reutilizando
+      `libracore.db.caja.get_caja_resumen()`, ya genérico.
 - [ ] Upload real de certificado/clave ARCA (`PUT /config/arca` hoy acepta
       solo paths en el filesystem del servidor, el admin coloca los
       archivos a mano — ver ADR-016). Mejora futura, no bloqueante.
@@ -104,6 +106,18 @@ nueva por llamada). Bug real preexistente encontrado y flagueado aparte
 (no corregido en esta ronda): `test_reminders.py::test_dispatch_
 sends_due_reminders_and_is_idempotent` falla con 409 al crear un turno,
 reproducible en un checkout limpio sin ningún cambio de esta sesión.
+
+Resuelto (2026-07-22): dashboard — turnos (total y por estado en un
+rango, turnos de hoy), pacientes (total activos, altas nuevas en el
+rango) y recordatorios enviados/señas pendientes (ver ADR-017).
+Facturación/caja quedó fuera de este primer corte a pedido del usuario.
+`GET /dashboard?date_from=&date_to=` (admin-only). `patients.created_at`
+(migración `0010_patient_created_at`, nullable, sin backfill).
+`libragenda` a `v0.9.0` (agrega `list_sent()`/`list_by_status()`). 7
+tests nuevos (167 en total) — uno de ellos encontró y corrigió un bug
+real en el propio test (no en el producto): comparar un turno a "+2
+horas" contra el rango de "hoy" calculado por separado falla cerca de
+medianoche UTC, cuando el turno cae en el día siguiente.
 
 ## Notas de testing
 

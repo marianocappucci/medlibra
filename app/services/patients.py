@@ -6,9 +6,9 @@ Not part of LibraGenda's domain -- clinical identity belongs to the
 vertical, same principle as "users" being Gestiolibra's own table instead
 of living in the engine.
 """
-from datetime import date
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, ForeignKey, String, select
+from sqlalchemy import Date, DateTime, ForeignKey, String, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from libragenda import Client
@@ -30,6 +30,7 @@ class PatientRow(Base):
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     cuit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     condicion_iva: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PatientHasClinicalNotes(Exception):
@@ -66,8 +67,26 @@ class PatientRepository:
         with self.session_factory.begin() as session:
             session.add(PatientRow(
                 id=id, dni=dni, birth_date=birth_date, cuit=cuit, condicion_iva=condicion_iva,
+                created_at=datetime.now(timezone.utc),
             ))
         return self._to_out(client, dni, birth_date, cuit, condicion_iva)
+
+    def count_active(self) -> int:
+        return sum(1 for client in self.catalog.list_clients() if client.active)
+
+    def count_created_between(self, date_from: datetime, date_to: datetime) -> int:
+        """Cantidad de pacientes dados de alta en el rango -- para el
+        dashboard. Pacientes preexistentes a esta feature no tienen
+        `created_at` (columna agregada después, sin backfill) y quedan
+        fuera de cualquier rango, nunca cuentan como "nuevos"."""
+        with self.session_factory() as session:
+            return session.scalar(
+                select(func.count(PatientRow.id)).where(
+                    PatientRow.created_at.is_not(None),
+                    PatientRow.created_at >= date_from,
+                    PatientRow.created_at <= date_to,
+                )
+            ) or 0
 
     def get(self, patient_id: str) -> dict | None:
         client = self.catalog.get_client(patient_id)

@@ -135,7 +135,16 @@ dashboard/reportes.
   reales y revisión del cálculo de IVA con un contador quedan
   pendientes (ver `TASKS.md`) — el modo mock (`ENV=development`) ya
   funciona de punta a punta.
-- Dashboard y reportes — único ítem restante de Fase 2.
+- Dashboard (completo, primer corte). Alcance elegido por el usuario
+  (`AskUserQuestion`): turnos (total y por estado en un rango, turnos
+  de hoy), pacientes (total activos, altas nuevas en el rango) y
+  recordatorios enviados/señas pendientes — facturación/caja queda
+  fuera de este corte, para una entrega futura. `GET /dashboard?
+  date_from=&date_to=` (admin-only), puro de lectura sobre repositorios
+  ya existentes más dos métodos nuevos en LibraGenda (`v0.9.0`:
+  `SentReminderRepository.list_sent()`/`DepositRepository.
+  list_by_status()`). Ver `DECISIONS.md` ADR-017. Con esto, Fase 2
+  queda completa.
 
 ## Fase 3 — producto
 

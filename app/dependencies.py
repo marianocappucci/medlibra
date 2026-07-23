@@ -14,6 +14,7 @@ from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.consents import ConsentRepository
+from .services.dashboard import DashboardService
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
@@ -87,3 +88,7 @@ def get_deposit_manager(request: Request) -> DepositManager:
 
 def get_deposit_repository(request: Request) -> DepositRepository:
     return request.app.state.deposits
+
+
+def get_dashboard_service(request: Request) -> DashboardService:
+    return request.app.state.dashboard
