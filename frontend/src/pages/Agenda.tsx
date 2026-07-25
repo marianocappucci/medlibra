@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
-  api, ApiError, STATUS_LABELS,
-  type Appointment, type AppointmentStatus, type Patient, type Resource, type Service,
+  api, ApiError, STATUS_LABELS, TIPO_COMPROBANTE_LABELS,
+  type Appointment, type AppointmentStatus, type CompleteAppointmentResponse,
+  type Factura, type Patient, type Resource, type Service,
 } from '../api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,25 @@ import {
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { DataTable, sortableHeader } from '@/components/data-table'
+
+const MEDIO_PAGO_LABELS: Record<string, string> = {
+  efectivo: 'Efectivo',
+  transferencia: 'Transferencia',
+  tarjeta: 'Tarjeta',
+  mercadopago: 'MercadoPago',
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
+}
+
+function formatNumeroComprobante(f: Factura): string {
+  return `${String(f.punto_venta).padStart(4, '0')}-${String(f.numero).padStart(8, '0')}`
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -58,6 +77,10 @@ export function Agenda() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [completeTarget, setCompleteTarget] = useState<Appointment | null>(null)
+  const [medioPago, setMedioPago] = useState('')
+  const [completing, setCompleting] = useState(false)
+  const [factura, setFactura] = useState<Factura | null>(null)
 
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
@@ -132,6 +155,33 @@ export function Agenda() {
     }
   }
 
+  async function completeAppointment(a: Appointment, medioPagoValue?: string) {
+    setError(null)
+    setCompleting(true)
+    try {
+      const response = await api.post<CompleteAppointmentResponse>(
+        `/appointments/${a.id}/complete`,
+        medioPagoValue ? { medio_pago: medioPagoValue } : undefined,
+      )
+      setCompleteTarget(null)
+      setMedioPago('')
+      if (response.factura) setFactura(response.factura)
+      await loadAgenda()
+    } catch (err) {
+      // Sin medio_pago todavía intentado: el turno tiene saldo pendiente y
+      // el backend pide medio_pago (422) -- se pide en un diálogo en vez de
+      // mostrarlo como error crudo.
+      if (err instanceof ApiError && err.status === 422 && !medioPagoValue) {
+        setCompleteTarget(a)
+      } else {
+        setError(describeError(err))
+        setCompleteTarget(null)
+      }
+    } finally {
+      setCompleting(false)
+    }
+  }
+
   function patientName(id: string): string {
     return patients.find((p) => p.id === id)?.name ?? id
   }
@@ -169,7 +219,7 @@ export function Agenda() {
               </Button>
             )}
             {a.status === 'confirmed' && (
-              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/complete`))}>
+              <Button size="sm" variant="outline" onClick={() => completeAppointment(a)}>
                 Completar
               </Button>
             )}
@@ -289,6 +339,68 @@ export function Agenda() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={completeTarget !== null} onOpenChange={(open) => { if (!open) setCompleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Medio de pago requerido</DialogTitle>
+            <DialogDescription>
+              Este turno tiene un saldo pendiente de cobro. Elegí cómo se cobró para completarlo
+              y facturarlo.
+            </DialogDescription>
+          </DialogHeader>
+          <Select value={medioPago} onValueChange={setMedioPago}>
+            <SelectTrigger>
+              <SelectValue placeholder="Medio de pago…" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(MEDIO_PAGO_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompleteTarget(null)}>Cancelar</Button>
+            <Button
+              disabled={!medioPago || completing}
+              onClick={() => completeTarget && completeAppointment(completeTarget, medioPago)}
+            >
+              {completing ? 'Completando…' : 'Completar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={factura !== null} onOpenChange={(open) => { if (!open) setFactura(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Factura emitida</DialogTitle>
+          </DialogHeader>
+          {factura && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tipo</span>
+                <span className="font-medium">{TIPO_COMPROBANTE_LABELS[factura.tipo] ?? factura.tipo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Número</span>
+                <span className="font-medium">{formatNumeroComprobante(factura)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">CAE</span>
+                <span className="font-medium">{factura.cae || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-medium">{formatCurrency(factura.total)}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setFactura(null)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

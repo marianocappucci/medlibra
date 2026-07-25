@@ -121,6 +121,44 @@ export type Appointment = {
   status: AppointmentStatus
 }
 
+// Facturación: instancia única por cliente (una sola "empresa" ARCA fija,
+// ver app/services/billing.py), sin lista de empresas para elegir a
+// diferencia de Contalibra/Restolibra.
+export type ArcaConfig = {
+  empresa: string
+  cuit: string
+  punto_venta: number
+  ambiente: string
+  certificado_path: string
+  clave_path: string
+}
+
+export type Factura = {
+  id: number
+  tipo: number
+  punto_venta: number
+  numero: number
+  fecha: string
+  cliente_cuit: string
+  cliente_razon: string
+  total: number
+  cae: string
+  cae_vto: string
+}
+
+// Solo A/B: MedLibra emite tipo A si el paciente es Responsable
+// Inscripto, B en cualquier otro caso (ver app/services/billing.py).
+export const TIPO_COMPROBANTE_LABELS: Record<number, string> = {
+  1: 'Factura A',
+  6: 'Factura B',
+}
+
+export type CompleteAppointmentResponse = {
+  id: string
+  status: AppointmentStatus
+  factura: Factura | null
+}
+
 // Dominio clínico: todo append-only -- crear/listar/borrar (admin-only),
 // sin edición. Ver app/routers/{clinical_notes,prescriptions,study_orders,
 // consents,clinical_documents}.py.

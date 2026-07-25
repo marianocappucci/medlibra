@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { CalendarDays, LayoutDashboard, LogOut, Users } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, LogOut, Receipt, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import {
   Sidebar,
@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/pacientes', label: 'Pacientes', icon: Users },
   { to: '/reportes', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
+  { to: '/facturacion', label: 'Facturación', icon: Receipt, adminOnly: true },
 ]
 
 function initials(name: string): string {

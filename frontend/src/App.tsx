@@ -7,6 +7,7 @@ import { Agenda } from './pages/Agenda'
 import { Pacientes } from './pages/Pacientes'
 import { PacienteFicha } from './pages/PacienteFicha'
 import { Dashboard } from './pages/Dashboard'
+import { Facturacion } from './pages/Facturacion'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -54,6 +55,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/facturacion"
+        element={
+          <ProtectedRoute>
+            <Facturacion />
           </ProtectedRoute>
         }
       />
