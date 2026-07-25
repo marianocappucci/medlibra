@@ -536,3 +536,82 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   senas_pendientes=1 (no acota por fecha, cuenta global). Migración
   `0010` verificada con el ciclo `upgrade`→`downgrade`→`upgrade` contra
   un archivo real. `libragenda` actualizado a `v0.9.0`.
+
+## ADR-018 — Onboarding multi-consultorio: planes con enforcement real + infraestructura de deploy
+
+- Estado: aceptada
+- Fecha: 2026-07-25
+- Contexto: Fase 3 ("producto") de `ROADMAP.md` no había arrancado —
+  MedLibra nunca se había desplegado a ningún servidor. Antes de
+  codificar se resolvieron con el usuario (`AskUserQuestion`) dos
+  decisiones reales, replicando el mismo proceso que ya se siguió para
+  el ADR-013 equivalente de Gestiolibra: (1) cómo repartir el catálogo
+  de módulos gateables entre planes, dado que MedLibra suma un dominio
+  clínico entero (pacientes, historia clínica, recetas, estudios,
+  documentos, consentimientos) que Gestiolibra no tiene; (2) precio de
+  referencia por plan.
+- Decisión — estructura de planes: **todo el dominio clínico queda
+  siempre libre**, igual criterio que "turnos nunca se gatea" en
+  Gestiolibra pero extendido a todo lo clínico — necesidad profesional
+  básica de un consultorio, no un extra comercial. Básico = catálogo +
+  turnos + pacientes + historia clínica + recetas + estudios +
+  documentos clínicos + consentimientos (siempre gratis, nunca
+  gateable). Estándar = Básico + recordatorios/señas. Premium =
+  Estándar + facturación/dashboard. Mismo split exacto de módulos
+  gateables que Gestiolibra (`recordatorios`, `senas`, `facturacion`,
+  `dashboard`), pero el conjunto "siempre libre" es mucho más grande acá.
+- Decisión — precios: $25k/$40k/$60k (Básico/Estándar/Premium), más alto
+  que Gestiolibra ($15k/$25k/$40k) — MedLibra apunta a consultorios y
+  profesionales de salud, no a negocios de servicios chicos.
+- Decisión — planes y gating: `plans.py` en la raíz del repo, mismo
+  patrón exacto que Gestiolibra (`PLANES`, `PLAN_MODULOS`,
+  `aplicar_plan_en_db()` con `sqlite3` crudo). Tabla `modulos`
+  (migración `0011_modulos`, idéntica a la `0005_modulos` de
+  Gestiolibra). Seed por defecto: todo habilitado (`habilitado=True`)
+  hasta que se aplique un plan real. `require_module(nombre)`
+  (`app/modules_gate.py`) gatea completo los routers de
+  recordatorios/señas/facturación/dashboard con 403 — patients,
+  clinical_notes, prescriptions, study_orders, clinical_documents,
+  consents, appointments y agenda nunca se gatean. El caso más delicado,
+  `complete()` de turno, replica el mismo criterio de Gestiolibra: el
+  chequeo de `modules.is_enabled("facturacion")` corre *dentro* del
+  propio endpoint (no como dependency de router completo), controlando
+  si se busca el precio del servicio — sin el módulo habilitado,
+  completar el turno nunca pide `medio_pago` ni factura, pero el turno
+  igual se completa. Se encontró y corrigió un bug real durante la
+  verificación por tests: la primera versión de `complete_appointment`
+  no tenía ningún chequeo de módulo (a diferencia del endpoint
+  equivalente de Gestiolibra, que sí lo tenía desde su propio ADR-013)
+  — `test_complete_skips_invoicing_when_facturacion_module_disabled`
+  falló con 422 en vez de 200 hasta agregar el `Depends(get_module_repository)`
+  y el `if modules.is_enabled("facturacion")` alrededor de la búsqueda
+  de precio, exactamente como en Gestiolibra.
+- Decisión — infraestructura de deploy: `Dockerfile`, `docker-compose.yml`,
+  `app/asgi.py`, `scripts/{nuevo_cliente,panel_admin,npm_api,npm_setup}.py`
+  — mismo patrón que Gestiolibra (silo: una instancia + una base SQLite
+  aislada por cliente). MedLibra no tiene frontend todavía (a diferencia
+  de Gestiolibra), así que el `Dockerfile` no tiene stage de node —
+  Python puro. **Reutiliza las mismas deploy keys de LibraCore/LibraGenda
+  que ya usa Gestiolibra** (mismo ssh-agent multi-key persistente del
+  VPS, `agent-multi-libra.sock`) — las deploy keys son por-repo-destino
+  (LibraGenda, LibraCore), no por-consumidor, así que no hace falta
+  generar ninguna nueva para estas dos dependencias; el propio repo
+  MedLibra sí va a necesitar su propia deploy key dedicada de solo
+  lectura al clonarse al VPS (mismo patrón que `id_ed25519_gestiolibra`),
+  todavía no generada — ver `TASKS.md`. Puertos: `medlibra-dev` en
+  `8077` (siguiente libre después de `gestiolibra-dev` en `8075`/`8076`
+  y antes de `restolibra-web` en `8079`), `base_port=8078` para clientes
+  reales vía provisioning.
+- Consecuencias: 19 tests nuevos (`test_plans.py` + `test_module_gating.py`,
+  188 en total), verificados contra la suite completa. Migración
+  `0011_modulos` verificada con `alembic upgrade head` contra un archivo
+  SQLite real con el schema completo de LibraGenda ya creado — la tabla
+  `modulos` aparece correctamente, sin FKs hacia el dominio clínico.
+  `app/asgi.py` verificado con ambos modos (`DATABASE_URL` explícito y
+  el contrato `DATA_DIR`/`ADMIN_USER`/`ADMIN_PASSWORD` que genera
+  `libracore.provisioning`). `scripts/panel_admin.py` verificado con un
+  import real (sin ejecutar contra el VPS todavía). Ningún build de
+  Docker ni alta de cliente real hecha todavía en esta ronda — eso queda
+  para una sesión siguiente, ver `TASKS.md` (mismo orden que siguió
+  Gestiolibra: ADR-013 primero con la infraestructura scaffolded y
+  verificada localmente, ADR-014 después con el primer deploy real).

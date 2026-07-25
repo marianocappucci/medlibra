@@ -4,11 +4,30 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
-`ROADMAP.md`.
+Ninguna en curso registrada. Fase 2 quedó completa; primer ítem de Fase 3
+(onboarding multi-consultorio, ver ADR-018) scaffolded y verificado
+localmente — falta el deploy real al VPS, ver "Próximas".
 
 ## Próximas
 
+- [ ] Primer deploy real de MedLibra al VPS Donweb: generar deploy key
+      dedicada de solo lectura para el propio repo MedLibra
+      (`id_ed25519_medlibra`, mismo patrón que
+      `id_ed25519_gestiolibra`), clonar al VPS, build de imagen Docker
+      (`medlibra:latest`) y primera alta de cliente de prueba con
+      `scripts/nuevo_cliente.py` — mismo proceso que siguió Gestiolibra
+      en su ADR-014. Las deploy keys de LibraCore/LibraGenda ya están
+      cargadas en el ssh-agent multi-key del VPS (`agent-multi-libra.sock`),
+      no hace falta generar nuevas para esas dos dependencias.
+- [ ] Verificar `medlibra-dev` (puerto 8077) contra el VPS real una vez
+      levantado — hoy solo probado localmente (asgi.py, migración,
+      import de scripts).
+- [ ] Branding y dominio por cliente (`dev.medlibra.com.ar` + proxy NPM +
+      SSL, mismo patrón que `dev.gestiolibra.com.ar`) — depende del
+      primer deploy real.
+- [ ] Backups (`panel_admin.py backup`/`restore-db`) — ya heredado de
+      LibraCore, falta probarlo de punta a punta contra un cliente real
+      de MedLibra (mismo proceso que Gestiolibra en su ADR-017).
 - [ ] Dashboard: sumar facturación/caja (dejado fuera del primer corte
       a pedido explícito del usuario) — reutilizando
       `libracore.db.caja.get_caja_resumen()`, ya genérico.
@@ -22,6 +41,10 @@ Ninguna en curso registrada. Fase 1 (MVP operativo) quedó completa — ver
 - [ ] Cargar credenciales ARCA reales (CUIT, certificado, alta de
       servicio WSFE) cuando el usuario las tenga — hoy solo funciona en
       modo mock (`ENV=development`).
+- [ ] `test_reminders.py::test_dispatch_sends_due_reminders_and_is_idempotent`
+      sigue fallando con 409 al crear un turno (bug preexistente,
+      encontrado y flagueado en la ronda de facturación del 2026-07-22,
+      sin relación con esta ronda) — pendiente de investigar la causa raíz.
 
 ## Decisiones pendientes
 
@@ -118,6 +141,16 @@ tests nuevos (167 en total) — uno de ellos encontró y corrigió un bug
 real en el propio test (no en el producto): comparar un turno a "+2
 horas" contra el rango de "hoy" calculado por separado falla cerca de
 medianoche UTC, cuando el turno cae en el día siguiente.
+
+Resuelto (2026-07-25): planes con enforcement real + infraestructura de
+deploy scaffolded (ver ADR-018). `plans.py` (Básico/Estándar/Premium,
+$25k/$40k/$60k — todo el dominio clínico siempre libre, solo
+recordatorios/señas/facturación/dashboard son gateables), tabla
+`modulos` (migración `0011_modulos`), `require_module()`.
+`Dockerfile`/`docker-compose.yml`/`app/asgi.py`/`scripts/` — mismo
+patrón que Gestiolibra, sin stage de frontend (MedLibra no tiene
+todavía). 19 tests nuevos (188 en total). Deploy real al VPS todavía no
+hecho — ver "Próximas".
 
 ## Notas de testing
 

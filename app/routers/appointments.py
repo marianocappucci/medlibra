@@ -20,8 +20,10 @@ from ..dependencies import (
     get_patient_repository,
     get_service_price_repository,
 )
+from ..modules_gate import get_module_repository
 from ..services.appointments import AppointmentService, OutsideBusinessHours, ServiceNotFound
 from ..services.billing import invoice_appointment
+from ..services.modules import ModuleRepository
 from ..services.patients import PatientRepository
 from ..services.service_prices import ServicePriceRepository
 
@@ -130,12 +132,15 @@ async def complete_appointment(
     service_prices: ServicePriceRepository = Depends(get_service_price_repository),
     deposits: DepositRepository = Depends(get_deposit_repository),
     catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
+    modules: ModuleRepository = Depends(get_module_repository),
 ):
     """Completa el turno y, si hay un precio configurado para el servicio
-    en la sucursal, factura el total con LibraCore (una sola factura,
+    en la sucursal Y el plan incluye el módulo "facturacion" (ver
+    plans.py), factura el total con LibraCore (una sola factura,
     reconciliando la sena ya cobrada -- si existe -- y el saldo restante
-    como movimientos de caja separados). Sin precio configurado, no
-    factura nada -- mismo criterio opt-in que branch_hours/service_prices.
+    como movimientos de caja separados). Sin precio configurado, o sin el
+    módulo habilitado, no factura nada -- completar el turno nunca se
+    bloquea por el plan, solo se salta la parte de facturación.
 
     La validacion de facturacion (medio_pago requerido si hay saldo) corre
     ANTES de completar el turno en LibraGenda -- si faltara, el turno no
@@ -148,10 +153,11 @@ async def complete_appointment(
     price_row = None
     patient: dict = {}
     deposit = None
-    resource = catalog.get_resource(current.resource_id)
-    branch_id = resource.branch_id if resource else None
-    if branch_id:
-        price_row = service_prices.get(current.service_id, branch_id)
+    if modules.is_enabled("facturacion"):
+        resource = catalog.get_resource(current.resource_id)
+        branch_id = resource.branch_id if resource else None
+        if branch_id:
+            price_row = service_prices.get(current.service_id, branch_id)
     if price_row is not None:
         patient = patients.get(current.client_id) or {}
         deposit = deposits.get_by_appointment(appointment_id)

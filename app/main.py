@@ -12,6 +12,7 @@ from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base, SqlAlchemyAppointmentRepository
 
 from .auth import build_session_auth, require_admin, require_staff
+from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
@@ -30,6 +31,7 @@ from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.consents import ConsentRepository
 from .services.dashboard import DashboardService
+from .services.modules import ModuleRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.service_prices import ServicePriceRepository
@@ -52,6 +54,8 @@ def create_app(database_url: str) -> FastAPI:
     deposit_repository = SqlAlchemyDepositRepository(sessions)
     reminder_repository = SqlAlchemyReminderRepository(sessions)
     patient_repository = PatientRepository(catalog, sessions)
+    module_repository = ModuleRepository(sessions)
+    module_repository.ensure_seeded()
     ensure_default_admin(user_repository)
 
     app = FastAPI(title="MedLibra")
@@ -82,6 +86,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.dashboard = DashboardService(
         appointment_repository, patient_repository, reminder_repository, deposit_repository,
     )
+    app.state.modules = module_repository
 
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -97,10 +102,21 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(business_settings.router, dependencies=admin_only)
     app.include_router(users_router.router, dependencies=admin_only)
-    app.include_router(reminders.router, dependencies=admin_only)
-    app.include_router(deposits.admin_router, dependencies=admin_only)
-    app.include_router(billing_router.router, dependencies=admin_only)
-    app.include_router(dashboard_router.router, dependencies=admin_only)
+    # Recordatorios, señas, facturación y dashboard son módulos gateables
+    # por plan (ver plans.py) -- el resto del dominio clínico y turnos
+    # nunca se gatean (ver ADR-018).
+    app.include_router(
+        reminders.router, dependencies=admin_only + [Depends(require_module("recordatorios"))],
+    )
+    app.include_router(
+        deposits.admin_router, dependencies=admin_only + [Depends(require_module("senas"))],
+    )
+    app.include_router(
+        billing_router.router, dependencies=admin_only + [Depends(require_module("facturacion"))],
+    )
+    app.include_router(
+        dashboard_router.router, dependencies=admin_only + [Depends(require_module("dashboard"))],
+    )
     # Clinical surface: staff (medical professionals) read/write patients,
     # write historia clinica, issue recetas, pedidos de estudios, upload
     # documentos clinicos and record consentimientos -- that's their actual
@@ -117,6 +133,8 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(consents.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
     app.include_router(agenda.router, dependencies=staff_or_admin)
-    app.include_router(deposits.request_router, dependencies=staff_or_admin)
+    app.include_router(
+        deposits.request_router, dependencies=staff_or_admin + [Depends(require_module("senas"))],
+    )
 
     return app

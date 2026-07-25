@@ -5,13 +5,15 @@ centros médicos.
 
 Compone:
 
-- LibraGenda `v0.6.0` — agenda, recursos, servicios, ciclo de vida de turnos,
-  disponibilidad/bloqueos/excepciones, feriados y timezone por sucursal,
-  recurrencias, recordatorios (puerto de notificaciones), señas (puerto de
-  pagos) y motivo opcional de cancelación/reprogramación.
-- LibraCore — solo `libracore.auth.SessionAuth` por ahora (login por cookie
-  firmada, mismo patrón que Gestiolibra); administración/facturación/caja,
-  **solo si MedLibra incorpora facturación** (no está decidido).
+- LibraGenda `v0.9.0` — agenda, recursos, servicios, ciclo de vida de turnos
+  (incluye `complete()`), disponibilidad/bloqueos/excepciones, feriados y
+  timezone por sucursal, recurrencias, recordatorios (puerto de
+  notificaciones + `list_sent()` para reportes), señas (puerto de pagos,
+  `medio_pago` opcional + `list_by_status()`) y motivo opcional de
+  cancelación/reprogramación.
+- LibraCore `v0.16.1` — `libracore.auth.SessionAuth` (login por cookie
+  firmada) y `libracore.arca_facturacion`/`libracore.db` (facturación
+  electrónica ARCA + caja, ver `DECISIONS.md` ADR-016).
 
 MedLibra posee la API HTTP y el dominio clínico propio. API: `/auth/login`,
 `/auth/logout`, `/auth/me` (sesión por cookie); CRUD de usuarios en `/users`
@@ -115,7 +117,7 @@ LIBRAGENDA_REF=v0.6.0 DATABASE_URL="sqlite:///data/medlibra.db" \
 `clinical_notes`, `branch_contacts`, `branch_hours`, `service_prices`,
 `business_settings`, `prescriptions`, `prescription_items`,
 `study_orders`, `study_order_items`, `study_results`,
-`clinical_documents`, `consents` — no pertenecen al dominio de
+`clinical_documents`, `consents`, `modulos` — no pertenecen al dominio de
 LibraGenda, ver `MODULES.md`). Viajan en este mismo repo:
 
 ```bash
@@ -145,6 +147,64 @@ Gestiolibra, cargándolo como secret ahí también — los secrets no se
 comparten automáticamente entre repos). Sin este secret, el paso "Install
 package + dev deps" falla (no un bug del workflow).
 
+## Planes y módulos
+
+Onboarding multi-consultorio con enforcement real (ver `DECISIONS.md`
+ADR-018). `plans.py` (raíz del repo) define tres planes — Básico ($25k),
+Estándar ($40k) y Premium ($60k) — y qué módulos gateables incluye cada
+uno. **Todo el dominio clínico es siempre gratis y nunca se gatea**
+(pacientes, historia clínica, recetas, estudios, documentos clínicos,
+consentimientos), igual que catálogo/turnos — a diferencia de Gestiolibra,
+acá lo clínico es una necesidad profesional básica, no un extra
+comercial. Lo que varía por plan es recordatorios, señas, facturación y
+dashboard.
+
+La tabla `modulos` (migración `0011_modulos`) guarda el estado real por
+instancia — se siembra con todo habilitado por defecto (una instancia sin
+plan asignado no bloquea nada) y `aplicar_plan_en_db()` la ajusta cuando
+se asigna un plan real. `require_module(nombre)` (`app/modules_gate.py`)
+devuelve 403 en los routers gateados si el módulo está deshabilitado;
+completar un turno (`POST /appointments/{id}/complete`) nunca se bloquea
+por plan — si "facturacion" está deshabilitado simplemente no factura.
+
+## Deploy
+
+Primera infraestructura de deploy de MedLibra (`Dockerfile`,
+`docker-compose.yml`, `app/asgi.py`, `scripts/{nuevo_cliente,panel_admin,
+npm_api,npm_setup}.py`) — mismo patrón que Contalibra/Restolibra/Gestiolibra
+(silo: una instancia + una base SQLite aislada por cliente). A diferencia
+de Gestiolibra, MedLibra todavía no tiene frontend, así que el `Dockerfile`
+no tiene stage de node — Python puro.
+
+**Reutiliza las mismas deploy keys de LibraCore/LibraGenda que ya usa
+Gestiolibra** (mismo ssh-agent multi-key persistente del VPS,
+`agent-multi-libra.sock`) — las deploy keys son por-repo-destino, no
+por-consumidor, así que no hace falta generar ninguna nueva para esas dos
+dependencias:
+
+```bash
+LIBRACORE_SSH_KEY=/root/.ssh/agent-multi-libra.sock python3 scripts/panel_admin.py actualizar <cliente>
+```
+
+El propio repo MedLibra sí necesita su propia deploy key dedicada de solo
+lectura al clonarse al VPS (mismo patrón que `id_ed25519_gestiolibra`) —
+todavía no generada, ver `TASKS.md`.
+
+`docker-compose.yml` levanta `medlibra-dev` en el puerto `8077` (siguiente
+libre después de `gestiolibra-dev` en `8075`/`8076` y antes de
+`restolibra-web` en `8079`; puerto base para clientes reales vía
+provisioning: `8078`). `scripts/npm_api.py`/`npm_setup.py` (wrappers sobre
+`libracore.npm_api`/`libracore.provisioning`) arman el proxy + certificado
+por dominio cuando llegue el momento de exponer `dev.medlibra.com.ar`;
+reutilizan la misma instancia de NPM y credenciales que ya usan
+Contalibra/Restolibra/Gestiolibra (config en `scripts/.npm_config.json`,
+gitignoreado).
+
+**Build de imagen y primera alta de cliente real todavía no hechos en
+esta ronda** — la infraestructura está scaffolded y verificada
+localmente (asgi.py, migración, import de scripts), pero no contra el
+VPS. Ver `TASKS.md`.
+
 ## Documentación
 
 - [ROADMAP.md](ROADMAP.md) — dirección estratégica.
@@ -162,8 +222,12 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
-uvicorn app.main:app --reload
+DATABASE_URL="sqlite:///./dev-data/medlibra.db" uvicorn app.asgi:app --reload
 ```
 
-Las migraciones de LibraGenda y las propias deben aplicarse (`alembic
-upgrade head` en ambas cadenas) antes de iniciar la aplicación real.
+`app/asgi.py` es el entrypoint que usa uvicorn en contenedor (Docker) o
+local — lee `DATABASE_URL` del entorno una sola vez al importar, porque
+`create_app()` requiere ese argumento y no puede usarse directo como
+factory de uvicorn (mismo patrón que Gestiolibra). Las migraciones de
+LibraGenda y las propias deben aplicarse (`alembic upgrade head` en ambas
+cadenas) antes de iniciar la aplicación real.

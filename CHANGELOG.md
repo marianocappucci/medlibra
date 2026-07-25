@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- **Onboarding multi-consultorio: planes con enforcement real +
+  infraestructura de deploy**: `plans.py` (Básico/Estándar/Premium,
+  $25k/$40k/$60k) — todo el dominio clínico siempre libre, solo
+  recordatorios/señas/facturación/dashboard son gateables por plan.
+  Tabla `modulos` (migración `0011_modulos`), `require_module()`
+  (`app/modules_gate.py`). `Dockerfile`/`docker-compose.yml`/
+  `app/asgi.py`/`scripts/{nuevo_cliente,panel_admin,npm_api,npm_setup}.py`
+  — primera infraestructura de deploy de MedLibra, mismo patrón que
+  Gestiolibra sin stage de frontend. Build real de imagen y primera alta
+  de cliente todavía no hechos. Ver `DECISIONS.md` ADR-018.
 - **Dashboard**: `GET /dashboard?date_from=&date_to=` (admin-only) —
   turnos (total y por estado en el rango, turnos de hoy), pacientes
   (total activos, altas nuevas en el rango vía `patients.created_at`

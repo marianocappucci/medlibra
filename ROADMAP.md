@@ -148,7 +148,20 @@ dashboard/reportes.
 
 ## Fase 3 — producto
 
-- Onboarding multi-consultorio/centro médico.
+- Onboarding multi-consultorio/centro médico (scaffolded, deploy real
+  pendiente — ver ADR-018). Sistema de planes con enforcement real:
+  todo el dominio clínico (pacientes, historia clínica, recetas,
+  estudios, documentos, consentimientos) siempre libre, mismo criterio
+  que "turnos nunca se gatea" en Gestiolibra extendido a lo clínico —
+  Básico/Estándar/Premium ($25k/$40k/$60k) solo varían en
+  recordatorios/señas/facturación/dashboard. `plans.py` + tabla
+  `modulos` (migración `0011_modulos`) + `require_module()`, mismo
+  patrón exacto que Gestiolibra. Primera infraestructura de deploy de
+  MedLibra (`Dockerfile` sin stage de frontend, `docker-compose.yml`,
+  `app/asgi.py`, `scripts/{nuevo_cliente,panel_admin,npm_api,npm_setup}.py`),
+  reutilizando las deploy keys de LibraCore/LibraGenda ya cargadas en el
+  VPS para Gestiolibra. Build real de imagen Docker y primera alta de
+  cliente de prueba quedan para la próxima sesión (ver `TASKS.md`).
 - Branding y dominio por cliente.
 - Deploy dev/prod, CI y backups verificados.
 - Validación con primeros consultorios reales.
