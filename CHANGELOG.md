@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- **Frontend: ficha del paciente (dominio clínico completo)** (ver
+  ADR-023): página `/pacientes/:id` con pestañas — historia clínica,
+  recetas, estudios (con resultados anidados por ítem), documentos
+  clínicos (carga multipart) y consentimientos —, enlazada desde un
+  link "Ver ficha" nuevo en la tabla de Pacientes. Todo append-only
+  (crear/listar/borrar admin-only), sin edición. Componentes shadcn
+  `Tabs`/`Textarea` nuevos, `api.postForm` nuevo para multipart.
+  `npm run build` sin errores. Verificado en `dev.medlibra.com.ar`
+  real: las 5 pestañas contra la API real como admin (incluida subida
+  y descarga de un documento con el contenido exacto), y como staff
+  que "Eliminar" no aparece en historia clínica.
 - **Frontend: página de Pacientes (CRUD)** (ver ADR-022): mismo patrón
   que `Clientes.tsx` de Gestiolibra, con `dni`/`birth_date` propios de
   `Patient`. Alta/edición visibles para staff+admin, borrado solo

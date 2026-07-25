@@ -4,19 +4,15 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Frontend: página de Pacientes (CRUD, ver
-ADR-022) desplegada y verificada en `dev.medlibra.com.ar` real con ambos
-roles.
+Ninguna en curso registrada. Frontend: ficha del paciente con el
+dominio clínico completo (ver ADR-023) desplegada y verificada en
+`dev.medlibra.com.ar` real con ambos roles.
 
 ## Próximas
 
-- [ ] Frontend: sumar historia clínica, recetas, estudios, documentos
-      clínicos, consentimientos, dashboard y facturación — pacientes
-      (ADR-022) ya tiene CRUD; falta el resto del dominio clínico.
-      Probablemente conviene una vista de "ficha del paciente" que
-      agrupe historia clínica/recetas/estudios/documentos/
-      consentimientos en vez de páginas sueltas — a decidir cuando se
-      arranque ese ítem.
+- [ ] Frontend: sumar dashboard y facturación — pacientes (ADR-022) y
+      el dominio clínico completo (ADR-023) ya tienen UI; faltan estas
+      dos últimas páginas de la Fase 4.
 - [ ] Frontend: `PatientCreate` sigue exigiendo un `id` explícito en el
       formulario de alta — a diferencia del `Client.id` de Gestiolibra
       (autogenerado desde su ADR-024, por ser alta frecuencia). Evaluar
@@ -223,6 +219,19 @@ necesita cargar pacientes), borrado solo `admin`. Sin auto-generar
 build` sin errores. Verificado en `dev.medlibra.com.ar` real con ambos
 roles: alta/edición/borrado confirmados contra la API real como admin;
 como staff, "Eliminar" no aparece. Sin errores de consola.
+
+Resuelto (2026-07-25, continuación): ficha del paciente con el dominio
+clínico completo (ver ADR-023). Página `/pacientes/:id` con pestañas
+(historia clínica, recetas, estudios, documentos, consentimientos),
+componentes shadcn `Tabs`/`Textarea` nuevos, formularios dinámicos
+(`useFieldArray`) para ítems de receta/estudio, mini-formulario propio
+para resultados de estudio, `api.postForm` nuevo para la carga
+multipart de documentos. `npm run build` sin errores. Verificado en
+`dev.medlibra.com.ar` real como admin: alta y listado en las 5
+pestañas contra la API real (incluida la carga y descarga de un
+documento con el contenido exacto), y como staff que el botón
+"Eliminar" no aparece en historia clínica (mismo gating que ADR-022,
+reutilizado sin cambios). Sin errores de consola.
 
 ## Notas de testing
 

@@ -829,3 +829,65 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
     "Eliminar" **no aparece** — confirma que el gating de rol del
     frontend coincide exactamente con el del backend.
   Sin errores de consola en ningún caso. Sin cambios de backend.
+
+## ADR-023 — Frontend: ficha del paciente (dominio clínico completo)
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (continuación de la sesión anterior)
+- Contexto: segundo ítem del orden acordado (pacientes → dominio clínico
+  → dashboard → facturación, ver ADR-022). El backend ya expone historia
+  clínica, recetas, estudios, documentos clínicos y consentimientos
+  desde la Fase 2 (ADR-011 a ADR-014), pero ninguno tenía UI todavía.
+- Decisión — una sola página "ficha del paciente" con pestañas, en vez
+  de páginas sueltas por dominio: `/pacientes/:id`
+  (`frontend/src/pages/PacienteFicha.tsx`), con un componente `Tabs` de
+  shadcn nuevo (`components/ui/tabs.tsx`, wrapper sobre
+  `radix-ui`'s `Tabs`) y 5 `TabsContent`: Historia clínica, Recetas,
+  Estudios, Documentos, Consentimientos. Se llega desde un link "Ver
+  ficha" nuevo en cada fila de la tabla de `Pacientes.tsx`. Todas las
+  secciones respetan el mismo diseño append-only del backend — crear y
+  listar, nunca editar; borrar solo para `admin` (mismo patrón
+  `isAdmin && (...)` copiado en las 5 secciones, sin lógica especial
+  por pestaña).
+- Decisión — formularios dinámicos con `useFieldArray` para recetas y
+  estudios: una receta o un pedido de estudios pueden tener varios
+  ítems (igual que el backend los modela), así que el formulario de
+  alta permite agregar/quitar filas antes de enviar, en vez de forzar
+  un ítem por request.
+- Decisión — resultados de estudio como mini-formulario por ítem: cada
+  ítem de un pedido de estudios puede recibir uno o más resultados
+  propios (`POST .../items/{item_id}/results`), append-only y
+  desacoplado del pedido. En vez de sumar otro nivel de React Hook Form
+  anidado, cada ítem renderiza un `AddResultForm` chico con estado
+  local (`useState`, no RHF) — la complejidad de un formulario anidado
+  dentro de un `useFieldArray` no se justificaba para dos campos
+  (autor, texto).
+- Decisión — documentos clínicos vía `api.postForm` nuevo: la única
+  ruta multipart de todo el frontend. Se agregó `postFormData()` a
+  `api.ts` (fetch sin `Content-Type` manual, el browser arma el
+  boundary) en vez de reusar `request()` (que siempre serializa a
+  JSON). El input de archivo es un `<input type="file">` nativo, sin
+  componente shadcn — no hay ninguno en el stack estándar de la
+  familia para esto.
+- Decisión — autor pre-cargado desde la sesión: todos los formularios
+  de alta (`author`) arrancan con `user.name` del usuario logueado
+  como valor por defecto, editable — la mayoría de las veces quien
+  carga el registro es quien lo firma, pero no siempre (ej. un
+  administrativo cargando en nombre de un profesional), de ahí que
+  quede editable en vez de fijo o solo lectura.
+- Consecuencias: dos componentes shadcn nuevos (`Tabs`, `Textarea`,
+  ninguno existía en el frontend de MedLibra ni en el de Gestiolibra
+  todavía). `npm run build` sin errores de tipos. Verificado de punta a
+  punta en `dev.medlibra.com.ar` real como `admin` contra la API real:
+  nota de historia clínica (`POST /patients/{id}/notes` → `201`),
+  receta con un ítem (`POST .../prescriptions` → `201`), pedido de
+  estudios con un ítem más un resultado agregado sobre ese ítem
+  (`POST .../study-orders` → `201`, `POST .../results` → `201`),
+  documento subido y descargado con el contenido exacto
+  (`POST .../documents` → `201`, `GET .../file` → `200`,
+  `content-type: application/pdf`), consentimiento con selector
+  "Paciente"/"Tutor o responsable" (`POST .../consents` → `201`). Como
+  `staff-1`, la pestaña de historia clínica muestra la nota sin el
+  botón "Eliminar" — mismo gating `isAdmin` verificado en ADR-022,
+  reutilizado sin cambios en las 5 secciones nuevas. Sin errores de
+  consola. Sin cambios de backend.

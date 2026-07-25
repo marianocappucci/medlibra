@@ -205,7 +205,14 @@ dashboard/reportes.
   a diferencia del catálogo admin-only de Gestiolibra). Verificado en
   `dev.medlibra.com.ar` real con ambos roles: alta/edición/borrado
   como admin, y como staff confirmado que "Eliminar" no aparece.
-- Pendiente: historia clínica, recetas, estudios, documentos clínicos,
-  consentimientos, dashboard y facturación en el frontend — mismo
-  orden que siguió Gestiolibra (clientes/dashboard/facturación se
-  sumaron en rondas separadas después de su propio MVP).
+- Dominio clínico completo: ficha del paciente (completo — ver
+  ADR-023). Página `/pacientes/:id` con pestañas — historia clínica,
+  recetas, estudios (con resultados anidados por ítem), documentos
+  clínicos (carga multipart) y consentimientos — en vez de páginas
+  sueltas por dominio. Todo append-only (crear/listar/borrar
+  admin-only), sin edición, mismo diseño que el backend desde la
+  Fase 2. Enlazada desde un link "Ver ficha" nuevo en la tabla de
+  Pacientes. Verificado en `dev.medlibra.com.ar` real con ambos roles.
+- Pendiente: dashboard y facturación en el frontend — mismo orden que
+  siguió Gestiolibra (dashboard/facturación se sumaron en rondas
+  separadas después de su propio MVP).
