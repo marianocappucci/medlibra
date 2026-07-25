@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Agenda } from './pages/Agenda'
 import { Pacientes } from './pages/Pacientes'
+import { PacienteFicha } from './pages/PacienteFicha'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -36,6 +37,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Pacientes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pacientes/:id"
+        element={
+          <ProtectedRoute>
+            <PacienteFicha />
           </ProtectedRoute>
         }
       />

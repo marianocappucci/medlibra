@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -160,6 +161,9 @@ export function Pacientes() {
         header: () => <div className="text-right">Acciones</div>,
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/pacientes/${row.original.id}`}>Ver ficha</Link>
+            </Button>
             <Button size="sm" variant="outline" onClick={() => startEdit(row.original)}>Editar</Button>
             {isAdmin && (
               <Button size="sm" variant="outline" onClick={() => handleDelete(row.original)}>Eliminar</Button>

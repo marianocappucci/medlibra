@@ -42,11 +42,27 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+async function postFormData<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(path, { method: 'POST', credentials: 'include', body: form })
+  const isJson = response.headers.get('content-type')?.includes('application/json')
+  const data = isJson ? await response.json() : undefined
+  if (!response.ok) {
+    const detail = (data && typeof data === 'object' && 'detail' in data)
+      ? String((data as { detail: unknown }).detail)
+      : response.statusText
+    throw new ApiError(response.status, detail)
+  }
+  return data as T
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   del: <T>(path: string) => request<T>('DELETE', path),
+  // Multipart, para subir documentos clinicos -- unica excepcion al resto
+  // de la API que es JSON puro (ver app/routers/clinical_documents.py).
+  postForm: postFormData,
 }
 
 export type User = {
@@ -103,4 +119,76 @@ export type Appointment = {
   starts_at: string
   ends_at: string
   status: AppointmentStatus
+}
+
+// Dominio clínico: todo append-only -- crear/listar/borrar (admin-only),
+// sin edición. Ver app/routers/{clinical_notes,prescriptions,study_orders,
+// consents,clinical_documents}.py.
+
+export type ClinicalNote = {
+  id: string
+  patient_id: string
+  created_at: string
+  author: string
+  text: string
+}
+
+export type PrescriptionItem = {
+  id: string
+  medication: string
+  dosage: string
+  instructions: string | null
+}
+
+export type Prescription = {
+  id: string
+  patient_id: string
+  created_at: string
+  author: string
+  items: PrescriptionItem[]
+}
+
+export type StudyResult = {
+  id: string
+  item_id: string
+  created_at: string
+  author: string
+  text: string
+}
+
+export type StudyOrderItem = {
+  id: string
+  study_type: string
+  reason: string | null
+  results: StudyResult[]
+}
+
+export type StudyOrder = {
+  id: string
+  patient_id: string
+  created_at: string
+  author: string
+  items: StudyOrderItem[]
+}
+
+export type Consent = {
+  id: string
+  patient_id: string
+  created_at: string
+  author: string
+  procedure: string
+  granted_by: string
+  text: string
+}
+
+export type ClinicalDocument = {
+  id: string
+  patient_id: string
+  created_at: string
+  author: string
+  title: string
+  description: string | null
+  original_filename: string
+  content_type: string | null
+  size_bytes: number
 }
