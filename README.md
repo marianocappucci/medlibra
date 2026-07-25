@@ -186,9 +186,10 @@ dependencias:
 LIBRACORE_SSH_KEY=/root/.ssh/agent-multi-libra.sock python3 scripts/panel_admin.py actualizar <cliente>
 ```
 
-El propio repo MedLibra sí necesita su propia deploy key dedicada de solo
-lectura al clonarse al VPS (mismo patrón que `id_ed25519_gestiolibra`) —
-todavía no generada, ver `TASKS.md`.
+El propio repo MedLibra tiene su propia deploy key dedicada de solo
+lectura (`id_ed25519_medlibra`, alias `github-medlibra` en
+`~/.ssh/config` del VPS, antes del bloque genérico `Host *`), mismo
+patrón que `id_ed25519_gestiolibra`.
 
 `docker-compose.yml` levanta `medlibra-dev` en el puerto `8077` (siguiente
 libre después de `gestiolibra-dev` en `8075`/`8076` y antes de
@@ -200,10 +201,13 @@ reutilizan la misma instancia de NPM y credenciales que ya usan
 Contalibra/Restolibra/Gestiolibra (config en `scripts/.npm_config.json`,
 gitignoreado).
 
-**Build de imagen y primera alta de cliente real todavía no hechos en
-esta ronda** — la infraestructura está scaffolded y verificada
-localmente (asgi.py, migración, import de scripts), pero no contra el
-VPS. Ver `TASKS.md`.
+**Primer deploy real verificado (2026-07-25, ver `DECISIONS.md`
+ADR-019)**: imagen `medlibra:latest` construida en el VPS y cliente de
+prueba `prueba` (puerto `8078`, plan Premium) dado de alta con
+`nuevo_cliente.py` — contenedor healthy, login, endpoint clínico sin
+gating y dashboard verificados. Dominio propio
+(`dev.medlibra.com.ar` + proxy NPM + SSL) todavía pendiente, ver
+`TASKS.md`.
 
 ## Documentación
 

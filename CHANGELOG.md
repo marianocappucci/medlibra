@@ -10,8 +10,11 @@
   (`app/modules_gate.py`). `Dockerfile`/`docker-compose.yml`/
   `app/asgi.py`/`scripts/{nuevo_cliente,panel_admin,npm_api,npm_setup}.py`
   — primera infraestructura de deploy de MedLibra, mismo patrón que
-  Gestiolibra sin stage de frontend. Build real de imagen y primera alta
-  de cliente todavía no hechos. Ver `DECISIONS.md` ADR-018.
+  Gestiolibra sin stage de frontend. Primer deploy real al VPS: deploy
+  key propia (`id_ed25519_medlibra`), imagen `medlibra:latest`
+  construida, cliente de prueba `prueba` (puerto 8078, plan Premium)
+  dado de alta y verificado (healthy, login, endpoint clínico sin
+  gating, dashboard). Ver `DECISIONS.md` ADR-018/ADR-019.
 - **Dashboard**: `GET /dashboard?date_from=&date_to=` (admin-only) —
   turnos (total y por estado en el rango, turnos de hoy), pacientes
   (total activos, altas nuevas en el rango vía `patients.created_at`

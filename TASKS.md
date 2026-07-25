@@ -5,26 +5,18 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 ## En curso
 
 Ninguna en curso registrada. Fase 2 quedó completa; primer ítem de Fase 3
-(onboarding multi-consultorio, ver ADR-018) scaffolded y verificado
-localmente — falta el deploy real al VPS, ver "Próximas".
+(onboarding multi-consultorio) resuelto de punta a punta el 2026-07-25,
+incluido el deploy real al VPS — ver "Resuelto" y `DECISIONS.md` ADR-018.
 
 ## Próximas
 
-- [ ] Primer deploy real de MedLibra al VPS Donweb: generar deploy key
-      dedicada de solo lectura para el propio repo MedLibra
-      (`id_ed25519_medlibra`, mismo patrón que
-      `id_ed25519_gestiolibra`), clonar al VPS, build de imagen Docker
-      (`medlibra:latest`) y primera alta de cliente de prueba con
-      `scripts/nuevo_cliente.py` — mismo proceso que siguió Gestiolibra
-      en su ADR-014. Las deploy keys de LibraCore/LibraGenda ya están
-      cargadas en el ssh-agent multi-key del VPS (`agent-multi-libra.sock`),
-      no hace falta generar nuevas para esas dos dependencias.
-- [ ] Verificar `medlibra-dev` (puerto 8077) contra el VPS real una vez
-      levantado — hoy solo probado localmente (asgi.py, migración,
-      import de scripts).
+- [ ] `medlibra-dev` (puerto 8077, bind-mount con `--reload`) todavía no
+      se levantó contra el VPS real — solo se probó `medlibra:latest`
+      (imagen de producción/cliente) con el cliente de prueba `prueba`.
 - [ ] Branding y dominio por cliente (`dev.medlibra.com.ar` + proxy NPM +
-      SSL, mismo patrón que `dev.gestiolibra.com.ar`) — depende del
-      primer deploy real.
+      SSL, mismo patrón que `dev.gestiolibra.com.ar`) — la maquinaria
+      (`scripts/npm_api.py`/`npm_setup.py`) ya existe pero nunca se
+      ejerció contra la instancia real de NPM para MedLibra.
 - [ ] Backups (`panel_admin.py backup`/`restore-db`) — ya heredado de
       LibraCore, falta probarlo de punta a punta contra un cliente real
       de MedLibra (mismo proceso que Gestiolibra en su ADR-017).
@@ -143,14 +135,23 @@ horas" contra el rango de "hoy" calculado por separado falla cerca de
 medianoche UTC, cuando el turno cae en el día siguiente.
 
 Resuelto (2026-07-25): planes con enforcement real + infraestructura de
-deploy scaffolded (ver ADR-018). `plans.py` (Básico/Estándar/Premium,
-$25k/$40k/$60k — todo el dominio clínico siempre libre, solo
-recordatorios/señas/facturación/dashboard son gateables), tabla
-`modulos` (migración `0011_modulos`), `require_module()`.
-`Dockerfile`/`docker-compose.yml`/`app/asgi.py`/`scripts/` — mismo
-patrón que Gestiolibra, sin stage de frontend (MedLibra no tiene
-todavía). 19 tests nuevos (188 en total). Deploy real al VPS todavía no
-hecho — ver "Próximas".
+deploy + primer deploy real al VPS (ver ADR-018). `plans.py`
+(Básico/Estándar/Premium, $25k/$40k/$60k — todo el dominio clínico
+siempre libre, solo recordatorios/señas/facturación/dashboard son
+gateables), tabla `modulos` (migración `0011_modulos`),
+`require_module()`. `Dockerfile`/`docker-compose.yml`/`app/asgi.py`/
+`scripts/` — mismo patrón que Gestiolibra, sin stage de frontend
+(MedLibra no tiene todavía). 19 tests nuevos (188 en total). Deploy key
+dedicada de solo lectura generada para el propio repo
+(`id_ed25519_medlibra`, alias `github-medlibra`), repo clonado al VPS,
+imagen `medlibra:latest` construida reutilizando las deploy keys de
+LibraCore/LibraGenda ya cargadas en el ssh-agent multi-key
+(`agent-multi-libra.sock`, sin generar nuevas para esas dos
+dependencias). Cliente de prueba `prueba` (puerto 8078, plan Premium)
+dado de alta con `nuevo_cliente.py`: contenedor healthy, login
+verificado, endpoint clínico (`/patients`) respondiendo sin gating y
+dashboard funcionando (plan Premium incluye el módulo). Queda corriendo
+en el VPS como evidencia del pipeline completo.
 
 ## Notas de testing
 

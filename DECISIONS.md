@@ -610,8 +610,64 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   `app/asgi.py` verificado con ambos modos (`DATABASE_URL` explícito y
   el contrato `DATA_DIR`/`ADMIN_USER`/`ADMIN_PASSWORD` que genera
   `libracore.provisioning`). `scripts/panel_admin.py` verificado con un
-  import real (sin ejecutar contra el VPS todavía). Ningún build de
-  Docker ni alta de cliente real hecha todavía en esta ronda — eso queda
-  para una sesión siguiente, ver `TASKS.md` (mismo orden que siguió
-  Gestiolibra: ADR-013 primero con la infraestructura scaffolded y
-  verificada localmente, ADR-014 después con el primer deploy real).
+  import real. El primer deploy real al VPS (build de imagen + alta de
+  cliente de prueba) se hizo en la misma sesión, ver ADR-019 — a
+  diferencia de Gestiolibra, que separó el scaffolding (su ADR-013) del
+  primer deploy real (su ADR-014) en rondas distintas.
+
+## ADR-019 — Primer deploy real de MedLibra al VPS Donweb
+
+- Estado: aceptada
+- Fecha: 2026-07-25
+- Contexto: cerrando ADR-018, se hizo el primer build de Docker y la
+  primera alta de cliente real en el VPS — nunca antes desplegado a
+  ningún servidor (a diferencia de Gestiolibra, que ya tenía su cliente
+  de prueba corriendo desde su propio ADR-014).
+- Decisión — deploy key propia: generada `id_ed25519_medlibra` (ed25519,
+  sin passphrase) en el VPS, registrada como deploy key de solo lectura
+  en el repo `medlibra` vía `gh repo deploy-key add` (ejecutado desde la
+  sesión WSL local con `gh` ya autenticado — el asistente no maneja
+  tokens/contraseñas directamente, coherente con el estándar del wiki).
+  Alias `github-medlibra` agregado a `~/.ssh/config` del VPS, **antes**
+  del bloque genérico `Host *` (mismo cuidado que el resto del
+  ecosistema — ver `wiki/entities/vps-donweb.md`). Verificado con
+  `ssh -T github-medlibra` → "Hi marianocappucci/medlibra!" antes de
+  clonar.
+- Decisión — reutilizar deploy keys existentes para las dependencias:
+  ninguna deploy key nueva para LibraCore/LibraGenda — el ssh-agent
+  multi-key persistente del VPS (`agent-multi-libra.sock`, cargado
+  originalmente para Gestiolibra) ya tenía ambas cargadas, y las deploy
+  keys son por-repo-destino, no por-consumidor. `panel_admin.py
+  actualizar` con `LIBRACORE_SSH_KEY=/root/.ssh/agent-multi-libra.sock`
+  construyó `medlibra:latest` sin ningún bug de identidad SSH (el
+  problema de "primera key que acepta el agente" que sí apareció en el
+  primer build de Gestiolibra, ver su ADR-014, ya estaba resuelto por
+  los alias `IdentitiesOnly yes` horneados en el `Dockerfile` desde
+  ADR-018 — replicados de Gestiolibra desde el principio, no
+  descubiertos de nuevo).
+- Decisión — instalación de `panel_admin.py` en el host (fuera de
+  Docker): `.venv-scripts` propio necesita solo `libracore` (no
+  `libragenda`, que `panel_admin.py` no importa). En vez de pasar por
+  el ssh-agent multi-key (con riesgo de ambigüedad si algún día se
+  necesitaran ambas identidades en la misma operación), se instaló
+  apuntando `GIT_SSH_COMMAND` directo al archivo de la deploy key de
+  LibraCore (`-i /root/.ssh/id_ed25519_libracore -o IdentitiesOnly=yes`)
+  — sin pasar por el agente, sin ambigüedad posible, mismo patrón
+  implícito que ya usaba el `.venv-scripts` de Gestiolibra.
+- Consecuencias: repo clonado a `/root/medlibra` (el directorio ya
+  existía con un `.env.dev` residual de la Fase 0, movido a
+  `/root/medlibra.env.dev.bak` sin borrar — quedó obsoleto desde que
+  MedLibra pasó a SQLite-only, ver ADR-015). Imagen `medlibra:latest`
+  construida con éxito (LibraGenda `v0.9.0` + LibraCore `v0.16.1`
+  resueltos por SSH sin conflicto de identidad). Cliente de prueba
+  `prueba` (puerto `8078`, plan Premium) dado de alta con
+  `nuevo_cliente.py`: contenedor `medlibra-prueba` healthy, verificado
+  con `curl` (`/health` 200), login real (`admin`/contraseña generada),
+  endpoint clínico (`GET /patients`) respondiendo `200 []` sin ningún
+  gating (confirma ADR-018: lo clínico nunca se bloquea por plan) y
+  `GET /dashboard` respondiendo con datos reales (plan Premium incluye
+  el módulo). `panel_admin.py listar` confirma el cliente `running`.
+  Queda corriendo en el VPS como evidencia del pipeline completo — sin
+  build de Docker previo desde cero en este VPS para MedLibra hasta
+  esta ronda. Dominio propio (`dev.medlibra.com.ar` + proxy NPM + SSL)
+  queda pendiente, ver `TASKS.md`.

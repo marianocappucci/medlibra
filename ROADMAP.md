@@ -148,11 +148,11 @@ dashboard/reportes.
 
 ## Fase 3 — producto
 
-- Onboarding multi-consultorio/centro médico (scaffolded, deploy real
-  pendiente — ver ADR-018). Sistema de planes con enforcement real:
-  todo el dominio clínico (pacientes, historia clínica, recetas,
-  estudios, documentos, consentimientos) siempre libre, mismo criterio
-  que "turnos nunca se gatea" en Gestiolibra extendido a lo clínico —
+- Onboarding multi-consultorio/centro médico (completo — ver
+  ADR-018/ADR-019). Sistema de planes con enforcement real: todo el
+  dominio clínico (pacientes, historia clínica, recetas, estudios,
+  documentos, consentimientos) siempre libre, mismo criterio que
+  "turnos nunca se gatea" en Gestiolibra extendido a lo clínico —
   Básico/Estándar/Premium ($25k/$40k/$60k) solo varían en
   recordatorios/señas/facturación/dashboard. `plans.py` + tabla
   `modulos` (migración `0011_modulos`) + `require_module()`, mismo
@@ -160,8 +160,13 @@ dashboard/reportes.
   MedLibra (`Dockerfile` sin stage de frontend, `docker-compose.yml`,
   `app/asgi.py`, `scripts/{nuevo_cliente,panel_admin,npm_api,npm_setup}.py`),
   reutilizando las deploy keys de LibraCore/LibraGenda ya cargadas en el
-  VPS para Gestiolibra. Build real de imagen Docker y primera alta de
-  cliente de prueba quedan para la próxima sesión (ver `TASKS.md`).
-- Branding y dominio por cliente.
-- Deploy dev/prod, CI y backups verificados.
-- Validación con primeros consultorios reales.
+  VPS para Gestiolibra + una deploy key propia nueva
+  (`id_ed25519_medlibra`). Build real de imagen Docker y primera alta
+  de cliente de prueba (`prueba`, puerto 8078, plan Premium) verificados
+  en el VPS — contenedor healthy, login, endpoint clínico sin gating y
+  dashboard funcionando.
+- Branding y dominio por cliente (pendiente — ver `TASKS.md`).
+- Deploy dev/prod, CI y backups verificados (deploy real y CI ya
+  verificados desde el onboarding; backups pendientes de probar de
+  punta a punta contra un cliente real de MedLibra).
+- Validación con primeros consultorios reales (pendiente).
