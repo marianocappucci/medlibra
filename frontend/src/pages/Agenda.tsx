@@ -1,0 +1,294 @@
+import { useEffect, useMemo, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { type ColumnDef } from '@tanstack/react-table'
+import {
+  api, ApiError, STATUS_LABELS,
+  type Appointment, type AppointmentStatus, type Patient, type Resource, type Service,
+} from '../api'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
+} from '@/components/ui/form'
+import { DataTable, sortableHeader } from '@/components/data-table'
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString('es-AR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+const STATUS_BADGE_VARIANT: Record<AppointmentStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending: 'outline',
+  confirmed: 'secondary',
+  in_progress: 'secondary',
+  completed: 'default',
+  cancelled: 'destructive',
+  no_show: 'destructive',
+}
+
+const appointmentSchema = z.object({
+  service_id: z.string().min(1, 'Elegí un servicio'),
+  client_id: z.string().min(1, 'Elegí un paciente'),
+  starts_at: z.string().min(1, 'Elegí un horario'),
+})
+
+type AppointmentFormValues = z.infer<typeof appointmentSchema>
+
+export function Agenda() {
+  const [resources, setResources] = useState<Resource[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [resourceId, setResourceId] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState(todayIso())
+  const [dateTo, setDateTo] = useState(todayIso())
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+
+  const form = useForm<AppointmentFormValues>({
+    resolver: zodResolver(appointmentSchema),
+    defaultValues: { service_id: '', client_id: '', starts_at: '' },
+  })
+
+  useEffect(() => {
+    Promise.all([
+      api.get<Resource[]>('/resources'),
+      api.get<Service[]>('/services'),
+      api.get<Patient[]>('/patients'),
+    ]).then(([r, s, p]) => {
+      setResources(r)
+      setServices(s)
+      setPatients(p)
+      if (r.length > 0) setResourceId(r[0].id)
+    }).catch((err) => setError(describeError(err)))
+  }, [])
+
+  useEffect(() => {
+    if (!resourceId) return
+    loadAgenda()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resourceId, dateFrom, dateTo])
+
+  function describeError(err: unknown): string {
+    if (err instanceof ApiError) return err.detail
+    return 'Error de conexión.'
+  }
+
+  async function loadAgenda() {
+    setLoading(true)
+    setError(null)
+    try {
+      const items = await api.get<Appointment[]>(
+        `/resources/${resourceId}/agenda?date_from=${dateFrom}&date_to=${dateTo}`,
+      )
+      setAppointments(items.sort((a, b) => a.starts_at.localeCompare(b.starts_at)))
+    } catch (err) {
+      setError(describeError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCreate(values: AppointmentFormValues) {
+    setCreating(true)
+    setError(null)
+    try {
+      await api.post('/appointments', {
+        resource_id: resourceId,
+        service_id: values.service_id,
+        client_id: values.client_id,
+        starts_at: values.starts_at,
+      })
+      form.reset({ service_id: '', client_id: '', starts_at: '' })
+      await loadAgenda()
+    } catch (err) {
+      setError(describeError(err))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleAction(action: () => Promise<unknown>) {
+    setError(null)
+    try {
+      await action()
+      await loadAgenda()
+    } catch (err) {
+      setError(describeError(err))
+    }
+  }
+
+  function patientName(id: string): string {
+    return patients.find((p) => p.id === id)?.name ?? id
+  }
+
+  function serviceName(id: string): string {
+    return services.find((s) => s.id === id)?.name ?? id
+  }
+
+  const columns = useMemo<ColumnDef<Appointment>[]>(() => [
+    { accessorKey: 'starts_at', header: sortableHeader('Horario'), cell: ({ row }) => formatTime(row.original.starts_at) },
+    { id: 'patient', header: 'Paciente', cell: ({ row }) => patientName(row.original.client_id) },
+    { id: 'service', header: 'Servicio', cell: ({ row }) => serviceName(row.original.service_id) },
+    {
+      accessorKey: 'status',
+      header: 'Estado',
+      cell: ({ row }) => (
+        <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Acciones</div>,
+      cell: ({ row }) => {
+        const a = row.original
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            {a.status === 'pending' && (
+              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/confirm`))}>
+                Confirmar
+              </Button>
+            )}
+            {(a.status === 'pending' || a.status === 'confirmed') && (
+              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/cancel`))}>
+                Cancelar
+              </Button>
+            )}
+            {a.status === 'confirmed' && (
+              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/complete`))}>
+                Completar
+              </Button>
+            )}
+          </div>
+        )
+      },
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [patients, services])
+
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="grid gap-1.5">
+          <Label>Recurso</Label>
+          <Select value={resourceId} onValueChange={setResourceId}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Recurso…" />
+            </SelectTrigger>
+            <SelectContent>
+              {resources.map((r) => (
+                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="date-from">Desde</Label>
+          <Input id="date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="date-to">Hasta</Label>
+          <Input id="date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Nuevo turno</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form className="flex flex-wrap items-start gap-3" onSubmit={form.handleSubmit(handleCreate)}>
+              <FormField
+                control={form.control}
+                name="service_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Servicio</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-56">
+                          <SelectValue placeholder="Servicio…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {services.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="client_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Paciente</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-56">
+                          <SelectValue placeholder="Paciente…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {patients.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="starts_at"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Horario</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} className="w-56" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={creating || !resourceId} className="mt-6">
+                {creating ? 'Creando…' : 'Crear turno'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          {loading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Cargando…</p>
+          ) : (
+            <DataTable columns={columns} data={appointments} emptyMessage="Sin turnos en el rango seleccionado." />
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

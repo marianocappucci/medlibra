@@ -1,5 +1,15 @@
 # syntax=docker/dockerfile:1
 
+# Stage separado para el frontend (React+Vite, ver DECISIONS.md ADR-021):
+# node no hace falta en la imagen final, solo el resultado del build
+# (frontend/dist). Mismo patron que Gestiolibra (ver su Dockerfile/ADR-019).
+FROM node:20-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -32,6 +42,13 @@ RUN mkdir -p -m 0700 /root/.ssh \
     && chmod 600 /root/.ssh/config /root/.ssh/id_libracore.pub /root/.ssh/id_libragenda.pub
 
 COPY . .
+# Horneado FUERA de /app a proposito (mismo criterio que Gestiolibra
+# ADR-022): el docker-compose.yml de dev monta ./:/app entero para el
+# --reload de Python, lo que taparia cualquier build copiado dentro de
+# /app con el checkout del host (que no tiene frontend/dist, es un
+# artefacto gitignoreado). Copiarlo fuera del arbol bind-monteado evita
+# el problema de raiz, sin volumenes.
+COPY --from=frontend-build /frontend/dist /opt/frontend-dist
 RUN --mount=type=ssh \
     git config --global url."ssh://git@github-libracore/marianocappucci/libracore.git".insteadOf "https://github.com/marianocappucci/libracore.git" \
     && git config --global url."ssh://git@github-libragenda/marianocappucci/libragenda.git".insteadOf "https://github.com/marianocappucci/libragenda.git" \

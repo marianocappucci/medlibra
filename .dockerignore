@@ -5,3 +5,5 @@ __pycache__
 *.pyc
 clientes/
 dev-data/
+frontend/node_modules
+frontend/dist
