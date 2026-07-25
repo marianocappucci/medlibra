@@ -670,4 +670,48 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   Queda corriendo en el VPS como evidencia del pipeline completo — sin
   build de Docker previo desde cero en este VPS para MedLibra hasta
   esta ronda. Dominio propio (`dev.medlibra.com.ar` + proxy NPM + SSL)
-  queda pendiente, ver `TASKS.md`.
+  se resolvió en la sesión siguiente, ver ADR-020.
+
+## ADR-020 — Dominio y SSL real: dev.medlibra.com.ar
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (continuación)
+- Contexto: siguiente pendiente elegido por el usuario entre los que
+  quedaron abiertos tras ADR-018/ADR-019. `medlibra.com.ar` ya estaba
+  registrado con DNS apuntando a este VPS (confirmado con `getent
+  hosts` para `medlibra.com.ar` y `dev.medlibra.com.ar`, ambos
+  resolviendo a la IP del VPS — no hacía falta tocar DNS), a diferencia
+  de lo que se pensaba antes de verificar.
+- Decisión — levantar `medlibra-dev` primero: el dominio de dev tiene
+  que apuntar al contenedor de desarrollo (bind-mount + `--reload`,
+  puerto `8077`), no al cliente de prueba `prueba` (puerto `8078`,
+  pensado como evidencia de onboarding, no como entorno de desarrollo
+  expuesto). `docker compose up -d --build` con
+  `LIBRACORE_SSH_KEY=/root/.ssh/agent-multi-libra.sock` (mismo valor
+  que usa `panel_admin.py actualizar`) — sin esa variable, el build
+  default cae a un solo archivo de key (`~/.ssh/id_ed25519_libracore`)
+  y falla al clonar LibraGenda con el mismo problema de identidad única
+  ya documentado. `.env` con `SECRET_KEY`/`MEDLIBRA_ADMIN_PASSWORD`
+  generados (no existía todavía, nunca se había levantado este
+  servicio). Bug menor encontrado y corregido: `dev-data/` (donde
+  `docker-compose.yml` apunta el SQLite de dev) no existía en el host
+  — `sqlite3.OperationalError: unable to open database file` hasta
+  crear el directorio.
+- Decisión — reutilizar la instancia de NPM de Gestiolibra: mismo
+  criterio que su propio ADR-016 — se copió `scripts/.npm_config.json`
+  de Gestiolibra a MedLibra tal cual (misma instancia NPM, mismas
+  credenciales admin), corrigiendo `forward_host` a `172.18.0.1`
+  (gateway de la red docker compartida `stack_stack-net`) desde el
+  principio — ya no hizo falta redescubrir el hallazgo de Gestiolibra
+  (el nombre de contenedor heredado del `.npm_config.json` de
+  Contalibra que causó el primer proxy mal apuntado en su momento).
+  `client.create_proxy_host("dev.medlibra.com.ar", forward_host,
+  8077, ssl=True)` sobre `libracore.npm_api.NPMClient` — certificado
+  Let's Encrypt real solicitado automáticamente por NPM.
+- Consecuencias: `dev.medlibra.com.ar` sirviendo tráfico real por
+  HTTPS con certificado válido (verificado con `curl -v` mostrando
+  handshake TLS 1.3 completo y `200 OK` en `/health`, tanto desde el
+  propio VPS como desde la máquina de desarrollo — no solo loopback).
+  Sin cambios de código en el repo (`.env`/`scripts/.npm_config.json`
+  gitignoreados, igual que en el resto de la familia). Proxy host id
+  `30` en NPM.

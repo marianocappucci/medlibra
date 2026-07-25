@@ -6,17 +6,11 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 Ninguna en curso registrada. Fase 2 quedó completa; primer ítem de Fase 3
 (onboarding multi-consultorio) resuelto de punta a punta el 2026-07-25,
-incluido el deploy real al VPS — ver "Resuelto" y `DECISIONS.md` ADR-018.
+incluido el deploy real al VPS y el dominio propio con SSL — ver
+"Resuelto" y `DECISIONS.md` ADR-018/ADR-019/ADR-020.
 
 ## Próximas
 
-- [ ] `medlibra-dev` (puerto 8077, bind-mount con `--reload`) todavía no
-      se levantó contra el VPS real — solo se probó `medlibra:latest`
-      (imagen de producción/cliente) con el cliente de prueba `prueba`.
-- [ ] Branding y dominio por cliente (`dev.medlibra.com.ar` + proxy NPM +
-      SSL, mismo patrón que `dev.gestiolibra.com.ar`) — la maquinaria
-      (`scripts/npm_api.py`/`npm_setup.py`) ya existe pero nunca se
-      ejerció contra la instancia real de NPM para MedLibra.
 - [ ] Backups (`panel_admin.py backup`/`restore-db`) — ya heredado de
       LibraCore, falta probarlo de punta a punta contra un cliente real
       de MedLibra (mismo proceso que Gestiolibra en su ADR-017).
@@ -152,6 +146,17 @@ dado de alta con `nuevo_cliente.py`: contenedor healthy, login
 verificado, endpoint clínico (`/patients`) respondiendo sin gating y
 dashboard funcionando (plan Premium incluye el módulo). Queda corriendo
 en el VPS como evidencia del pipeline completo.
+
+Resuelto (2026-07-25, continuación): dominio propio con SSL real (ver
+ADR-020). `medlibra-dev` levantado por primera vez contra el VPS
+(puerto 8077, `.env` generado, bug menor de `dev-data/` inexistente
+corregido). `dev.medlibra.com.ar` (DNS ya apuntaba al VPS, sin tocar)
+con proxy NPM + certificado Let's Encrypt real, reutilizando la misma
+instancia y credenciales de NPM que ya usan Contalibra/Restolibra/
+Gestiolibra — `forward_host` corregido a `172.18.0.1:8077` desde el
+principio (sin repetir el hallazgo que le costó un proxy mal apuntado a
+Gestiolibra). Verificado con `curl -v` (TLS 1.3, 200 en `/health`)
+desde el VPS y desde la máquina de desarrollo.
 
 ## Notas de testing
 

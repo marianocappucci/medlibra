@@ -165,8 +165,14 @@ dashboard/reportes.
   de cliente de prueba (`prueba`, puerto 8078, plan Premium) verificados
   en el VPS — contenedor healthy, login, endpoint clínico sin gating y
   dashboard funcionando.
-- Branding y dominio por cliente (pendiente — ver `TASKS.md`).
-- Deploy dev/prod, CI y backups verificados (deploy real y CI ya
-  verificados desde el onboarding; backups pendientes de probar de
-  punta a punta contra un cliente real de MedLibra).
+- Branding y dominio por cliente (completo para dev — ver ADR-020).
+  `medlibra-dev` levantado por primera vez contra el VPS (puerto 8077).
+  `dev.medlibra.com.ar` con proxy NPM + certificado Let's Encrypt real,
+  reutilizando la misma instancia de NPM que ya usan Contalibra/
+  Restolibra/Gestiolibra (DNS ya apuntaba al VPS, sin tocar). Dominio
+  por cliente real (no solo dev) queda pendiente de un primer cliente
+  real, mismo criterio que Gestiolibra.
+- Deploy dev/prod, CI y backups verificados (deploy real, CI y dominio
+  dev ya verificados; backups pendientes de probar de punta a punta
+  contra un cliente real de MedLibra).
 - Validación con primeros consultorios reales (pendiente).

@@ -196,18 +196,23 @@ libre después de `gestiolibra-dev` en `8075`/`8076` y antes de
 `restolibra-web` en `8079`; puerto base para clientes reales vía
 provisioning: `8078`). `scripts/npm_api.py`/`npm_setup.py` (wrappers sobre
 `libracore.npm_api`/`libracore.provisioning`) arman el proxy + certificado
-por dominio cuando llegue el momento de exponer `dev.medlibra.com.ar`;
-reutilizan la misma instancia de NPM y credenciales que ya usan
-Contalibra/Restolibra/Gestiolibra (config en `scripts/.npm_config.json`,
-gitignoreado).
+por dominio; reutilizan la misma instancia de NPM y credenciales que ya
+usan Contalibra/Restolibra/Gestiolibra (config en
+`scripts/.npm_config.json`, gitignoreado).
 
 **Primer deploy real verificado (2026-07-25, ver `DECISIONS.md`
 ADR-019)**: imagen `medlibra:latest` construida en el VPS y cliente de
 prueba `prueba` (puerto `8078`, plan Premium) dado de alta con
 `nuevo_cliente.py` — contenedor healthy, login, endpoint clínico sin
-gating y dashboard verificados. Dominio propio
-(`dev.medlibra.com.ar` + proxy NPM + SSL) todavía pendiente, ver
-`TASKS.md`.
+gating y dashboard verificados.
+
+**Dominio propio con SSL real (2026-07-25, continuación, ver
+`DECISIONS.md` ADR-020)**: `medlibra-dev` levantado por primera vez
+contra el VPS (puerto `8077`). `dev.medlibra.com.ar` con proxy NPM +
+certificado Let's Encrypt real (DNS ya apuntaba al VPS, sin tocar).
+Verificado con `curl -v` (TLS 1.3, `200` en `/health`) desde el VPS y
+desde la máquina de desarrollo. Dominio por cliente real (no solo dev)
+queda pendiente de un primer cliente real, ver `TASKS.md`.
 
 ## Documentación
 

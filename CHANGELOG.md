@@ -14,7 +14,9 @@
   key propia (`id_ed25519_medlibra`), imagen `medlibra:latest`
   construida, cliente de prueba `prueba` (puerto 8078, plan Premium)
   dado de alta y verificado (healthy, login, endpoint clínico sin
-  gating, dashboard). Ver `DECISIONS.md` ADR-018/ADR-019.
+  gating, dashboard). `medlibra-dev` levantado por primera vez (puerto
+  8077) y `dev.medlibra.com.ar` con proxy NPM + certificado Let's
+  Encrypt real. Ver `DECISIONS.md` ADR-018/ADR-019/ADR-020.
 - **Dashboard**: `GET /dashboard?date_from=&date_to=` (admin-only) —
   turnos (total y por estado en el rango, turnos de hoy), pacientes
   (total activos, altas nuevas en el rango vía `patients.created_at`
