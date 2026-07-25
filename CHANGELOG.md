@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- **Frontend: facturación** (ver ADR-025, cierra la Fase 4 del
+  frontend): página `/facturacion` (config ARCA), mismo componente que
+  Gestiolibra sin cambios de campos. Diálogo de medio de pago en
+  `Agenda.tsx` al completar un turno con saldo pendiente (en vez de un
+  422 crudo) y diálogo de factura emitida (tipo, número, CAE, total)
+  tras completar. Componente `Dialog` (shadcn) recreado. Ítem de menú
+  oculto para `staff`. `npm run build` sin errores. Verificado en
+  `dev.medlibra.com.ar` real: config ARCA guardada, turno completado
+  con saldo pendiente → diálogo → factura real emitida (Factura B,
+  CAE, total correcto) como admin; como staff, ni el menú ni la ruta
+  directa muestran contenido.
 - **Frontend: dashboard** (ver ADR-024): mismo componente que
   `Dashboard.tsx` de Gestiolibra, sin la card de facturación (turnos
   por estado en el rango, pacientes activos/nuevos en el rango,

@@ -935,3 +935,52 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   directo a `/reportes` la página muestra el mensaje de acceso
   denegado (`GET /dashboard` responde `403` real, confirmado en la
   pestaña de red). Sin errores de consola. Sin cambios de backend.
+
+## ADR-025 — Frontend: facturación (cierra la Fase 4)
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (continuación de la sesión anterior)
+- Contexto: último ítem del orden acordado (pacientes → dominio
+  clínico → dashboard → facturación, ver ADR-022/023/024). El backend
+  ya exponía `PUT`/`GET /config/arca` (admin-only) y facturaba
+  automáticamente al completar un turno con saldo pendiente
+  (`POST /appointments/{id}/complete`, 422 si falta `medio_pago`)
+  desde la Fase 2 (ADR-016), pero sin ninguna de las dos piezas en la UI.
+- Decisión — mismo componente que `Facturacion.tsx` de Gestiolibra,
+  sin cambios de campos: el schema `ArcaConfigIn`/`ArcaConfigOut` de
+  MedLibra ya coincidía exactamente (CUIT, punto de venta, ambiente,
+  paths de certificado/clave — MedLibra tampoco tiene upload real,
+  mismo pendiente documentado que Gestiolibra). Página `/facturacion`
+  con el formulario de configuración ARCA.
+- Decisión — diálogo de medio de pago en `Agenda.tsx`, portado tal
+  cual del mismo lugar en Gestiolibra: al hacer clic en "Completar",
+  si el backend responde `422` (saldo pendiente sin `medio_pago`), se
+  abre un diálogo para elegir cómo se cobró en vez de mostrar el error
+  crudo; al confirmar, se reintenta `complete` con el `medio_pago`
+  elegido. Si la respuesta incluye una factura, se abre un segundo
+  diálogo mostrando tipo de comprobante, número, CAE y total. Los
+  cuatro medios de pago (`efectivo`/`transferencia`/`tarjeta`/
+  `mercadopago`) son los mismos que ya usa `libracore.db.caja` en
+  ambos productos.
+- Decisión — ítem de menú "Facturación" oculto para `staff`, mismo
+  filtro `adminOnly` ya usado para el dashboard (ADR-024) — coherente
+  con que tanto `/config/arca` como la parte de facturación de
+  `complete` son admin-only/gateadas por el módulo `"facturacion"` del
+  plan.
+- Componente `Dialog` (shadcn) recreado en `components/ui/dialog.tsx`
+  — se había sacado del scaffold inicial por no usarse todavía en el
+  MVP de login+agenda (ver ADR-021).
+- Consecuencias: `npm run build` sin errores de tipos. Verificado de
+  punta a punta en `dev.medlibra.com.ar` real como `admin`: config ARCA
+  guardada (`PUT /config/arca` → `200`), precio de servicio configurado
+  (`PUT /services/{id}/prices`), turno completado con saldo pendiente
+  → diálogo de medio de pago → `POST .../complete` primero `422` (sin
+  `medio_pago`) y luego `200` (con `medio_pago: efectivo`) → diálogo de
+  factura emitida con datos reales (Factura B, número `0003-00000001`,
+  CAE, total `$15.000,00`, coincidiendo con el punto de venta
+  configurado). Como `staff-1`: ni "Dashboard" ni "Facturación"
+  aparecen en el menú, y navegando directo a `/facturacion` se ve el
+  mismo mensaje de acceso denegado dedicado. Sin errores de consola.
+  Sin cambios de backend. **Con esto se completa el frontend de
+  MedLibra (Fase 4): login, agenda/turnos, pacientes, dominio clínico
+  completo, dashboard y facturación.**

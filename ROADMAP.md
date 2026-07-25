@@ -222,6 +222,20 @@ dashboard/reportes.
   Verificado en `dev.medlibra.com.ar` real con ambos roles: admin ve
   datos reales, staff ni el ítem de menú ni el contenido (403 con
   mensaje dedicado al navegar directo a la ruta).
-- Pendiente: facturación en el frontend — mismo orden que siguió
-  Gestiolibra (facturación se sumó en una ronda separada después de
-  su propio dashboard).
+- Facturación (completo — ver ADR-025). Mismo componente que
+  `Facturacion.tsx` de Gestiolibra sin cambios de campos (el schema
+  ARCA de MedLibra ya coincidía): página `/facturacion` con la
+  configuración ARCA, diálogo de medio de pago en `Agenda.tsx` al
+  completar un turno con saldo pendiente y diálogo de factura emitida
+  tras completar (tipo, número, CAE, total). Ítem de menú oculto para
+  `staff`. Verificado en `dev.medlibra.com.ar` real con ambos roles:
+  como admin, config guardada y una factura real emitida de punta a
+  punta (turno con precio → diálogo → `complete` con `medio_pago` →
+  Factura B con CAE); como staff, ni el menú ni la ruta directa
+  muestran contenido.
+
+**Con esto el frontend de MedLibra (Fase 4) queda completo**: login,
+agenda/turnos, pacientes, dominio clínico (historia clínica, recetas,
+estudios, documentos, consentimientos), dashboard y facturación —
+misma cobertura funcional que Gestiolibra, mismo stack y mismos
+patrones de diseño en todo el frontend.

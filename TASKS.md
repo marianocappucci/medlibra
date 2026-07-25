@@ -4,26 +4,19 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Frontend: dashboard (ver ADR-024)
-desplegado y verificado en `dev.medlibra.com.ar` real con ambos
-roles.
+Ninguna en curso registrada. Frontend: facturación (ver ADR-025)
+desplegada y verificada en `dev.medlibra.com.ar` real con ambos
+roles — cierra la Fase 4 completa (login, agenda/turnos, pacientes,
+dominio clínico, dashboard y facturación).
 
 ## Próximas
 
-- [ ] Frontend: sumar facturación — pacientes (ADR-022), el dominio
-      clínico completo (ADR-023) y el dashboard (ADR-024) ya tienen
-      UI; falta esta última página de la Fase 4.
 - [ ] Frontend: `PatientCreate` sigue exigiendo un `id` explícito en el
       formulario de alta — a diferencia del `Client.id` de Gestiolibra
       (autogenerado desde su ADR-024, por ser alta frecuencia). Evaluar
       el mismo cambio (`id` opcional en el backend, generado con
       `uuid4()` si no se manda) si la carga manual del id resulta
       fricción real en el uso diario.
-- [ ] Frontend: sin diálogo de medio de pago/factura al completar un
-      turno todavía (ver ADR-021) — si el servicio tiene precio y hay
-      saldo pendiente, "Completar" falla con un 422 crudo, mismo estado
-      en el que estuvo Gestiolibra antes de su propio ADR-027. Portar el
-      mismo patrón de diálogos cuando se sume facturación al frontend.
 - [ ] `docker compose` deriva el nombre de proyecto del nombre de
       carpeta del cliente (`clientes/prueba`) — como Gestiolibra también
       tiene un cliente `prueba`, ambos comparten el mismo nombre de
@@ -243,6 +236,19 @@ Verificado en `dev.medlibra.com.ar` real: como admin, datos reales
 (`GET /dashboard` → `200`); como staff, ítem de menú ausente y mensaje
 de acceso denegado dedicado al navegar directo a `/reportes` (`GET
 /dashboard` → `403` confirmado en red). Sin errores de consola.
+
+Resuelto (2026-07-25, continuación): facturación (ver ADR-025) — cierra
+la Fase 4 completa. Página `/facturacion` (config ARCA), mismo
+componente que Gestiolibra sin cambios de campos. Diálogo de medio de
+pago en `Agenda.tsx` al completar un turno con saldo pendiente (backend
+responde 422, se pide el medio de pago en vez de mostrar el error
+crudo) y diálogo de factura emitida tras completar. Componente `Dialog`
+(shadcn) recreado. `npm run build` sin errores. Verificado en
+`dev.medlibra.com.ar` real: config ARCA guardada, precio de servicio
+configurado, turno completado con saldo pendiente → diálogo → factura
+real emitida (Factura B, CAE, total correcto). Como staff, ni Dashboard
+ni Facturación aparecen en el menú, y el mensaje de acceso denegado se
+ve al navegar directo a la ruta. Sin errores de consola.
 
 ## Notas de testing
 
