@@ -782,3 +782,50 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   hallazgo de proceso, no del producto: un primer intento de borrarlo
   con una ruta Windows no llegó a escribir en el filesystem de WSL,
   quedó commiteado por error y se corrigió en un commit aparte.
+
+## ADR-022 — Frontend: página de Pacientes (CRUD)
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (continuación de la sesión anterior)
+- Contexto: primer ítem de contenido tras el MVP de login+agenda
+  (ADR-021). El usuario definió el orden de las páginas que faltan
+  (pacientes → dominio clínico → dashboard → facturación, mismo orden
+  que siguió Gestiolibra) y eligió empezar por Pacientes — hoy el
+  selector de paciente del formulario de turno en `Agenda.tsx` es de
+  solo lectura, sin forma de dar de alta un paciente nuevo desde la UI.
+- Decisión — mismo patrón que `Clientes.tsx` de Gestiolibra
+  (formulario React Hook Form + Zod, tabla TanStack), con dos
+  diferencias reales de dominio, no de mecanismo:
+  1. **Campos propios de Patient**: `dni` y `birth_date` (fecha de
+     nacimiento) se suman a los genéricos (teléfono, email, CUIT,
+     condición de IVA) que ya tenía `Client`.
+  2. **Gating por rol distinto**: en Gestiolibra el CRUD de catálogo
+     completo (incluidos Clientes) es admin-only. En MedLibra, `staff`
+     representa personal médico con necesidad real de dar de alta y
+     editar pacientes como parte de su trabajo diario — el backend ya
+     lo refleja así (`POST`/`PUT /patients` sin restricción de rol más
+     allá de estar logueado, solo `DELETE` exige admin, ver
+     `app/routers/patients.py`). El frontend replica exactamente ese
+     gating: alta/edición visibles para `staff`+`admin`, botón
+     "Eliminar" solo para `admin`.
+- Decisión — sin auto-generar el `id`: a diferencia del `Client.id` de
+  Gestiolibra (que se volvió opcional en su propio ADR-024 por ser una
+  operación de alta frecuencia), `PatientCreate` sigue exigiendo un
+  `id` explícito en el formulario — mismo comportamiento que
+  branches/resources/services en este repo hoy, ningún otro endpoint
+  de MedLibra autogenera id todavía. Queda anotado en `TASKS.md` como
+  mejora posible, no aplicado de entrada para no tomar una decisión de
+  arquitectura sin que el usuario la pida.
+- Consecuencias: `npm run build` sin errores de tipos (bundle ~547 KB
+  gzip ~168 KB). Verificado de punta a punta en `dev.medlibra.com.ar`
+  real, con ambos roles:
+  - **admin**: alta de un paciente nuevo (`Ana García`, DNI y teléfono)
+    confirmada contra la API real (`POST /patients` → `201`), edición
+    del teléfono confirmada (`PUT` → `200`, tabla refleja el cambio),
+    borrado confirmado (`DELETE` → `204`, paciente ya no aparece en
+    `GET /patients`).
+  - **staff** (usuario `staff-1` creado para esta verificación): el
+    botón "+ Nuevo paciente" y "Editar" están presentes, el botón
+    "Eliminar" **no aparece** — confirma que el gating de rol del
+    frontend coincide exactamente con el del backend.
+  Sin errores de consola en ningún caso. Sin cambios de backend.

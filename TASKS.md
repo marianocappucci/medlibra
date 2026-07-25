@@ -4,19 +4,25 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Primer frontend (login + agenda/turnos, ver
-ADR-021) desplegado y verificado en `dev.medlibra.com.ar` real — arranca
-la Fase 4, ver "Resuelto" y `DECISIONS.md` ADR-018 a ADR-021.
+Ninguna en curso registrada. Frontend: página de Pacientes (CRUD, ver
+ADR-022) desplegada y verificada en `dev.medlibra.com.ar` real con ambos
+roles.
 
 ## Próximas
 
-- [ ] Frontend: sumar pacientes (CRUD), historia clínica, recetas,
-      estudios, documentos clínicos, consentimientos, dashboard y
-      facturación — el MVP (ADR-021) solo cubre login + agenda/turnos,
-      leyendo `/patients` de solo lectura para el selector del
-      formulario. Mismo orden que siguió Gestiolibra (clientes/
-      dashboard/facturación se sumaron en rondas separadas después del
-      MVP de login+agenda).
+- [ ] Frontend: sumar historia clínica, recetas, estudios, documentos
+      clínicos, consentimientos, dashboard y facturación — pacientes
+      (ADR-022) ya tiene CRUD; falta el resto del dominio clínico.
+      Probablemente conviene una vista de "ficha del paciente" que
+      agrupe historia clínica/recetas/estudios/documentos/
+      consentimientos en vez de páginas sueltas — a decidir cuando se
+      arranque ese ítem.
+- [ ] Frontend: `PatientCreate` sigue exigiendo un `id` explícito en el
+      formulario de alta — a diferencia del `Client.id` de Gestiolibra
+      (autogenerado desde su ADR-024, por ser alta frecuencia). Evaluar
+      el mismo cambio (`id` opcional en el backend, generado con
+      `uuid4()` si no se manda) si la carga manual del id resulta
+      fricción real en el uso diario.
 - [ ] Frontend: sin diálogo de medio de pago/factura al completar un
       turno todavía (ver ADR-021) — si el servicio tiene precio y hay
       saldo pendiente, "Completar" falla con un 422 crudo, mismo estado
@@ -207,6 +213,16 @@ backend sin cambios. Desplegado y verificado en `dev.medlibra.com.ar`
 real: login, página de Agenda con "Paciente" en toda la UI, ciclo
 completo de un turno (alta → confirmar → completar) confirmado contra
 la API real. Sin errores de consola.
+
+Resuelto (2026-07-25, continuación): página de Pacientes (CRUD, ver
+ADR-022). Mismo patrón que `Clientes.tsx` de Gestiolibra, con `dni`/
+`birth_date` propios de `Patient` y gating por rol distinto: alta/
+edición para `staff`+`admin` (coincide con el backend, personal médico
+necesita cargar pacientes), borrado solo `admin`. Sin auto-generar
+`id` todavía (a diferencia del `Client.id` de Gestiolibra). `npm run
+build` sin errores. Verificado en `dev.medlibra.com.ar` real con ambos
+roles: alta/edición/borrado confirmados contra la API real como admin;
+como staff, "Eliminar" no aparece. Sin errores de consola.
 
 ## Notas de testing
 

@@ -198,8 +198,14 @@ dashboard/reportes.
   manualmente en `dev.medlibra.com.ar` real: login, ciclo completo de
   un turno (alta→confirmar→completar) confirmado contra la API real,
   sin errores de consola.
-- Pendiente: pacientes (CRUD), historia clínica, recetas, estudios,
-  documentos clínicos, consentimientos, dashboard y facturación en el
-  frontend — el MVP solo cubre login + agenda/turnos, mismo orden que
-  siguió Gestiolibra (clientes/dashboard/facturación se sumaron en
-  rondas separadas después de su propio MVP).
+- Pacientes: CRUD completo (completo — ver ADR-022). Mismo patrón que
+  `Clientes.tsx` de Gestiolibra, con `dni`/`birth_date` propios de
+  `Patient` y gating por rol distinto (alta/edición para staff+admin,
+  borrado solo admin — coincide con que el backend ya lo trataba así,
+  a diferencia del catálogo admin-only de Gestiolibra). Verificado en
+  `dev.medlibra.com.ar` real con ambos roles: alta/edición/borrado
+  como admin, y como staff confirmado que "Eliminar" no aparece.
+- Pendiente: historia clínica, recetas, estudios, documentos clínicos,
+  consentimientos, dashboard y facturación en el frontend — mismo
+  orden que siguió Gestiolibra (clientes/dashboard/facturación se
+  sumaron en rondas separadas después de su propio MVP).

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Frontend: página de Pacientes (CRUD)** (ver ADR-022): mismo patrón
+  que `Clientes.tsx` de Gestiolibra, con `dni`/`birth_date` propios de
+  `Patient`. Alta/edición visibles para staff+admin, borrado solo
+  admin (coincide con el gating real del backend). `npm run build` sin
+  errores. Verificado en `dev.medlibra.com.ar` real con ambos roles.
 - **Primer frontend de MedLibra: MVP de login + agenda/turnos** (ver
   ADR-021): SPA en React 19 + TypeScript + Vite (`frontend/`), mismo
   stack y patrón exacto que Gestiolibra (Tailwind CSS + shadcn/ui +
