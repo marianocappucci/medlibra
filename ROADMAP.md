@@ -176,4 +176,30 @@ dashboard/reportes.
   probados de punta a punta contra el cliente real `prueba` (paciente
   marcador → backup → mutación → restore → confirmado que vuelve el
   dato original), mismo proceso que Gestiolibra.
-- Validación con primeros consultorios reales (pendiente).
+- Validación con primeros consultorios reales (pendiente — ver Fase 4,
+  el bloqueador estructural de "API sin frontend" se está resolviendo).
+
+## Fase 4 — frontend
+
+- MVP: login + agenda/turnos (completo — ver ADR-021). Primer frontend
+  de MedLibra: SPA en React 19 + TypeScript + Vite (`frontend/`), nunca
+  antes existió ninguno (MedLibra fue API JSON pura a propósito hasta
+  acá, igual que Gestiolibra antes de su propio ADR-019). Mismo stack y
+  patrón exacto que Gestiolibra (Tailwind CSS + shadcn/ui + TanStack
+  Table + React Hook Form + Zod — arrancado directo en el estándar
+  actual de la familia, sin repetir el recorrido histórico de
+  Gestiolibra). Login, selector de recurso + rango de fechas, alta de
+  turno, confirmar/cancelar/completar. El selector de paciente lee
+  `GET /patients` de solo lectura (ya abierto a staff+admin). Consume
+  la API existente sin cambios (cookie de sesión), mismo origen en dev
+  (proxy de Vite) y en producción (servido desde el mismo proceso
+  FastAPI vía `app/asgi.py`, sin contenedor nuevo — `Dockerfile` con
+  stage `node:20-slim` horneado fuera de `/app`). Verificado
+  manualmente en `dev.medlibra.com.ar` real: login, ciclo completo de
+  un turno (alta→confirmar→completar) confirmado contra la API real,
+  sin errores de consola.
+- Pendiente: pacientes (CRUD), historia clínica, recetas, estudios,
+  documentos clínicos, consentimientos, dashboard y facturación en el
+  frontend — el MVP solo cubre login + agenda/turnos, mismo orden que
+  siguió Gestiolibra (clientes/dashboard/facturación se sumaron en
+  rondas separadas después de su propio MVP).

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- **Primer frontend de MedLibra: MVP de login + agenda/turnos** (ver
+  ADR-021): SPA en React 19 + TypeScript + Vite (`frontend/`), mismo
+  stack y patrón exacto que Gestiolibra (Tailwind CSS + shadcn/ui +
+  TanStack Table + React Hook Form + Zod). Selector de paciente lee
+  `/patients` de solo lectura; CRUD de pacientes, historia clínica,
+  recetas, estudios, documentos, consentimientos, dashboard y
+  facturación en el frontend quedan para rondas siguientes. `Dockerfile`
+  con stage `node:20-slim` nuevo, `app/asgi.py` sirve los estáticos.
+  `npm run build` sin errores. 187 tests de backend sin cambios.
+  Desplegado y verificado en `dev.medlibra.com.ar` real: login, ciclo
+  completo de un turno confirmado contra la API real.
 - **Onboarding multi-consultorio: planes con enforcement real +
   infraestructura de deploy**: `plans.py` (Básico/Estándar/Premium,
   $25k/$40k/$60k) — todo el dominio clínico siempre libre, solo

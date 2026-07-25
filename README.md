@@ -240,3 +240,40 @@ local — lee `DATABASE_URL` del entorno una sola vez al importar, porque
 factory de uvicorn (mismo patrón que Gestiolibra). Las migraciones de
 LibraGenda y las propias deben aplicarse (`alembic upgrade head` en ambas
 cadenas) antes de iniciar la aplicación real.
+
+## Frontend
+
+Primer frontend de MedLibra (ver `DECISIONS.md` ADR-021): SPA en
+React + TypeScript + Vite, en `frontend/`. Mismo stack y patrón exacto
+que Gestiolibra (Tailwind CSS + shadcn/ui + TanStack Table + React
+Hook Form + Zod). MVP: login + agenda/turnos — el selector de paciente
+del formulario lee `GET /patients` de solo lectura; pacientes (CRUD),
+historia clínica, recetas, estudios, documentos clínicos,
+consentimientos, dashboard y facturación quedan para rondas siguientes.
+
+```bash
+cd frontend
+npm install
+npm run dev       # servidor de dev en http://localhost:5173
+```
+
+El backend FastAPI (`uvicorn app.asgi:app --reload`) tiene que estar
+corriendo en el puerto 8000 al mismo tiempo — `vite.config.ts` proxea
+los prefijos de la API (`/auth`, `/branches`, `/patients`, etc.) al
+backend, así todo queda en el mismo origen (`localhost:5173`) y la
+cookie de sesión (`ml_session`) funciona sin pelear con
+CORS/`SameSite` cross-origin.
+
+En producción no hay un segundo contenedor: el `Dockerfile` tiene un
+stage de build con `node:20-slim` que corre `npm run build`, y la
+imagen final de Python solo copia el resultado (`frontend/dist`,
+horneado en `/opt/frontend-dist`, fuera del árbol que el
+`docker-compose.yml` de dev bind-montea entero). `app/asgi.py` sirve
+esos estáticos desde el mismo proceso FastAPI — `/assets` como
+archivos estáticos y una ruta catch-all que devuelve `index.html` para
+cualquier path no reconocido por la API. Si `frontend/dist` no existe,
+el mount se salta solo y la app sigue funcionando como API pura.
+
+Desplegado y verificado en `dev.medlibra.com.ar` real: login, página
+de Agenda, ciclo completo de un turno (alta→confirmar→completar)
+confirmado contra la API real, sin errores de consola.

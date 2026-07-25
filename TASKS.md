@@ -4,13 +4,24 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Fase 2 quedó completa; primer ítem de Fase 3
-(onboarding multi-consultorio) resuelto de punta a punta el 2026-07-25,
-incluido el deploy real al VPS y el dominio propio con SSL — ver
-"Resuelto" y `DECISIONS.md` ADR-018/ADR-019/ADR-020.
+Ninguna en curso registrada. Primer frontend (login + agenda/turnos, ver
+ADR-021) desplegado y verificado en `dev.medlibra.com.ar` real — arranca
+la Fase 4, ver "Resuelto" y `DECISIONS.md` ADR-018 a ADR-021.
 
 ## Próximas
 
+- [ ] Frontend: sumar pacientes (CRUD), historia clínica, recetas,
+      estudios, documentos clínicos, consentimientos, dashboard y
+      facturación — el MVP (ADR-021) solo cubre login + agenda/turnos,
+      leyendo `/patients` de solo lectura para el selector del
+      formulario. Mismo orden que siguió Gestiolibra (clientes/
+      dashboard/facturación se sumaron en rondas separadas después del
+      MVP de login+agenda).
+- [ ] Frontend: sin diálogo de medio de pago/factura al completar un
+      turno todavía (ver ADR-021) — si el servicio tiene precio y hay
+      saldo pendiente, "Completar" falla con un 422 crudo, mismo estado
+      en el que estuvo Gestiolibra antes de su propio ADR-027. Portar el
+      mismo patrón de diálogos cuando se sume facturación al frontend.
 - [ ] `docker compose` deriva el nombre de proyecto del nombre de
       carpeta del cliente (`clientes/prueba`) — como Gestiolibra también
       tiene un cliente `prueba`, ambos comparten el mismo nombre de
@@ -183,6 +194,19 @@ containers" mencionando al del otro producto; ambos contenedores están
 correctamente aislados por `container_name` explícito, es solo un
 warning cosmético — documentado como precaución en "Próximas" (nunca
 correr `--remove-orphans` sin revisar).
+
+Resuelto (2026-07-25, sesión siguiente): primer frontend de MedLibra,
+MVP de login + agenda/turnos (ver ADR-021). React 19 + TypeScript +
+Vite, mismo stack y patrón exacto que Gestiolibra (Tailwind CSS +
+shadcn/ui + TanStack Table + React Hook Form + Zod). Selector de
+paciente lee `/patients` de solo lectura; sin CRUD de pacientes,
+dashboard ni facturación en el frontend todavía. `Dockerfile` con stage
+`node:20-slim` nuevo, `app/asgi.py` sirve los estáticos + catch-all.
+`npm run build` sin errores (bundle ~540 KB gzip ~166 KB). 187 tests de
+backend sin cambios. Desplegado y verificado en `dev.medlibra.com.ar`
+real: login, página de Agenda con "Paciente" en toda la UI, ciclo
+completo de un turno (alta → confirmar → completar) confirmado contra
+la API real. Sin errores de consola.
 
 ## Notas de testing
 

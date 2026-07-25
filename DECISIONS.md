@@ -715,3 +715,70 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   Sin cambios de código en el repo (`.env`/`scripts/.npm_config.json`
   gitignoreados, igual que en el resto de la familia). Proxy host id
   `30` en NPM.
+
+## ADR-021 — Primer frontend de MedLibra: MVP de login + agenda/turnos
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (sesión siguiente)
+- Contexto: MedLibra fue, desde el scaffold, API JSON pura — a
+  diferencia de [[gestiolibra]] (mismo motor de turnos, mismo stack de
+  backend), nunca tuvo Fase 4 de frontend. El usuario confirmó
+  `dev.medlibra.com.ar` sirviendo `{"detail":"Not Found"}` en la raíz y
+  preguntó si eso era correcto — lo era: no había ningún frontend
+  buildeado, solo la API. Se decidió arrancar el frontend, con el mismo
+  alcance de primer corte que tuvo Gestiolibra en su propio ADR-019:
+  **login + agenda/turnos**, dejando pacientes/historia clínica/
+  recetas/estudios/documentos/consentimientos/dashboard/facturación
+  para rondas siguientes.
+- Decisión — mismo stack, mismo patrón exacto que Gestiolibra: React 19
+  + TypeScript + Vite, Tailwind CSS + shadcn/ui, TanStack Table, React
+  Hook Form + Zod (el estándar ya consolidado de la familia, ver
+  `estandares-desarrollo.md` del wiki) — arrancado directo en el
+  estándar actual, sin repetir el recorrido histórico de Gestiolibra
+  (que empezó con `useState` a mano y sumó TanStack/RHF/Zod en una
+  ronda posterior, ADR-026 de ese repo). Scaffold copiado tal cual
+  desde el `frontend/` de Gestiolibra (config de Vite/Tailwind/shadcn,
+  `components.json`, primitivos `ui/*`, `data-table.tsx`,
+  `AuthContext.tsx`, `main.tsx` — todos genéricos, sin lógica de
+  negocio) y adaptado: `api.ts` con `Patient` en vez de `Client`
+  (mismos campos que ya expone `/patients`: `dni`/`birth_date` además
+  de los genéricos), `Login.tsx`/`Layout.tsx` con branding "MedLibra",
+  `Agenda.tsx` con "Paciente" en vez de "Cliente" en toda la UI. El
+  selector de paciente del formulario de turno lee `GET /patients`
+  (ya abierto a `staff`+`admin` desde el MVP del backend) — el CRUD de
+  pacientes desde el frontend queda para una ronda siguiente, mismo
+  orden que Gestiolibra (Clientes/Dashboard se sumaron después del MVP
+  de login+agenda, no en el mismo corte).
+- Decisión — sin diálogo de medio de pago/factura todavía: a
+  diferencia del `Agenda.tsx` *actual* de Gestiolibra (que ya tiene el
+  flujo de ADR-027/028 de ese repo), el de MedLibra usa el `POST
+  .../complete` directo y sin body, igual que la primera versión
+  histórica de Gestiolibra antes de que existiera facturación en su
+  frontend — coherente con el alcance acordado (solo login+turnos).
+  Cuando se sume facturación al frontend de MedLibra, se portará el
+  mismo patrón de diálogos ya probado en Gestiolibra.
+- Decisión — Dockerfile/asgi.py: mismo patrón exacto que Gestiolibra
+  (stage `node:20-slim` horneado en `/opt/frontend-dist`, fuera del
+  árbol `/app` bind-montado por el compose de dev — ver ADR-022 de
+  Gestiolibra sobre por qué horneado fuera de `/app` en vez de un
+  volumen anónimo). `app/asgi.py` monta `/assets` + catch-all a
+  `index.html`. `npm install` sin lockfile propio falló por un
+  conflicto de resolución de peer dependencies entre
+  `@hookform/resolvers`/`valibot` — se copió el `package-lock.json` de
+  Gestiolibra (mismas versiones exactas ya probadas) en vez de dejar
+  que npm resolviera de cero.
+- Consecuencias: `npm run build` sin errores de tipos (bundle ~540 KB
+  gzip ~166 KB). 187 tests de backend sin cambios de comportamiento
+  (solo `app/asgi.py` tocado del lado backend). Build de Docker
+  reconstruido y desplegado en `dev.medlibra.com.ar` real: la raíz ya
+  no devuelve `404`, sirve la SPA. Verificado en el browser real:
+  login con las credenciales del contenedor `medlibra-dev`, página de
+  Agenda con el label "Paciente" en vez de "Cliente" en todos lados,
+  ciclo completo de un turno (alta → confirmar → completar) verificado
+  contra la API real — `GET /resources/{id}/agenda` confirma
+  `"status": "completed"` después de usar el botón "Completar" de la
+  UI real. Sin errores de consola. Un `dialog.tsx` copiado sin uso (no
+  hace falta para este alcance) se sacó antes de este commit final —
+  hallazgo de proceso, no del producto: un primer intento de borrarlo
+  con una ruta Windows no llegó a escribir en el filesystem de WSL,
+  quedó commiteado por error y se corrigió en un commit aparte.
