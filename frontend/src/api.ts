@@ -181,6 +181,25 @@ export type Consent = {
   text: string
 }
 
+// Dashboard: resumen de lectura pura, admin-only y gateado por el módulo
+// "dashboard" del plan (ver app/services/dashboard.py). Sin facturación/
+// caja (fuera del primer corte, a diferencia de Gestiolibra).
+export type DashboardSummary = {
+  date_from: string
+  date_to: string
+  turnos: {
+    total_en_periodo: number
+    por_estado: Record<AppointmentStatus, number>
+    hoy: number
+  }
+  pacientes: {
+    total_activos: number
+    nuevos_en_periodo: number
+  }
+  recordatorios_enviados_en_periodo: number
+  senas_pendientes: number
+}
+
 export type ClinicalDocument = {
   id: string
   patient_id: string

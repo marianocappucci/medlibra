@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { CalendarDays, LogOut, Users } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, LogOut, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import {
   Sidebar,
@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 const NAV_ITEMS = [
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/pacientes', label: 'Pacientes', icon: Users },
+  { to: '/reportes', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
 ]
 
 function initials(name: string): string {
@@ -54,7 +55,7 @@ function AppSidebar() {
           <SidebarGroupLabel>Menú</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
+              {NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === 'admin').map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton asChild isActive={location.pathname === item.to}>
                     <NavLink to={item.to}>
