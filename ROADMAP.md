@@ -213,6 +213,15 @@ dashboard/reportes.
   admin-only), sin edición, mismo diseño que el backend desde la
   Fase 2. Enlazada desde un link "Ver ficha" nuevo en la tabla de
   Pacientes. Verificado en `dev.medlibra.com.ar` real con ambos roles.
-- Pendiente: dashboard y facturación en el frontend — mismo orden que
-  siguió Gestiolibra (dashboard/facturación se sumaron en rondas
-  separadas después de su propio MVP).
+- Dashboard (completo — ver ADR-024). Mismo componente que
+  `Dashboard.tsx` de Gestiolibra sin la card de facturación (turnos
+  por estado en el rango, pacientes activos/nuevos, recordatorios
+  enviados/señas pendientes). Ruta `/reportes` (evita colisionar con
+  el endpoint real `GET /dashboard`, mismo motivo que llevó a
+  Gestiolibra al mismo nombre), ítem de menú oculto para `staff`.
+  Verificado en `dev.medlibra.com.ar` real con ambos roles: admin ve
+  datos reales, staff ni el ítem de menú ni el contenido (403 con
+  mensaje dedicado al navegar directo a la ruta).
+- Pendiente: facturación en el frontend — mismo orden que siguió
+  Gestiolibra (facturación se sumó en una ronda separada después de
+  su propio dashboard).

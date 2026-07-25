@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- **Frontend: dashboard** (ver ADR-024): mismo componente que
+  `Dashboard.tsx` de Gestiolibra, sin la card de facturación (turnos
+  por estado en el rango, pacientes activos/nuevos en el rango,
+  recordatorios enviados/señas pendientes). Ruta `/reportes` (no
+  `/dashboard`, evita colisionar con el endpoint real de la API — mismo
+  motivo que Gestiolibra), ítem de menú oculto para `staff`. `npm run
+  build` sin errores. Verificado en `dev.medlibra.com.ar` real: admin ve
+  datos reales, staff no ve el ítem de menú y recibe un mensaje de
+  acceso denegado dedicado al navegar directo a la ruta (`GET
+  /dashboard` → `403` confirmado).
 - **Frontend: ficha del paciente (dominio clínico completo)** (ver
   ADR-023): página `/pacientes/:id` con pestañas — historia clínica,
   recetas, estudios (con resultados anidados por ítem), documentos

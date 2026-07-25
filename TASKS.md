@@ -4,15 +4,15 @@ Trabajo concreto vigente. La dirección estratégica permanece en `ROADMAP.md`; 
 
 ## En curso
 
-Ninguna en curso registrada. Frontend: ficha del paciente con el
-dominio clínico completo (ver ADR-023) desplegada y verificada en
-`dev.medlibra.com.ar` real con ambos roles.
+Ninguna en curso registrada. Frontend: dashboard (ver ADR-024)
+desplegado y verificado en `dev.medlibra.com.ar` real con ambos
+roles.
 
 ## Próximas
 
-- [ ] Frontend: sumar dashboard y facturación — pacientes (ADR-022) y
-      el dominio clínico completo (ADR-023) ya tienen UI; faltan estas
-      dos últimas páginas de la Fase 4.
+- [ ] Frontend: sumar facturación — pacientes (ADR-022), el dominio
+      clínico completo (ADR-023) y el dashboard (ADR-024) ya tienen
+      UI; falta esta última página de la Fase 4.
 - [ ] Frontend: `PatientCreate` sigue exigiendo un `id` explícito en el
       formulario de alta — a diferencia del `Client.id` de Gestiolibra
       (autogenerado desde su ADR-024, por ser alta frecuencia). Evaluar
@@ -232,6 +232,17 @@ pestañas contra la API real (incluida la carga y descarga de un
 documento con el contenido exacto), y como staff que el botón
 "Eliminar" no aparece en historia clínica (mismo gating que ADR-022,
 reutilizado sin cambios). Sin errores de consola.
+
+Resuelto (2026-07-25, continuación): dashboard (ver ADR-024). Mismo
+componente que `Dashboard.tsx` de Gestiolibra sin la card de
+facturación (turnos por estado, pacientes activos/nuevos, recordatorios/
+señas). Ruta `/reportes` (no `/dashboard`, mismo motivo que Gestiolibra —
+evita que el catch-all del SPA colisione con el endpoint real de la
+API), ítem de menú oculto para `staff`. `npm run build` sin errores.
+Verificado en `dev.medlibra.com.ar` real: como admin, datos reales
+(`GET /dashboard` → `200`); como staff, ítem de menú ausente y mensaje
+de acceso denegado dedicado al navegar directo a `/reportes` (`GET
+/dashboard` → `403` confirmado en red). Sin errores de consola.
 
 ## Notas de testing
 

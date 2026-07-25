@@ -891,3 +891,47 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   botón "Eliminar" — mismo gating `isAdmin` verificado en ADR-022,
   reutilizado sin cambios en las 5 secciones nuevas. Sin errores de
   consola. Sin cambios de backend.
+
+## ADR-024 — Frontend: dashboard
+
+- Estado: aceptada
+- Fecha: 2026-07-25 (continuación de la sesión anterior)
+- Contexto: penúltimo ítem del orden acordado (pacientes → dominio
+  clínico → dashboard → facturación, ver ADR-022/023). El backend ya
+  expone `GET /dashboard?date_from=&date_to=` desde la Fase 2
+  (ADR-017), admin-only y gateado por el módulo `"dashboard"` del plan
+  (solo Premium lo incluye, ver `plans.py`), pero sin UI todavía.
+- Decisión — mismo componente que `Dashboard.tsx` de Gestiolibra, sin
+  la card de facturación: selector de rango de fechas (`Desde`/`Hasta`)
+  + tres cards (Turnos por estado en el rango, Pacientes activos/
+  nuevos en el rango, Recordatorios enviados/señas pendientes).
+  MedLibra nunca sumó facturación/caja al dashboard (decisión ya
+  tomada del lado del backend, ver `DECISIONS.md` ADR-017 — "queda
+  para una entrega futura"), así que el frontend simplemente no tiene
+  esa cuarta card que sí tiene Gestiolibra.
+- Decisión — ruta `/reportes`, no `/dashboard`: mismo motivo que
+  llevó a Gestiolibra a este mismo nombre en su momento — el catch-all
+  del SPA (`app/asgi.py`, `spa_fallback`) se registra *después* de
+  incluir todos los routers de la API, así que una navegación directa
+  o un refresh en `/dashboard` sería interceptado por el endpoint real
+  `GET /dashboard` (que exige `date_from`/`date_to` como query params
+  obligatorios) en vez de servir el `index.html` del SPA. Se evitó la
+  colisión de entrada, sin repetir el hallazgo que ya le costó el
+  rename a Gestiolibra.
+- Decisión — ítem de menú oculto para `staff`: mismo patrón
+  `adminOnly` que ya usa Gestiolibra en su `Layout.tsx` (filtro sobre
+  `NAV_ITEMS`), replicado tal cual — coherente con que el endpoint es
+  admin-only del lado del backend. La página en sí sigue siendo
+  alcanzable navegando directo a `/reportes` (no hay guard de ruta por
+  rol, solo el filtro del menú), y en ese caso muestra el mismo
+  mensaje de error dedicado para 403 que ya usa Gestiolibra ("no
+  tenés acceso... requiere rol admin y el módulo habilitado en el
+  plan") en vez de un error genérico.
+- Consecuencias: `npm run build` sin errores de tipos. Verificado de
+  punta a punta en `dev.medlibra.com.ar` real: como `admin`, `GET
+  /dashboard` responde `200` con datos reales (paciente de prueba
+  reflejado en "activos"/"nuevos en el rango"), ítem de menú "Dashboard"
+  visible. Como `staff-1`, el ítem de menú no aparece, y navegando
+  directo a `/reportes` la página muestra el mensaje de acceso
+  denegado (`GET /dashboard` responde `403` real, confirmado en la
+  pestaña de red). Sin errores de consola. Sin cambios de backend.
