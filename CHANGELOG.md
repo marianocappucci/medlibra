@@ -16,7 +16,9 @@
   dado de alta y verificado (healthy, login, endpoint clínico sin
   gating, dashboard). `medlibra-dev` levantado por primera vez (puerto
   8077) y `dev.medlibra.com.ar` con proxy NPM + certificado Let's
-  Encrypt real. Ver `DECISIONS.md` ADR-018/ADR-019/ADR-020.
+  Encrypt real. Backups (`panel_admin.py backup`/`restore-db`)
+  verificados de punta a punta contra el cliente `prueba`. Ver
+  `DECISIONS.md` ADR-018/ADR-019/ADR-020.
 - **Dashboard**: `GET /dashboard?date_from=&date_to=` (admin-only) —
   turnos (total y por estado en el rango, turnos de hoy), pacientes
   (total activos, altas nuevas en el rango vía `patients.created_at`

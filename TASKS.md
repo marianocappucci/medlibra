@@ -11,9 +11,18 @@ incluido el deploy real al VPS y el dominio propio con SSL — ver
 
 ## Próximas
 
-- [ ] Backups (`panel_admin.py backup`/`restore-db`) — ya heredado de
-      LibraCore, falta probarlo de punta a punta contra un cliente real
-      de MedLibra (mismo proceso que Gestiolibra en su ADR-017).
+- [ ] `docker compose` deriva el nombre de proyecto del nombre de
+      carpeta del cliente (`clientes/prueba`) — como Gestiolibra también
+      tiene un cliente `prueba`, ambos comparten el mismo nombre de
+      proyecto compose y cada `docker compose up`/`restore-db` sobre uno
+      avisa "orphan containers" mencionando al contenedor del otro
+      producto (`medlibra-prueba` ⟷ `gestiolibra-prueba`). Ambos
+      contenedores están correctamente nombrados y aislados
+      (`container_name` explícito) — es solo un warning cosmético hoy,
+      pero **nunca correr `--remove-orphans` en ninguno de los dos** sin
+      revisar antes, podría bajar el cliente del otro producto por
+      error. No es específico de MedLibra (viene de
+      `libracore.provisioning`), no se toca sin necesidad concreta.
 - [ ] Dashboard: sumar facturación/caja (dejado fuera del primer corte
       a pedido explícito del usuario) — reutilizando
       `libracore.db.caja.get_caja_resumen()`, ya genérico.
@@ -157,6 +166,23 @@ Gestiolibra — `forward_host` corregido a `172.18.0.1:8077` desde el
 principio (sin repetir el hallazgo que le costó un proxy mal apuntado a
 Gestiolibra). Verificado con `curl -v` (TLS 1.3, 200 en `/health`)
 desde el VPS y desde la máquina de desarrollo.
+
+Resuelto (2026-07-25, continuación): backups verificados de punta a
+punta contra el cliente real `prueba` (`panel_admin.py backup`/
+`restore-db`, heredado de LibraCore sin cambios). Paciente marcador
+creado → `backup prueba` (tar.gz + copia WAL-safe de la DB vía
+`sqlite3.Connection.backup()`) → marcador borrado y paciente nuevo
+creado (mutación deliberada) → `restore-db prueba <archivo>` (detiene
+el contenedor, guarda un backup automático previo, restaura, reinicia)
+→ confirmado que el marcador vuelve y la mutación posterior desaparece.
+Contenedor healthy tras el restore. Hallazgo de proceso (no un bug):
+`docker compose` deriva el nombre de proyecto del nombre de carpeta del
+cliente — como Gestiolibra también tiene un cliente `prueba`, ambos
+comparten nombre de proyecto y cada operación sobre uno avisa "orphan
+containers" mencionando al del otro producto; ambos contenedores están
+correctamente aislados por `container_name` explícito, es solo un
+warning cosmético — documentado como precaución en "Próximas" (nunca
+correr `--remove-orphans` sin revisar).
 
 ## Notas de testing
 

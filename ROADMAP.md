@@ -172,7 +172,8 @@ dashboard/reportes.
   Restolibra/Gestiolibra (DNS ya apuntaba al VPS, sin tocar). Dominio
   por cliente real (no solo dev) queda pendiente de un primer cliente
   real, mismo criterio que Gestiolibra.
-- Deploy dev/prod, CI y backups verificados (deploy real, CI y dominio
-  dev ya verificados; backups pendientes de probar de punta a punta
-  contra un cliente real de MedLibra).
+- Deploy dev/prod, CI y backups verificados (completo). Backups
+  probados de punta a punta contra el cliente real `prueba` (paciente
+  marcador → backup → mutación → restore → confirmado que vuelve el
+  dato original), mismo proceso que Gestiolibra.
 - Validación con primeros consultorios reales (pendiente).
