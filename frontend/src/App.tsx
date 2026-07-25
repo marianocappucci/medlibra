@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Agenda } from './pages/Agenda'
+import { Pacientes } from './pages/Pacientes'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -27,6 +28,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Agenda />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pacientes"
+        element={
+          <ProtectedRoute>
+            <Pacientes />
           </ProtectedRoute>
         }
       />
