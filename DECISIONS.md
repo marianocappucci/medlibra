@@ -984,3 +984,30 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   Sin cambios de backend. **Con esto se completa el frontend de
   MedLibra (Fase 4): login, agenda/turnos, pacientes, dominio clínico
   completo, dashboard y facturación.**
+
+## ADR-026 — Endpoint `POST /auth/verify` para el login de `/docs/` de medlibra_web
+
+- Estado: aceptada
+- Fecha: 2026-07-26
+- Contexto: se construyó `medlibra_web`, la landing de marketing del
+  producto, con documentación técnica en `/docs/` gateada por login —
+  mismo patrón que ya usan Contalibra/Restolibra/Gestiolibra: la landing
+  no guarda usuarios propios, valida en tiempo real contra la instancia
+  real del cliente vía un endpoint interno protegido por un secreto
+  compartido (`DOCS_AUTH_SECRET`). Ese endpoint no existía todavía en
+  MedLibra.
+- Decisión: mismo diseño exacto que Gestiolibra (ADR-029 de ese repo,
+  construido el mismo día). `POST /auth/verify` en
+  `app/routers/auth.py`, junto a `/login`/`/logout`/`/me`. Recibe
+  `username`/`password`, exige el header `X-Internal-Auth` comparado
+  con `hmac.compare_digest()` contra `DOCS_AUTH_SECRET` (leído del
+  entorno en cada request, no al importar el módulo) y responde
+  `{"valid": bool}` reusando `UserRepository.check_credentials()`, sin
+  crear cookie de sesión. Falla cerrado (401) si el secreto no está
+  configurado.
+- Consecuencias: 5 tests nuevos (`tests/test_auth_verify.py`), mismo
+  set que Gestiolibra. Suite completa verificada en verde salvo el
+  flake ya documentado del reloj de WSL2 (un test distinto en cada
+  corrida, no relacionado con este cambio). Sin cambios de frontend ni
+  de ningún otro endpoint. Detalle del lado de la landing en
+  `medlibra_web` (`auth/app.py`).

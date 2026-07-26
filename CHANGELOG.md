@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Endpoint `POST /auth/verify`** (ver ADR-026): chequeo de credenciales
+  sin sesión, protegido por `X-Internal-Auth`/`DOCS_AUTH_SECRET`, para que
+  el login de `/docs/` de `medlibra_web` valide contra la instancia real
+  del cliente. 5 tests nuevos.
+
 - **Frontend: facturación** (ver ADR-025, cierra la Fase 4 del
   frontend): página `/facturacion` (config ARCA), mismo componente que
   Gestiolibra sin cambios de campos. Diálogo de medio de pago en
