@@ -24,9 +24,19 @@ def https_client(app) -> TestClient:
     cookie jar won't send a Secure cookie back over plain http, and
     TestClient defaults to http://testserver. A dotted hostname is required
     too: httpx's cookie jar domain-matching is unreliable for single-label
-    hosts like the default "testserver" -- same intermittent-401 bug found
-    and fixed in Gestiolibra's own conftest.py; ported here verbatim rather
-    than rediscovering it."""
+    hosts like the default "testserver". This part is real and stays.
+
+    CORRECTION (2026-07-25, investigated in VentaLibra/DECISIONS.md
+    ADR-006): this comment used to say the intermittent 401 seen in this
+    suite was "found and fixed in Gestiolibra's own conftest.py" via this
+    dotted hostname -- that was misdiagnosed (see the corrected comment in
+    gestiolibra/tests/conftest.py). The dotted hostname does NOT fix it.
+    The real cause is this machine's WSL2 clock jumping ~15s
+    forward/backward recurrently during a test run, which intermittently
+    makes itsdangerous's signature/expiry check on SessionAuth's cookie
+    fail even though the cookie is valid -- not a cookie-jar or
+    domain-matching problem, and not fixable in application code (it's an
+    environment issue, not reproduced outside this WSL2 machine)."""
     return TestClient(app, base_url="https://medlibra.test")
 
 
