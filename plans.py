@@ -70,26 +70,16 @@ def aplicar_plan_en_db(db_path: str, plan: str) -> None:
     provisioning para asignar el plan de una instancia sin depender del
     contenedor.
 
-    Idempotente: crea las filas de módulos que falten (INSERT OR IGNORE +
-    UPDATE), funciona igual sobre una DB recién migrada o una existente.
-    Requiere que la tabla `modulos` ya exista (la crea la migración propia
-    de MedLibra, `0011_modulos`)."""
-    import sqlite3
+    Shim sobre libracore.provisioning.apply_plan_modules (extraído
+    2026-07-26: el cuerpo era idéntico en Gestiolibra/MedLibra/VentaLibra
+    salvo el nombre de la variable, ver
+    wiki/analyses/auditoria-duplicacion-familia-libra.md). Requiere que la
+    tabla `modulos` ya exista (la crea la migración propia de MedLibra,
+    `0011_modulos`)."""
     if plan not in PLAN_MODULOS:
         raise ValueError(f"Plan desconocido: {plan!r}")
-    activos = modulos_de_plan(plan)
-    con = sqlite3.connect(db_path)
-    try:
-        for m in sorted(TODOS_LOS_MODULOS):
-            on = 1 if m in activos else 0
-            con.execute(
-                "INSERT OR IGNORE INTO modulos (modulo, habilitado, plan) VALUES (?,?,?)",
-                (m, on, plan),
-            )
-            con.execute(
-                "UPDATE modulos SET habilitado=?, plan=? WHERE modulo=?",
-                (on, plan, m),
-            )
-        con.commit()
-    finally:
-        con.close()
+    from libracore.provisioning import apply_plan_modules
+    apply_plan_modules(
+        db_path, active_modules=modulos_de_plan(plan),
+        all_modules=TODOS_LOS_MODULOS, plan=plan,
+    )

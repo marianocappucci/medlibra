@@ -1,16 +1,19 @@
-"""Session auth for MedLibra's JSON API.
+"""Session auth for MedLibra's JSON API -- shim sobre libracore.auth.
 
-Reuses libracore.auth.SessionAuth for the cookie/session mechanics (signed
-cookie, secret-key resolution with the same fail-closed-in-production
-posture) -- that part is already product-agnostic by design (callbacks
-instead of an assumed schema, see libracore's auth.py docstring). What we
-don't reuse is SessionAuth.require_auth/require_role: those redirect to
-"/login" with a 307, which fits Contalibra's server-rendered app but makes
-no sense for a JSON API with no such page. These dependencies return plain
-401/403 with a JSON body instead. Same pattern already used by Gestiolibra.
+Extraído 2026-07-26: reusa libracore.auth.SessionAuth para la mecánica de
+cookie firmada, y las dependencias json_api_* de libracore.auth (401/403
+JSON sin redirect, pensadas para APIs JSON puras sin página de login
+server-rendered) -- eran byte-idénticas en Gestiolibra/MedLibra/VentaLibra,
+ver wiki/analyses/auditoria-duplicacion-familia-libra.md.
 """
-from fastapi import Depends, HTTPException, Request
-from libracore.auth import SessionAuth
+from libracore.auth import (
+    SessionAuth,
+    json_api_get_current_user as get_current_user,
+    json_api_get_session_auth as get_session_auth,
+    json_api_require_admin as require_admin,
+    json_api_require_role as require_role,
+    json_api_require_staff as require_staff,
+)
 
 from .services.users import UserRepository
 
@@ -22,35 +25,3 @@ def build_session_auth(users: UserRepository) -> SessionAuth:
         check_credentials=users.check_credentials,
         cookie_name="ml_session",
     )
-
-
-def get_session_auth(request: Request) -> SessionAuth:
-    return request.app.state.session_auth
-
-
-def get_current_user(
-    request: Request, auth: SessionAuth = Depends(get_session_auth),
-) -> dict:
-    username = auth.get_current_user(request)
-    if username is None:
-        raise HTTPException(401, "not authenticated")
-    users: UserRepository = request.app.state.users
-    user = users.get_by_username(username)
-    if user is None or not user["active"]:
-        raise HTTPException(401, "not authenticated")
-    return user
-
-
-def require_role(*roles: str):
-    """Dependency factory: 403s unless the logged-in user has one of roles."""
-
-    def _dependency(user: dict = Depends(get_current_user)) -> dict:
-        if user["role"] not in roles:
-            raise HTTPException(403, "forbidden")
-        return user
-
-    return _dependency
-
-
-require_admin = require_role("admin")
-require_staff = require_role("admin", "staff")
