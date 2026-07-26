@@ -1,8 +1,8 @@
+import sqlite3
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
 
 from ..dependencies import get_user_repository
 from ..services.users import UserRepository
@@ -13,7 +13,10 @@ Role = Literal["admin", "staff"]
 
 
 class UserCreate(BaseModel):
-    id: str
+    # Sin `id`: libracore.db.usuarios asigna un id autoincremental --
+    # ninguna otra tabla de MedLibra lo referencia como FK, así que no hay
+    # ningún callsite que dependiera de elegir el id (ver
+    # wiki/entities/medlibra.md "Unificación de login").
     username: str
     name: str
     password: str
@@ -41,8 +44,8 @@ class UserOut(BaseModel):
 @router.post("", status_code=201, response_model=UserOut)
 def create_user(data: UserCreate, users: UserRepository = Depends(get_user_repository)):
     try:
-        return users.create(data.id, data.username, data.name, data.password, data.role)
-    except IntegrityError:
+        return users.create(data.username, data.name, data.password, data.role)
+    except sqlite3.IntegrityError:
         raise HTTPException(409, "user already exists")
 
 

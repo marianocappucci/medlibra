@@ -49,7 +49,7 @@ def create_app(database_url: str) -> FastAPI:
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
     availability_repository = SqlAlchemyAvailabilityRepository(sessions)
-    user_repository = UserRepository(sessions)
+    user_repository = UserRepository()
     branch_hours_repository = BranchHoursRepository(sessions)
     deposit_repository = SqlAlchemyDepositRepository(sessions)
     reminder_repository = SqlAlchemyReminderRepository(sessions)

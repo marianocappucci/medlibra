@@ -1,122 +1,103 @@
-"""Users: MedLibra's own table (not part of LibraGenda's domain -- auth
-and roles are explicitly out of scope for the engine, see MODULES.md).
+"""Users: delegates storage to libracore.db.usuarios (shared with
+Contalibra/Restolibra/Gestiolibra/VentaLibra, ver wiki/entities/medlibra.md
+sección "Unificación de login").
 
-Registered on LibraGenda's declarative Base so it's created alongside the
-rest of the schema by Base.metadata.create_all() during the demo/test
-bootstrap in app.main.create_app(). Real deploys still only run that
-bootstrap (MedLibra has no Alembic of its own yet -- see TASKS.md).
+MedLibra ya tenía una segunda base SQLite configurada para libracore.db
+(facturación/caja, ver app/services/billing.py) -- esa misma conexión ya
+corre `init_core_schema()`, que crea la tabla `usuarios` aunque nadie la
+usara todavía. Esta clase es un adaptador fino que traduce el contrato
+externo ya establecido (id/username/name/role/active) al esquema real de
+libracore (id int autoincrement/username/nombre/email/role/activo) --
+ninguna otra parte de la app (auth.py, routers/users.py, dependencies.py)
+necesitó cambiar.
 """
 import os
 
-from sqlalchemy import Boolean, String, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
-
-from .. import security
+from libracore.db import usuarios as db
 
 ROLES = ("admin", "staff")
 
 
-class UserRow(Base):
-    __tablename__ = "users"
-
-    id: Mapped[str] = mapped_column(String(100), primary_key=True)
-    username: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    name: Mapped[str] = mapped_column(String(200))
-    password_hash: Mapped[str] = mapped_column(String(200))
-    role: Mapped[str] = mapped_column(String(30))
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-
-def _to_dict(row: UserRow) -> dict:
+def _to_dict(row: dict) -> dict:
     return {
-        "id": row.id, "username": row.username, "name": row.name,
-        "role": row.role, "active": row.active,
+        "id": str(row["id"]),
+        "username": row["username"],
+        "name": row["nombre"],
+        "role": row["role"],
+        "active": bool(row["activo"]),
     }
 
 
 class UserRepository:
-    """SQLAlchemy-backed users, with PBKDF2 password hashing at the edge."""
+    """Adaptador sobre libracore.db.usuarios, con el mismo contrato público
+    que tenía la implementación SQLAlchemy anterior."""
 
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
-        self.session_factory = session_factory
-
-    def create(self, id: str, username: str, name: str, password: str, role: str) -> dict:
+    def create(self, username: str, name: str, password: str, role: str) -> dict:
         if role not in ROLES:
             raise ValueError(f"invalid role: {role!r} (expected one of {ROLES})")
-        row = UserRow(
-            id=id, username=username, name=name,
-            password_hash=security.hash_password(password), role=role,
-        )
-        with self.session_factory.begin() as session:
-            session.add(row)
-        return _to_dict(row)
+        uid = db.create_usuario(username=username, nombre=name, email="", password=password, role=role)
+        return self.get_by_id(str(uid))
 
     def get_by_id(self, user_id: str) -> dict | None:
-        with self.session_factory() as session:
-            row = session.get(UserRow, user_id)
-            return _to_dict(row) if row else None
+        try:
+            uid = int(user_id)
+        except ValueError:
+            return None
+        row = db.get_usuario_by_id(uid)
+        return _to_dict(row) if row else None
 
     def get_by_username(self, username: str) -> dict | None:
-        with self.session_factory() as session:
-            row = session.scalar(select(UserRow).where(UserRow.username == username))
-            return _to_dict(row) if row else None
+        row = db.get_usuario_by_username(username)
+        return _to_dict(row) if row else None
 
     def list(self) -> list[dict]:
-        with self.session_factory() as session:
-            rows = session.scalars(select(UserRow).order_by(UserRow.username)).all()
-            return [_to_dict(row) for row in rows]
+        return [_to_dict(row) for row in db.get_all_usuarios()]
 
     def update(self, user_id: str, name: str, role: str, active: bool) -> dict:
         if role not in ROLES:
             raise ValueError(f"invalid role: {role!r} (expected one of {ROLES})")
-        with self.session_factory.begin() as session:
-            row = session.get(UserRow, user_id)
-            if row is None:
-                raise KeyError(user_id)
-            row.name, row.role, row.active = name, role, active
-            updated = _to_dict(row)
-        return updated
+        uid = self._require_uid(user_id)
+        db.update_usuario(uid, nombre=name, email="", role=role, activo=int(active))
+        return self.get_by_id(user_id)
 
     def update_password(self, user_id: str, new_password: str) -> None:
-        with self.session_factory.begin() as session:
-            row = session.get(UserRow, user_id)
-            if row is None:
-                raise KeyError(user_id)
-            row.password_hash = security.hash_password(new_password)
+        uid = self._require_uid(user_id)
+        db.update_usuario_password(uid, new_password)
 
     def delete(self, user_id: str) -> None:
-        with self.session_factory.begin() as session:
-            row = session.get(UserRow, user_id)
-            if row is None:
-                raise KeyError(user_id)
-            session.delete(row)
+        uid = self._require_uid(user_id)
+        db.delete_usuario(uid)
+
+    def _require_uid(self, user_id: str) -> int:
+        """Convierte el id de la URL a int y confirma que exista -- un id no
+        numérico (ej. un slug que ya no puede existir en el esquema nuevo)
+        es indistinguible de "no encontrado" para quien llama."""
+        try:
+            uid = int(user_id)
+        except ValueError:
+            raise KeyError(user_id)
+        if db.get_usuario_by_id(uid) is None:
+            raise KeyError(user_id)
+        return uid
 
     def check_credentials(self, username: str, password: str) -> dict | None:
-        """Return the user dict if credentials are valid and active, else None.
-
-        Always runs verify_password (against DUMMY_PASSWORD_HASH when the
-        username doesn't exist or is inactive) so response time doesn't leak
-        whether a username exists.
-        """
-        with self.session_factory() as session:
-            row = session.scalar(select(UserRow).where(UserRow.username == username))
-        active = row is not None and row.active
-        stored_hash = row.password_hash if active else security.DUMMY_PASSWORD_HASH
-        password_ok = security.verify_password(stored_hash, password)
-        return _to_dict(row) if (active and password_ok) else None
+        """Devuelve el usuario si las credenciales son válidas y está activo
+        (libracore.db.usuarios.check_usuario_credentials ya filtra activo=1
+        y corre contra un hash señuelo si el username no existe, mismo
+        criterio anti-timing-attack que tenía esta clase antes)."""
+        row = db.check_usuario_credentials(username, password)
+        return _to_dict(row) if row else None
 
 
 def ensure_default_admin(repo: UserRepository) -> None:
-    """Create the bootstrap admin if the users table is still empty.
+    """Crea el admin inicial si la tabla usuarios todavía está vacía.
 
-    Mirrors libracore.db.usuarios.ensure_admin_user's role in Contalibra
-    (and the same helper in Gestiolibra): without at least one admin,
-    nobody could ever create the rest of the accounts through the (now
-    role-gated) /users API. Same fail-closed posture as libracore.auth's
-    SECRET_KEY resolution: no admin password configured means the app
-    refuses to boot, unless ENV=development.
+    Mismo criterio fail-closed que tenía esta función antes de delegar en
+    libracore.db.usuarios: sin MEDLIBRA_ADMIN_PASSWORD la app no arranca en
+    producción -- a diferencia de libracore.db.usuarios.ensure_admin_user()
+    (usada tal cual por Contalibra/Restolibra), que en ese caso genera una
+    contraseña aleatoria y solo loguea un warning. Ese comportamiento no se
+    adopta acá para no relajar la postura de seguridad ya establecida.
     """
     if repo.list():
         return
@@ -130,4 +111,4 @@ def ensure_default_admin(repo: UserRepository) -> None:
                 "para desarrollo local)."
             )
         password = "admin"
-    repo.create(id=username, username=username, name="Administrador", password=password, role="admin")
+    repo.create(username=username, name="Administrador", password=password, role="admin")
