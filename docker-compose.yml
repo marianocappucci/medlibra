@@ -28,6 +28,7 @@ services:
       - MEDLIBRA_LIBRACORE_DB_PATH=/app/dev-data/medlibra_libracore.db
       - MEDLIBRA_DOCUMENTS_DIR=/app/dev-data/medlibra_documents
       - ENV=development
+      - DOCS_AUTH_SECRET=${DOCS_AUTH_SECRET:-}
     networks:
       - stack-net
 

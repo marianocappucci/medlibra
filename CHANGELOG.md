@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **`DOCS_AUTH_SECRET` expuesto en `docker-compose.yml`**: conecta el
+  endpoint `POST /auth/verify` (ver abajo) con el valor real cargado en
+  `.env`, necesario para que `/docs/` de `medlibra_web` autentique
+  contra esta instancia. Sin cambios de código.
 - **Endpoint `POST /auth/verify`** (ver ADR-026): chequeo de credenciales
   sin sesión, protegido por `X-Internal-Auth`/`DOCS_AUTH_SECRET`, para que
   el login de `/docs/` de `medlibra_web` valide contra la instancia real
