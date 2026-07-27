@@ -45,15 +45,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl git ope
 # `pip install .` necesita resolver AMBAS dependencias en un solo comando,
 # asi que no alcanza con un SSH_AUTH_SOCK global (esa variable solo puede
 # apuntar a un socket a la vez). Cada dependencia usa su propio alias de
-# Host, seleccionando la identidad via `IdentityAgent` (el socket del
-# mount con ese id, que ya trae una sola key) en vez de `IdentityFile` --
-# mismo fix que Gestiolibra (ver su Dockerfile): el reenvio del agente
-# multi-key `default` no era compatible con `docker_build_ssh_args()`, que
-# monta una key de archivo unica por id.
+# Host: `IdentityAgent` fija DE QUE socket sale la identidad (el mount
+# con ese id, que ya trae una sola key), pero `IdentitiesOnly yes` por si
+# solo NO alcanza para seleccionarla -- sin un `IdentityFile` explicito,
+# ssh ofrece los paths de identidad default (id_rsa/id_ecdsa/...), que no
+# existen en la imagen, y nunca llega a preguntarle nada al agente. Mismo
+# fix que Gestiolibra (ver su Dockerfile): el reenvio del agente multi-key
+# `default` no era compatible con `docker_build_ssh_args()`, que monta una
+# key de archivo unica por id.
 RUN mkdir -p -m 0700 /root/.ssh \
     && ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null \
-    && printf 'Host github-libracore\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityAgent /tmp/ssh-libracore.sock\n  IdentitiesOnly yes\n\nHost github-libragenda\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityAgent /tmp/ssh-libragenda.sock\n  IdentitiesOnly yes\n' > /root/.ssh/config \
-    && chmod 600 /root/.ssh/config
+    && printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7oB3H2Rd+xsO/qCUk5aCA14/5GaQFMSh1U0ErJjG55 vps-donweb-libracore-deploy-key\n' > /root/.ssh/id_libracore.pub \
+    && printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4hVY2CmSWj0Na3K8DeryjTDM6URpN8Wj4htLaiLK+L deploy-key-libragenda-readonly\n' > /root/.ssh/id_libragenda.pub \
+    && printf 'Host github-libracore\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libracore.pub\n  IdentityAgent /tmp/ssh-libracore.sock\n  IdentitiesOnly yes\n\nHost github-libragenda\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libragenda.pub\n  IdentityAgent /tmp/ssh-libragenda.sock\n  IdentitiesOnly yes\n' > /root/.ssh/config \
+    && chmod 600 /root/.ssh/config /root/.ssh/id_libracore.pub /root/.ssh/id_libragenda.pub
 
 COPY . .
 # Horneado FUERA de /app a proposito (mismo criterio que Gestiolibra
