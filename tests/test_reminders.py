@@ -3,6 +3,29 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 
+def _inicio_sin_cruzar_medianoche(minutos_adelante, duracion_minutos=30):
+    """Momento de inicio para una cita futura que NO cruce la medianoche.
+
+    La disponibilidad se declara por dia de semana y termina a las 23:59, asi
+    que un turno que arranca 23:30 o mas tarde termina al dia siguiente y el
+    alta lo rechaza con 409 `appointment unavailable`. Sin esto el test
+    fallaba en una franja de media hora de cada dia, invisible el resto del
+    tiempo (bug real, 2026-07-28).
+    """
+    ahora = datetime.now(timezone.utc)
+    inicio = ahora + timedelta(minutes=minutos_adelante)
+    ultimo_del_dia = inicio.replace(
+        hour=23, minute=59, second=0, microsecond=0
+    ) - timedelta(minutes=duracion_minutos)
+    if inicio > ultimo_del_dia:
+        # Recortar al ultimo hueco del dia solo sirve si sigue siendo futuro;
+        # si ya paso, se arranca el dia siguiente.
+        inicio = ultimo_del_dia if ultimo_del_dia > ahora else (
+            inicio + timedelta(days=1)
+        ).replace(hour=0, minute=0, second=0, microsecond=0)
+    return inicio
+
+
 def _seeded_client(client: TestClient):
     client.post("/branches", json={"id": "branch-1", "name": "Consultorio demo"})
     client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1"})
@@ -35,9 +58,9 @@ def test_dispatch_does_not_send_reminders_far_in_the_future(admin_client: TestCl
 
 def test_dispatch_sends_due_reminders_and_is_idempotent(admin_client: TestClient):
     client = _seeded_client(admin_client)
-    # 90 minutos desde ahora: pasado ambos plazos (24h y 2h) -- ambos
-    # disparan juntos en el primer dispatch, ya que ninguno se envio antes.
-    starts_at = (datetime.now(timezone.utc) + timedelta(minutes=90)).strftime("%Y-%m-%dT%H:%M:%S")
+    # Dentro de ambos plazos (24h y 2h): los dos disparan juntos en el primer
+    # dispatch, porque ninguno se envio antes.
+    starts_at = _inicio_sin_cruzar_medianoche(90).strftime("%Y-%m-%dT%H:%M:%S")
     created = client.post("/appointments", json={
         "resource_id": "resource-1", "service_id": "service-1",
         "client_id": "patient-1", "starts_at": starts_at,
