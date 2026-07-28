@@ -17,6 +17,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { DataTable, sortableHeader } from '@/components/data-table'
+import { Eye, Pencil, Trash2 } from 'lucide-react'
 
 const CONDICIONES_IVA = [
   'Responsable Inscripto',
@@ -143,13 +144,15 @@ export function Pacientes() {
 
   const columns = useMemo<ColumnDef<Patient>[]>(() => {
     const base: ColumnDef<Patient>[] = [
-      { accessorKey: 'name', header: sortableHeader('Nombre'), cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
-      { accessorKey: 'dni', header: 'DNI', cell: ({ row }) => row.original.dni ?? '—' },
-      { accessorKey: 'phone', header: 'Teléfono', cell: ({ row }) => row.original.phone ?? '—' },
-      { accessorKey: 'email', header: 'Email', cell: ({ row }) => row.original.email ?? '—' },
+      { accessorKey: 'name', header: sortableHeader('Nombre'), size: 220, minSize: 130, meta: { stretch: true }, cell: ({ row }) => <span className="block truncate font-medium" title={row.original.name}>{row.original.name}</span> },
+      { accessorKey: 'dni', header: 'DNI', size: 120, minSize: 100, cell: ({ row }) => row.original.dni ?? '—' },
+      { accessorKey: 'phone', header: 'Teléfono', size: 130, minSize: 100, cell: ({ row }) => row.original.phone ?? '—' },
+      { accessorKey: 'email', header: 'Email', size: 210, minSize: 140, cell: ({ row }) => <span className="block truncate" title={row.original.email ?? undefined}>{row.original.email ?? '—'}</span> },
       {
         accessorKey: 'active',
         header: 'Estado',
+        size: 100,
+        minSize: 85,
         cell: ({ row }) => (
           <Badge variant={row.original.active ? 'default' : 'outline'}>
             {row.original.active ? 'Activo' : 'Inactivo'}
@@ -160,13 +163,13 @@ export function Pacientes() {
         id: 'actions',
         header: () => <div className="text-right">Acciones</div>,
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/pacientes/${row.original.id}`}>Ver ficha</Link>
+          <div className="flex justify-end gap-1">
+            <Button asChild size="icon" variant="outline" title="Ver ficha" aria-label="Ver ficha">
+              <Link to={`/pacientes/${row.original.id}`}><Eye /></Link>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => startEdit(row.original)}>Editar</Button>
+            <Button size="icon" variant="outline" title="Editar paciente" aria-label="Editar paciente" onClick={() => startEdit(row.original)}><Pencil /></Button>
             {isAdmin && (
-              <Button size="sm" variant="outline" onClick={() => handleDelete(row.original)}>Eliminar</Button>
+              <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" title="Eliminar paciente" aria-label="Eliminar paciente" onClick={() => handleDelete(row.original)}><Trash2 /></Button>
             )}
           </div>
         ),

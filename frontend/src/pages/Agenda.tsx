@@ -23,6 +23,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { DataTable, sortableHeader } from '@/components/data-table'
+import { Ban, Check, CheckCheck } from 'lucide-react'
 
 const MEDIO_PAGO_LABELS: Record<string, string> = {
   efectivo: 'Efectivo',
@@ -190,13 +191,18 @@ export function Agenda() {
     return services.find((s) => s.id === id)?.name ?? id
   }
 
+  // Anchos fijos al contenido real + Paciente elastica, mismo patron que el
+  // resto de la familia. La columna de acciones no declara ancho: la mide
+  // `libra-ui` sola (ver wiki/entities/libra-ui.md v0.4.0).
   const columns = useMemo<ColumnDef<Appointment>[]>(() => [
-    { accessorKey: 'starts_at', header: sortableHeader('Horario'), cell: ({ row }) => formatTime(row.original.starts_at) },
-    { id: 'patient', header: 'Paciente', cell: ({ row }) => patientName(row.original.client_id) },
-    { id: 'service', header: 'Servicio', cell: ({ row }) => serviceName(row.original.service_id) },
+    { accessorKey: 'starts_at', header: sortableHeader('Horario'), size: 150, minSize: 120, cell: ({ row }) => formatTime(row.original.starts_at) },
+    { id: 'patient', header: 'Paciente', size: 200, minSize: 120, meta: { stretch: true }, cell: ({ row }) => <span className="block truncate" title={patientName(row.original.client_id)}>{patientName(row.original.client_id)}</span> },
+    { id: 'service', header: 'Servicio', size: 180, minSize: 120, cell: ({ row }) => <span className="block truncate" title={serviceName(row.original.service_id)}>{serviceName(row.original.service_id)}</span> },
     {
       accessorKey: 'status',
       header: 'Estado',
+      size: 120,
+      minSize: 100,
       cell: ({ row }) => (
         <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
       ),
@@ -207,20 +213,20 @@ export function Agenda() {
       cell: ({ row }) => {
         const a = row.original
         return (
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex justify-end gap-1">
             {a.status === 'pending' && (
-              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/confirm`))}>
-                Confirmar
+              <Button size="icon" variant="outline" title="Confirmar turno" aria-label="Confirmar turno" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/confirm`))}>
+                <Check />
               </Button>
             )}
             {(a.status === 'pending' || a.status === 'confirmed') && (
-              <Button size="sm" variant="outline" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/cancel`))}>
-                Cancelar
+              <Button size="icon" variant="outline" className="text-destructive hover:text-destructive" title="Cancelar turno" aria-label="Cancelar turno" onClick={() => handleAction(() => api.post(`/appointments/${a.id}/cancel`))}>
+                <Ban />
               </Button>
             )}
             {a.status === 'confirmed' && (
-              <Button size="sm" variant="outline" onClick={() => completeAppointment(a)}>
-                Completar
+              <Button size="icon" variant="outline" title="Completar turno" aria-label="Completar turno" onClick={() => completeAppointment(a)}>
+                <CheckCheck />
               </Button>
             )}
           </div>
