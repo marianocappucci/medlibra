@@ -6,6 +6,8 @@ import os
 from fastapi import Depends, FastAPI
 
 from libraauth.models import Base as AuthBase
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
@@ -46,11 +48,32 @@ def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
     Base.metadata.create_all(get_engine())  # demo only; deploy uses Alembic
-    # `usuarios` (libraauth) vive en la MISMA base que el dominio, contra el
-    # mismo engine — antes vivia en medlibra_libracore.db, ver la migracion de
-    # datos en scripts/migrar_usuarios_a_libraauth.py.
-    AuthBase.metadata.create_all(get_engine())
-    billing.configure(os.environ.get("MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"))
+
+    # `usuarios` (libraauth) vive en la base de LIBRACORE, no en la del dominio.
+    #
+    # Es deliberado y se pago aprendiendolo: 11 tablas de libracore
+    # (facturas, ventas, caja_movimientos, turnos_caja, egresos, egresos_pagos,
+    # movimientos_stock, movimientos_tesoreria, cc_pagos, remitos, presupuestos)
+    # declaran `usuario_id REFERENCES usuarios(id)`, y esas FK resuelven contra
+    # la tabla que este en SU MISMO archivo. Mover `usuarios` a la base del
+    # dominio (como se hizo el 2026-07-30 y se revirtio el mismo dia) dejaba dos
+    # copias con ids distintos: un usuario nuevo entraba solo en la de auth, y
+    # al facturar libracore escribia un usuario_id que ahi no existia -> o
+    # violacion de FK, o el registro atribuido a OTRA persona. Ver
+    # wiki/entities/libraauth.md.
+    #
+    # libraauth lee sin problema la tabla que escribio el sqlite3 crudo de
+    # libracore (mismo schema, mismo hashing) y `create_all` no la altera.
+    libracore_db_path = os.environ.get(
+        "MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"
+    )
+    billing.configure(libracore_db_path)
+    auth_engine = create_engine(
+        f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
+    )
+    AuthBase.metadata.create_all(auth_engine)
+    auth_sessions = sessionmaker(bind=auth_engine)
+
     sessions = get_session_factory()
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
@@ -58,7 +81,7 @@ def create_app(database_url: str) -> FastAPI:
     # libraauth: el repositorio recibe el session_factory del producto (antes
     # usaba la conexion sqlite3 global de libracore). Sin `roles=`: el default
     # ("admin","staff") es exactamente el vocabulario de MedLibra.
-    user_repository = UserRepository(sessions)
+    user_repository = UserRepository(auth_sessions)
     branch_hours_repository = BranchHoursRepository(sessions)
     deposit_repository = SqlAlchemyDepositRepository(sessions)
     reminder_repository = SqlAlchemyReminderRepository(sessions)
