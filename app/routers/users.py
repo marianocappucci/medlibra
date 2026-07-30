@@ -1,7 +1,7 @@
-import sqlite3
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from libraauth.repository import UsernameTaken
 from pydantic import BaseModel
 
 from ..dependencies import get_user_repository
@@ -45,7 +45,10 @@ class UserOut(BaseModel):
 def create_user(data: UserCreate, users: UserRepository = Depends(get_user_repository)):
     try:
         return users.create(data.username, data.name, data.password, data.role)
-    except sqlite3.IntegrityError:
+    # Excepcion de dominio de libraauth (v0.1.1+), no la del motor de storage:
+    # antes esto era `except sqlite3.IntegrityError`, que filtraba la
+    # implementacion sqlite3 de libracore y dejo de matchear al migrar.
+    except UsernameTaken:
         raise HTTPException(409, "user already exists")
 
 

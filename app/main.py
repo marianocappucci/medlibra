@@ -5,6 +5,8 @@ import os
 
 from fastapi import Depends, FastAPI
 
+from libraauth.models import Base as AuthBase
+
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.database import configure, get_engine, get_session_factory
@@ -44,12 +46,19 @@ def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
     Base.metadata.create_all(get_engine())  # demo only; deploy uses Alembic
+    # `usuarios` (libraauth) vive en la MISMA base que el dominio, contra el
+    # mismo engine — antes vivia en medlibra_libracore.db, ver la migracion de
+    # datos en scripts/migrar_usuarios_a_libraauth.py.
+    AuthBase.metadata.create_all(get_engine())
     billing.configure(os.environ.get("MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"))
     sessions = get_session_factory()
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
     availability_repository = SqlAlchemyAvailabilityRepository(sessions)
-    user_repository = UserRepository()
+    # libraauth: el repositorio recibe el session_factory del producto (antes
+    # usaba la conexion sqlite3 global de libracore). Sin `roles=`: el default
+    # ("admin","staff") es exactamente el vocabulario de MedLibra.
+    user_repository = UserRepository(sessions)
     branch_hours_repository = BranchHoursRepository(sessions)
     deposit_repository = SqlAlchemyDepositRepository(sessions)
     reminder_repository = SqlAlchemyReminderRepository(sessions)

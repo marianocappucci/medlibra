@@ -57,8 +57,9 @@ RUN mkdir -p -m 0700 /root/.ssh \
     && ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null \
     && printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG7oB3H2Rd+xsO/qCUk5aCA14/5GaQFMSh1U0ErJjG55 vps-donweb-libracore-deploy-key\n' > /root/.ssh/id_libracore.pub \
     && printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG4hVY2CmSWj0Na3K8DeryjTDM6URpN8Wj4htLaiLK+L deploy-key-libragenda-readonly\n' > /root/.ssh/id_libragenda.pub \
-    && printf 'Host github-libracore\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libracore.pub\n  IdentityAgent /tmp/ssh-libracore.sock\n  IdentitiesOnly yes\n\nHost github-libragenda\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libragenda.pub\n  IdentityAgent /tmp/ssh-libragenda.sock\n  IdentitiesOnly yes\n' > /root/.ssh/config \
-    && chmod 600 /root/.ssh/config /root/.ssh/id_libracore.pub /root/.ssh/id_libragenda.pub
+    && printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0FOGgyaywQLO6J583j9+MG71a13oNpXoxOAAcV9Cbp vps-donweb-libraauth-deploy-readonly\n' > /root/.ssh/id_libraauth.pub \
+    && printf 'Host github-libracore\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libracore.pub\n  IdentityAgent /tmp/ssh-libracore.sock\n  IdentitiesOnly yes\n\nHost github-libragenda\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libragenda.pub\n  IdentityAgent /tmp/ssh-libragenda.sock\n  IdentitiesOnly yes\n\nHost github-libraauth\n  HostName github.com\n  User git\n  HostKeyAlias github.com\n  IdentityFile /root/.ssh/id_libraauth.pub\n  IdentityAgent /tmp/ssh-libraauth.sock\n  IdentitiesOnly yes\n' > /root/.ssh/config \
+    && chmod 600 /root/.ssh/config /root/.ssh/id_libracore.pub /root/.ssh/id_libragenda.pub /root/.ssh/id_libraauth.pub
 
 COPY . .
 # Horneado FUERA de /app a proposito (mismo criterio que Gestiolibra
@@ -70,11 +71,14 @@ COPY . .
 COPY --from=frontend-build /frontend/dist /opt/frontend-dist
 RUN --mount=type=ssh,id=libracore,target=/tmp/ssh-libracore.sock \
     --mount=type=ssh,id=libragenda,target=/tmp/ssh-libragenda.sock \
+    --mount=type=ssh,id=libraauth,target=/tmp/ssh-libraauth.sock \
     git config --global url."ssh://git@github-libracore/marianocappucci/libracore.git".insteadOf "https://github.com/marianocappucci/libracore.git" \
     && git config --global url."ssh://git@github-libragenda/marianocappucci/libragenda.git".insteadOf "https://github.com/marianocappucci/libragenda.git" \
+    && git config --global url."ssh://git@github-libraauth/marianocappucci/libraauth.git".insteadOf "https://github.com/marianocappucci/libraauth.git" \
     && pip install --no-cache-dir . \
     && git config --global --unset url."ssh://git@github-libracore/marianocappucci/libracore.git".insteadOf \
-    && git config --global --unset url."ssh://git@github-libragenda/marianocappucci/libragenda.git".insteadOf
+    && git config --global --unset url."ssh://git@github-libragenda/marianocappucci/libragenda.git".insteadOf \
+    && git config --global --unset url."ssh://git@github-libraauth/marianocappucci/libraauth.git".insteadOf
 
 EXPOSE 8000
 

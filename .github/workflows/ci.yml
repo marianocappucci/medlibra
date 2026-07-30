@@ -45,6 +45,7 @@ jobs:
         env:
           LIBRACORE_DEPLOY_KEY: ${{ secrets.LIBRACORE_DEPLOY_KEY }}
           LIBRAGENDA_DEPLOY_KEY: ${{ secrets.LIBRAGENDA_DEPLOY_KEY }}
+          LIBRAAUTH_DEPLOY_KEY: ${{ secrets.LIBRAAUTH_DEPLOY_KEY }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
@@ -64,6 +65,7 @@ jobs:
           }
           configurar libracore "$LIBRACORE_DEPLOY_KEY"
           configurar libragenda "$LIBRAGENDA_DEPLOY_KEY"
+          configurar libraauth "$LIBRAAUTH_DEPLOY_KEY"
 
       # Confirma que cada clave autentica contra SU repo y no contra otro:
       # es exactamente el modo de fallar que motiva los alias de arriba, y
@@ -71,7 +73,7 @@ jobs:
       # error de git que no dice cual de las dos claves se uso.
       - name: Verify each deploy key resolves to its own repo
         run: |
-          for repo in libracore libragenda; do
+          for repo in libracore libragenda libraauth; do
             saludo=$(ssh -o StrictHostKeyChecking=yes -T "git@github-$repo" 2>&1 || true)
             echo "$repo -> $saludo"
             case "$saludo" in
