@@ -7,4 +7,7 @@ export const Login = createLogin({
   productName: 'MedLibra',
   productInitial: 'M',
   redirectTo: '/agenda',
+  // Enlace "¿Olvidaste tu contraseña?" -- va de la mano con
+  // incluir_password_reset=True en app/routers/auth.py.
+  forgotPasswordPath: '/forgot-password',
 })

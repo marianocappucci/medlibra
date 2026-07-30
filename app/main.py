@@ -6,6 +6,7 @@ import os
 from fastapi import Depends, FastAPI
 
 from libraauth.models import Base as AuthBase
+from libraauth.password_reset import PasswordResetService
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -109,6 +110,17 @@ def create_app(database_url: str) -> FastAPI:
     app.state.consents = ConsentRepository(sessions)
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
+    # Recuperación de contraseña por correo (libraauth v0.5.0). `auth_sessions`
+    # y no el session_factory del dominio: la tabla de tokens tiene FK a
+    # `usuarios`, que vive en la base de LibraCore. Sin SMTP configurado la app
+    # levanta igual y el endpoint devuelve 503.
+    app.state.password_reset = PasswordResetService(
+        auth_sessions,
+        product_name="MedLibra",
+        reset_url_base=os.environ.get(
+            "MEDLIBRA_RESET_URL_BASE", "https://dev.medlibra.com.ar/reset-password"
+        ),
+    )
     app.state.reminder_dispatcher = ReminderDispatcher(
         appointment_repository, reminder_repository,
         LoggingNotificationPort(), DEFAULT_REMINDER_POLICIES,
