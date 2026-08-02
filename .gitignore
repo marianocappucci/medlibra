@@ -20,8 +20,13 @@ frontend/coverage/
 # Nada de esto se versiona: son archivos que solo existen en el servidor y
 # varios llevan secretos. Un untracked con credenciales adentro esta a un
 # `git add -A` de entrar al repo.
-admin/                        # compose del backoffice, generado en el VPS
-.venv-scripts/                # venv de los scripts de provisioning
-/clientes/                    # datos, .env y compose de cada instancia
-dev-data/                     # base de desarrollo local
-scripts/.npm_config.json      # credenciales de Nginx Proxy Manager
+# compose del backoffice, generado en el VPS
+admin/
+# venv de los scripts de provisioning
+.venv-scripts/
+# datos, .env y compose de cada instancia
+/clientes/
+# base de desarrollo local
+dev-data/
+# credenciales de Nginx Proxy Manager
+scripts/.npm_config.json
