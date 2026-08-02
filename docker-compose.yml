@@ -18,6 +18,7 @@ services:
         - default=${LIBRACORE_SSH_KEY:-~/.ssh/id_ed25519_libracore}
         - libracore=${LIBRACORE_SSH_KEY:-~/.ssh/id_ed25519_libracore}
         - libragenda=${LIBRAGENDA_SSH_KEY:-~/.ssh/id_ed25519_libragenda}
+        - libraauth=${LIBRAAUTH_SSH_KEY:-~/.ssh/id_ed25519_libraauth}
         - libra-ui=${LIBRA_UI_SSH_KEY:-~/.ssh/id_ed25519_libra_ui}
     container_name: medlibra-dev
     restart: unless-stopped
@@ -43,6 +44,16 @@ services:
       - MEDLIBRA_LIBRACORE_DB_PATH=/app/dev-data/medlibra_libracore.db
       - MEDLIBRA_DOCUMENTS_DIR=/app/dev-data/medlibra_documents
       - ENV=development
+      # Recuperacion de contrasena (libraauth v0.5.0). Sin SMTP la app
+      # levanta igual y POST /auth/forgot-password devuelve 503: cargar
+      # estas variables es lo unico que falta para que mande mails.
+      - MEDLIBRA_RESET_URL_BASE=${MEDLIBRA_RESET_URL_BASE:-https://dev.medlibra.com.ar/reset-password}
+      - LIBRAAUTH_SMTP_HOST=${LIBRAAUTH_SMTP_HOST:-}
+      - LIBRAAUTH_SMTP_PORT=${LIBRAAUTH_SMTP_PORT:-587}
+      - LIBRAAUTH_SMTP_USER=${LIBRAAUTH_SMTP_USER:-}
+      - LIBRAAUTH_SMTP_PASSWORD=${LIBRAAUTH_SMTP_PASSWORD:-}
+      - LIBRAAUTH_SMTP_FROM_EMAIL=${LIBRAAUTH_SMTP_FROM_EMAIL:-}
+      - LIBRAAUTH_SMTP_FROM_NAME=${LIBRAAUTH_SMTP_FROM_NAME:-MedLibra}
       - DOCS_AUTH_SECRET=${DOCS_AUTH_SECRET:-}
     networks:
       - stack-net

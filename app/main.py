@@ -5,6 +5,11 @@ import os
 
 from fastapi import Depends, FastAPI
 
+from libraauth.models import Base as AuthBase
+from libraauth.password_reset import PasswordResetService
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.database import configure, get_engine, get_session_factory
@@ -44,12 +49,40 @@ def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
     Base.metadata.create_all(get_engine())  # demo only; deploy uses Alembic
-    billing.configure(os.environ.get("MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"))
+
+    # `usuarios` (libraauth) vive en la base de LIBRACORE, no en la del dominio.
+    #
+    # Es deliberado y se pago aprendiendolo: 11 tablas de libracore
+    # (facturas, ventas, caja_movimientos, turnos_caja, egresos, egresos_pagos,
+    # movimientos_stock, movimientos_tesoreria, cc_pagos, remitos, presupuestos)
+    # declaran `usuario_id REFERENCES usuarios(id)`, y esas FK resuelven contra
+    # la tabla que este en SU MISMO archivo. Mover `usuarios` a la base del
+    # dominio (como se hizo el 2026-07-30 y se revirtio el mismo dia) dejaba dos
+    # copias con ids distintos: un usuario nuevo entraba solo en la de auth, y
+    # al facturar libracore escribia un usuario_id que ahi no existia -> o
+    # violacion de FK, o el registro atribuido a OTRA persona. Ver
+    # wiki/entities/libraauth.md.
+    #
+    # libraauth lee sin problema la tabla que escribio el sqlite3 crudo de
+    # libracore (mismo schema, mismo hashing) y `create_all` no la altera.
+    libracore_db_path = os.environ.get(
+        "MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"
+    )
+    billing.configure(libracore_db_path)
+    auth_engine = create_engine(
+        f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
+    )
+    AuthBase.metadata.create_all(auth_engine)
+    auth_sessions = sessionmaker(bind=auth_engine)
+
     sessions = get_session_factory()
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
     availability_repository = SqlAlchemyAvailabilityRepository(sessions)
-    user_repository = UserRepository()
+    # libraauth: el repositorio recibe el session_factory del producto (antes
+    # usaba la conexion sqlite3 global de libracore). Sin `roles=`: el default
+    # ("admin","staff") es exactamente el vocabulario de MedLibra.
+    user_repository = UserRepository(auth_sessions)
     branch_hours_repository = BranchHoursRepository(sessions)
     deposit_repository = SqlAlchemyDepositRepository(sessions)
     reminder_repository = SqlAlchemyReminderRepository(sessions)
@@ -77,6 +110,17 @@ def create_app(database_url: str) -> FastAPI:
     app.state.consents = ConsentRepository(sessions)
     app.state.users = user_repository
     app.state.session_auth = build_session_auth(user_repository)
+    # Recuperación de contraseña por correo (libraauth v0.5.0). `auth_sessions`
+    # y no el session_factory del dominio: la tabla de tokens tiene FK a
+    # `usuarios`, que vive en la base de LibraCore. Sin SMTP configurado la app
+    # levanta igual y el endpoint devuelve 503.
+    app.state.password_reset = PasswordResetService(
+        auth_sessions,
+        product_name="MedLibra",
+        reset_url_base=os.environ.get(
+            "MEDLIBRA_RESET_URL_BASE", "https://dev.medlibra.com.ar/reset-password"
+        ),
+    )
     app.state.reminder_dispatcher = ReminderDispatcher(
         appointment_repository, reminder_repository,
         LoggingNotificationPort(), DEFAULT_REMINDER_POLICIES,

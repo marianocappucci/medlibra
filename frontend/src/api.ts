@@ -13,6 +13,7 @@
 // específico de MedLibra (documentos clínicos), se suma acá encima del
 // objeto base.
 import { api as baseApi, ApiError, type User } from 'libra-ui/api-client'
+import type { OpcionSelect } from 'libra-ui/SelectBuscable'
 
 export { ApiError, type User }
 
@@ -60,6 +61,35 @@ export type Patient = {
   birth_date: string | null
   cuit: string | null
   condicion_iva: string | null
+}
+
+// --- opciones para los selects con busqueda (libra-ui/SelectBuscable) ------
+//
+// Viven aca, junto a los tipos, para que toda pantalla que elija un paciente
+// o un servicio lo muestre y lo busque igual. El `hint` no es decorativo:
+// ademas de desambiguar dos nombres parecidos, **entra en la busqueda**.
+//
+// En un centro medico el DNI es el mejor discriminador -- es lo que trae el
+// paciente y lo que figura en la orden -- y el telefono es lo que se tiene a
+// mano cuando llama para sacar turno. Los dos entran en la busqueda.
+
+export function opcionesPaciente(pacientes: Patient[]): OpcionSelect[] {
+  return pacientes.map((p) => ({
+    value: p.id,
+    label: p.name,
+    hint: [p.dni, p.phone, p.active ? null : 'inactivo']
+      .filter(Boolean).join(' · ') || undefined,
+  }))
+}
+
+export function opcionesServicio(servicios: Service[]): OpcionSelect[] {
+  return servicios.map((s) => ({
+    value: s.id,
+    label: s.name,
+    // La duracion es lo que distingue dos prestaciones de nombre parecido
+    // ("Consulta" de 20 y "Consulta primera vez" de 40) al armar la agenda.
+    hint: `${s.duration_minutes} min`,
+  }))
 }
 
 export type AppointmentStatus =
