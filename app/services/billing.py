@@ -23,6 +23,8 @@ from libracore.db import core as libracore_core
 from libracore.db import facturas as db_facturas
 from libracore.db.schema import init_core_schema
 
+from .iva_rates import DEFAULT_RATE
+
 EMPRESA = "consultorio"
 
 TIPO_FACTURA_A = 1
@@ -43,7 +45,8 @@ IVA_CODES = {
     "IVA No Responsable": 3,
 }
 
-_IVA_RATE = Decimal("0.21")
+# La alicuota ya no vive acá: es configurable por servicio, con un default
+# por instancia. Ver `iva_rates.py` y `_split_iva()` mas abajo.
 
 
 class BillingError(Exception):
@@ -100,12 +103,23 @@ def _tipo_comprobante(condicion_iva: str | None) -> int:
     return TIPO_FACTURA_A if condicion_iva == "Responsable Inscripto" else TIPO_FACTURA_B
 
 
-def _split_iva(total: Decimal) -> tuple[Decimal, Decimal]:
-    """Asume `total` como monto final (IVA incluido) y separa subtotal/IVA
-    al 21% -- simplificacion documentada: no contempla servicios de salud
-    exentos ni otras alicuotas; a revisar con un contador antes de facturar
-    contra ARCA real (ver TASKS.md)."""
-    subtotal = (total / (Decimal("1") + _IVA_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+def _split_iva(total: Decimal, rate: Decimal = DEFAULT_RATE) -> tuple[Decimal, Decimal]:
+    """Asume `total` como monto final (IVA incluido) y lo separa en
+    subtotal/IVA a la alicuota dada.
+
+    Con `rate=0` -- prestacion exenta, que en salud es el caso normal --
+    devuelve el total entero como subtotal y 0 de IVA. Eso no es una
+    omision: es lo que hace que `libracore.arca_wsfe.solicitar_cae` declare
+    el comprobante como exento. Con `iva_amount=0` calcula `pct=0` y arma el
+    XML con `ImpNeto=0.00`, `ImpIVA=0.00`, el importe en `ImpOpEx` y **sin**
+    bloque `<AlicIva>`. Verificado leyendo esa funcion, no asumido.
+
+    La alicuota se valida en `iva_rates`, no acá: cuando un monto llega a
+    esta funcion ya tiene que ser una de las que ARCA sabe mapear.
+    """
+    if rate == 0:
+        return total, Decimal("0")
+    subtotal = (total / (Decimal("1") + rate)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     iva_amount = total - subtotal
     return subtotal, iva_amount
 
@@ -113,11 +127,14 @@ def _split_iva(total: Decimal) -> tuple[Decimal, Decimal]:
 async def invoice_appointment(
     patient: dict, service_price: Decimal, referencia: str,
     deposit_amount: Decimal | None = None, deposit_medio_pago: str | None = None,
-    balance_medio_pago: str | None = None,
+    balance_medio_pago: str | None = None, iva_rate: Decimal = DEFAULT_RATE,
 ) -> dict:
     """Emite una factura por el total del servicio y registra el/los
     movimiento(s) de caja correspondientes. Se llama una sola vez, al
     completar el turno -- no por cada pago.
+
+    `iva_rate` la resuelve el caller (alicuota propia del servicio, si no la
+    default de la instancia); acá llega ya decidida.
     """
     deposit_amount = deposit_amount or Decimal("0")
     balance = service_price - deposit_amount
@@ -127,7 +144,7 @@ async def invoice_appointment(
     arca_cfg = get_arca_config()
     punto_venta = arca_cfg["punto_venta"] if arca_cfg else 1
     tipo = _tipo_comprobante(patient.get("condicion_iva"))
-    subtotal, iva_amount = _split_iva(service_price)
+    subtotal, iva_amount = _split_iva(service_price, iva_rate)
 
     numero, ta, arca_used = await arca_facturacion.get_next_numero_with_arca(punto_venta, tipo)
     factura_id = db_facturas.create_factura(

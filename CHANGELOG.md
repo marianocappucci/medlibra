@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- **Alícuota de IVA configurable por servicio** (ver ADR-027): hasta ahora
+  `billing._split_iva` asumía **21% fijo** para todo, que en un producto de
+  salud es el caso equivocado — la mayoría de las prestaciones médicas están
+  **exentas**. Ahora la alícuota se configura por servicio
+  (`PUT/GET/DELETE /services/{id}/iva`) con un default por instancia
+  (`business.default_iva_rate`), y sólo se aceptan las cuatro que ARCA sabe
+  mapear (0%, 10,5%, 21%, 27%). Migración `0012_service_iva_rates`, que deja
+  el default en **21% — el valor que ya estaba hardcodeado**, así que no le
+  cambia la facturación a ninguna instancia existente. 23 tests nuevos
+  (232 en la suite), verificados por mutación; migración probada contra
+  PostgreSQL real, incluido el downgrade.
+  > ⚠️ Esto **no decide qué alícuota le corresponde a cada prestación** —
+  > eso lo carga el usuario con su contador. Lo que cierra es que antes no
+  > había forma de expresarlo.
+
 - **`DOCS_AUTH_SECRET` expuesto en `docker-compose.yml`**: conecta el
   endpoint `POST /auth/verify` (ver abajo) con el valor real cargado en
   `.env`, necesario para que `/docs/` de `medlibra_web` autentique

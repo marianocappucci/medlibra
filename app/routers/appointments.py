@@ -15,14 +15,18 @@ from libragenda.repositories import DepositRepository
 
 from ..dependencies import (
     get_appointment_service,
+    get_business_settings_repository,
     get_catalog_repository,
     get_deposit_repository,
+    get_iva_rate_repository,
     get_patient_repository,
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
 from ..services.appointments import AppointmentService, OutsideBusinessHours, ServiceNotFound
 from ..services.billing import invoice_appointment
+from ..services.business_settings import BusinessSettingsRepository
+from ..services.iva_rates import IvaRateRepository
 from ..services.modules import ModuleRepository
 from ..services.patients import PatientRepository
 from ..services.service_prices import ServicePriceRepository
@@ -133,6 +137,8 @@ async def complete_appointment(
     deposits: DepositRepository = Depends(get_deposit_repository),
     catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
     modules: ModuleRepository = Depends(get_module_repository),
+    iva_rates: IvaRateRepository = Depends(get_iva_rate_repository),
+    business: BusinessSettingsRepository = Depends(get_business_settings_repository),
 ):
     """Completa el turno y, si hay un precio configurado para el servicio
     en la sucursal Y el plan incluye el módulo "facturacion" (ver
@@ -181,6 +187,9 @@ async def complete_appointment(
             deposit_amount=deposit.amount if paid else None,
             deposit_medio_pago=deposit.medio_pago if paid else None,
             balance_medio_pago=data.medio_pago,
+            iva_rate=iva_rates.resolve(
+                current.service_id, business.get()["default_iva_rate"],
+            ),
         )
 
     return {"id": appointment.id, "status": appointment.status.value, "factura": factura}
