@@ -54,6 +54,14 @@ def test_las_permitidas_pasan(rate):
     assert validate_rate(rate) == rate
 
 
+def test_el_mensaje_de_rechazo_lista_las_alicuotas_legibles():
+    """El 422 lo lee una persona. `:g` sobre Decimal dejaba "10.500%" y
+    "27." -- encontrado al ejercitarlo contra dev, no por los tests."""
+    with pytest.raises(InvalidIvaRate) as exc:
+        validate_rate(Decimal("0.13"))
+    assert "0%, 10.5%, 21%, 27%" in str(exc.value)
+
+
 # --- el contrato con ARCA ------------------------------------------------
 
 def _xml_enviado_a_arca(total: str, rate: Decimal) -> str:

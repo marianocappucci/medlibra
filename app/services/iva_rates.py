@@ -45,7 +45,9 @@ class InvalidIvaRate(ValueError):
     """La alicuota pedida no es una de las que ARCA sabe mapear."""
 
     def __init__(self, rate: Decimal) -> None:
-        permitidas = ", ".join(f"{r * 100:g}%" for r in ALLOWED_RATES)
+        # `:g` sobre Decimal no saca los ceros de cola (deja "10.500%" y
+        # "27."), asi que se normaliza antes y se formatea sin exponente.
+        permitidas = ", ".join(f"{(r * 100).normalize():f}%" for r in ALLOWED_RATES)
         super().__init__(
             f"alicuota {rate} no permitida -- ARCA solo mapea {permitidas}"
         )
