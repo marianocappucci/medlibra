@@ -13,7 +13,16 @@ dependencies = [
     "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.9.0",
     # libracore sigue proveyendo facturacion/caja/ARCA. El auth SALIO de aca el
     # 2026-07-30 y ahora lo da libraauth (ver app/auth.py y app/services/users.py).
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.6.0",
+    #
+    # v1.6.0 -> v1.8.0 (2026-08-04). Hoy este producto NO usa `pdf_generator`
+    # ni `ticket_generator` (verificado: cero imports), asi que ni el arreglo
+    # del PDF de v1.7.0 ni la maqueta compacta de v1.8.0 cambian nada de lo que
+    # se ve hoy. Se sube igual, y no es cosmetico: el modulo de facturacion es
+    # una incorporacion probable, y cuando llegue va a usar esos generadores.
+    # Que el pin ya este arriba significa que el modulo aterriza sobre la base
+    # arreglada en vez de heredar un bug conocido -- hasta v1.6.0 un guion
+    # largo en el nombre de empresa devolvia 500 al descargar el comprobante.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.8.2",
     "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.7.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
