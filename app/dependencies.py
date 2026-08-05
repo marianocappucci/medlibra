@@ -17,6 +17,7 @@ from .services.consents import ConsentRepository
 from .services.dashboard import DashboardService
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
+from .services.iva_rates import IvaRateRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from .services.users import UserRepository
@@ -76,6 +77,10 @@ def get_service_price_repository(request: Request) -> ServicePriceRepository:
 
 def get_business_settings_repository(request: Request) -> BusinessSettingsRepository:
     return request.app.state.business_settings
+
+
+def get_iva_rate_repository(request: Request) -> IvaRateRepository:
+    return request.app.state.iva_rates
 
 
 def get_reminder_dispatcher(request: Request) -> ReminderDispatcher:

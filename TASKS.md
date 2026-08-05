@@ -35,17 +35,15 @@ dominio clínico, dashboard y facturación).
 - [ ] Upload real de certificado/clave ARCA (`PUT /config/arca` hoy acepta
       solo paths en el filesystem del servidor, el admin coloca los
       archivos a mano — ver ADR-016). Mejora futura, no bloqueante.
-- [ ] Revisar el cálculo de IVA de facturación (`_split_iva`, 21% fijo
-      sobre el monto final) con un contador antes de facturar contra ARCA
-      real — no contempla servicios de salud exentos ni otras alícuotas
-      (ver ADR-016).
+- [ ] Definir con un contador qué alícuota le corresponde a cada
+      prestación, y cargarla. **La mecánica ya está** (ADR-027): alícuota
+      por servicio con default por instancia, exento incluido. Lo que
+      queda es la decisión fiscal, que no es del código.
+- [ ] Frontend: sumar la alícuota de IVA a la pantalla donde ya se carga
+      el precio del servicio — hoy se configura sólo por API (ADR-027).
 - [ ] Cargar credenciales ARCA reales (CUIT, certificado, alta de
       servicio WSFE) cuando el usuario las tenga — hoy solo funciona en
       modo mock (`ENV=development`).
-- [ ] `test_reminders.py::test_dispatch_sends_due_reminders_and_is_idempotent`
-      sigue fallando con 409 al crear un turno (bug preexistente,
-      encontrado y flagueado en la ronda de facturación del 2026-07-22,
-      sin relación con esta ronda) — pendiente de investigar la causa raíz.
 
 ## Decisiones pendientes
 
