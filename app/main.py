@@ -5,6 +5,11 @@ import os
 
 from fastapi import Depends, FastAPI
 
+from libraauth.auditoria import (
+    AuditoriaBase, AuditoriaRepository, agregar_middleware_de_usuario, build_logs_router,
+    configurar_auditoria,
+)
+from libraauth.auth_events import AuthEventRepository
 from libraauth.models import Base as AuthBase
 from libraauth.password_reset import PasswordResetService
 from libraauth.session_auth import build_smtp_settings_router
@@ -18,6 +23,7 @@ from libragenda.database import configure, get_engine, get_session_factory
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base, SqlAlchemyAppointmentRepository
 
+from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, require_admin, require_admin_o_servicio, require_staff
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
@@ -80,6 +86,22 @@ def create_app(database_url: str) -> FastAPI:
     auth_sessions = sessionmaker(bind=auth_engine)
 
     sessions = get_session_factory()
+
+    # Log de actividad (libraauth v0.11.0). Va contra el engine del DOMINIO
+    # —el de LibraGenda— y no contra `auth_engine`: es donde ocurren las
+    # escrituras que audita y donde vive su transacción.
+    #
+    # `columnas_ocultas` y `etiqueta` son las dos defensas que este producto
+    # necesita y los otros tres no: el log lo lee cualquier admin, y el
+    # contenido de una nota clínica o de una receta no tiene por qué quedar
+    # copiado ahí. Ver `app/auditoria.py`.
+    AuditoriaBase.metadata.create_all(get_engine())
+    configurar_auditoria(
+        sessions, AUDITABLES,
+        columnas_ocultas=COLUMNAS_CLINICAS,
+        etiqueta=etiqueta_segura,
+    )
+
     catalog = SqlAlchemyCatalogRepository(sessions)
     appointment_repository = SqlAlchemyAppointmentRepository(sessions)
     availability_repository = SqlAlchemyAvailabilityRepository(sessions)
@@ -144,6 +166,12 @@ def create_app(database_url: str) -> FastAPI:
         appointment_repository, patient_repository, reminder_repository, deposit_repository,
     )
     app.state.modules = module_repository
+    app.state.auditoria = AuditoriaRepository(sessions)
+    # Accesos: `auth_sessions`, que apunta a la base de LibraCore, donde
+    # `auth_log` ya existe. Esto no agrega la tabla: empieza a escribirla.
+    app.state.auth_events = AuthEventRepository(auth_sessions)
+    # Sella el usuario de la cookie para que la auditoría sepa quién escribió.
+    agregar_middleware_de_usuario(app)
 
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -206,5 +234,12 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(
         deposits.request_router, dependencies=staff_or_admin + [Depends(require_module("senas"))],
     )
+    # Logs: admin y nada más, y acá el gate importa más que en los otros
+    # productos — la fila dice quién abrió la ficha de qué paciente. **No** se
+    # gatea por plan: un log de auditoría no es una feature vendible.
+    #
+    # El router lo arma el motor (libraauth v0.10.0) pero el gate lo pone el
+    # producto: el vocabulario de roles es de acá, no del paquete.
+    app.include_router(build_logs_router(AUDITABLES), dependencies=[Depends(require_admin)])
 
     return app
