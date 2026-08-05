@@ -14,7 +14,13 @@ from libraauth.models import Base as AuthBase
 from libraauth.password_reset import PasswordResetService
 from libraauth.session_auth import build_smtp_settings_router
 from libraauth.smtp_settings import SmtpSettingsRepository, resolver_smtp_config
+from libracore import config_manager
+from libracore.config_router import (
+    build_backup_router, build_empresa_admin_router, build_empresa_router,
+)
+from libracore.respaldo import Instancia
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
@@ -241,5 +247,43 @@ def create_app(database_url: str) -> FastAPI:
     # El router lo arma el motor (libraauth v0.10.0) pero el gate lo pone el
     # producto: el vocabulario de roles es de acá, no del paquete.
     app.include_router(build_logs_router(AUDITABLES), dependencies=[Depends(require_admin)])
+
+    # Datos de empresa, logo y Datos / Backup (LibraCore v1.11.0).
+    #
+    # Los tres routers son del motor: este producto no reimplementa nada, solo
+    # les pone su dependencia de rol. Todo admin — hasta hoy este producto no
+    # tenia NINGUNA pantalla de configuracion, asi que no hay ningun consumidor
+    # de la lectura que haya que dejar abierto.
+    app.include_router(build_empresa_router(), dependencies=admin_only)
+    app.include_router(build_empresa_admin_router(), dependencies=admin_only)
+
+    # 🔴 DOS bases, y las dos tienen que entrar al backup: `usuarios` vive en
+    # la de LibraCore, separada de la del dominio. Un backup de una sola no se
+    # puede restaurar —o volves el dominio y te quedan usuarios de otro
+    # momento, o al reves— y no falla: da un ZIP que se descarga y pesa poco.
+    #
+    # 🔴 Y los documentos clinicos son archivos en disco. Un backup "de la
+    # base" los deja afuera enteros, y el cliente se lleva un ZIP creyendo que
+    # tiene los estudios de sus pacientes.
+    engine = get_engine()
+    app.include_router(
+        build_backup_router(
+            Instancia(
+                nombre="medlibra",
+                bases=[make_url(database_url).database, libracore_db_path],
+                directorios=[
+                    config_manager.LOGO_DIR,
+                    os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents"),
+                ],
+            ),
+            os.path.join(os.path.dirname(libracore_db_path), "backups"),
+            # Sin estos dos el restore devuelve `ok` y no tiene efecto hasta
+            # que alguien reinicie el contenedor: el pool sigue con el archivo
+            # viejo abierto. `dispose()` sirve para los dos momentos.
+            cerrar_conexiones=engine.dispose,
+            reabrir_conexiones=engine.dispose,
+        ),
+        dependencies=admin_only,
+    )
 
     return app
