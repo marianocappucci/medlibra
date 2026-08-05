@@ -10,6 +10,7 @@ import { PacienteFicha } from './pages/PacienteFicha'
 import { Dashboard } from './pages/Dashboard'
 import { Facturacion } from './pages/Facturacion'
 import { Usuarios } from './pages/Usuarios'
+import { Logs } from './pages/Logs'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -76,6 +77,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Usuarios />
+          </ProtectedRoute>
+        }
+      />
+      {/* El gateo real es del backend (`require_admin` sobre `/logs`). */}
+      <Route
+        path="/logs"
+        element={
+          <ProtectedRoute>
+            <Logs />
           </ProtectedRoute>
         }
       />
