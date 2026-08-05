@@ -38,7 +38,6 @@ AUDITABLES: dict[str, str] = {
     "AvailabilityExceptionRow": "excepcion",
     "TimeBlockRow": "bloqueo",
     "HolidayRow": "feriado",
-    "AgendaPolicyRow": "politica",
     "DepositRow": "seña",
     # Dominio propio de MedLibra
     "PatientRow": "ficha",
@@ -54,6 +53,7 @@ AUDITABLES: dict[str, str] = {
     "BranchContactRow": "contacto",
     "BusinessSettingsRow": "configuracion",
     "ServicePriceRow": "precio",
+    "ServiceIvaRateRow": "alicuota",
 }
 
 # Lo que NUNCA entra al diff. El motor ya oculta contrasenas y tokens; esto es

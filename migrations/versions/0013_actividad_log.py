@@ -24,8 +24,8 @@ schema. Lo unico que cambia es que ahora alguien la escribe.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0012_actividad_log"
-down_revision = "0011_modulos"
+revision = "0013_actividad_log"
+down_revision = "0012_service_iva_rates"
 branch_labels = None
 depends_on = None
 
