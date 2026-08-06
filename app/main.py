@@ -57,6 +57,7 @@ from .services.prescriptions import PrescriptionRepository
 from .services.iva_rates import IvaRateRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
+from libraauth.bootstrap import ensure_demo_user
 from .services.users import UserRepository, ensure_default_admin
 from .services import billing
 
@@ -122,6 +123,16 @@ def create_app(database_url: str) -> FastAPI:
     module_repository = ModuleRepository(sessions)
     module_repository.ensure_seeded()
     ensure_default_admin(user_repository)
+    # Crea al visitante de la demo, **solo si esta instancia es una demo**: se
+    # guia por `DEMO_MODE` + `DEMO_USERNAME`, las mismas dos variables que
+    # registran `POST /auth/demo`. En la instancia de un cliente devuelve None
+    # y no toca la base.
+    #
+    # 🔴 Sin esta llamada la ruta existe y no tiene a quien loguear: contesta
+    # `503 demo user not provisioned`. Cablear `incluir_demo=True` en el router
+    # no alcanza — la ruta y la siembra las conecta el producto, cada una por
+    # su lado.
+    ensure_demo_user(user_repository)
 
     app = FastAPI(title="MedLibra")
     app.state.catalog = catalog
