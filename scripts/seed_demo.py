@@ -291,8 +291,38 @@ def _sembrar_turnos(api: Api, contar) -> None:
         print(f"  (ya hay {ya_cargados} turnos cargados)")
         return
 
+    #: Los días de la semana que la sucursal atiende, tomados de HORARIOS: si
+    #: mañana se suma el sábado, esto lo sigue solo.
+    DIAS_HABILES = {dia for dia, _, _ in HORARIOS}
+
+    def _habil(fecha: date) -> bool:
+        return fecha.weekday() in DIAS_HABILES
+
     def cuando(dias: int, hora: int, minuto: int = 0) -> datetime:
-        return datetime.combine(HOY + timedelta(days=dias), time(hora, minuto))
+        """El día hábil número `dias` contando desde hoy (negativo = hacia atrás).
+
+        🔴 **No es `HOY + días`, y esa era la falla.** Con desplazamientos de
+        calendario, un turno a "+2" cae sábado cada jueves que corre el reset y
+        LibraGenda lo rechaza —correctamente— por estar fuera del horario de
+        atención. El seed lo avisaba y seguía, así que la demo amanecía con dos
+        turnos menos sin que nada fallara a la vista. Lo destapó
+        `test_deja_turnos_en_mas_de_un_estado`, que esperaba 7 y encontraba 6.
+
+        Contando días hábiles, la agenda de la demo se ve igual cualquier día
+        de la semana.
+        """
+        fecha = HOY
+        paso = 1 if dias >= 0 else -1
+        restantes = abs(dias)
+        # El día 0 es hoy si hoy es hábil; si no, el primer hábil hacia
+        # adelante — una demo abierta un domingo también tiene que mostrar algo.
+        while not _habil(fecha):
+            fecha += timedelta(days=1)
+        while restantes:
+            fecha += timedelta(days=paso)
+            if _habil(fecha):
+                restantes -= 1
+        return datetime.combine(fecha, time(hora, minuto))
 
     # 🔴 Completar un turno **no es un campo, es una máquina de estados**: uno
     # `pending` no se puede completar sin confirmarlo antes. Por eso la última

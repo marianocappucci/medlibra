@@ -13,6 +13,7 @@ from libragenda import (
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import DepositRepository
 
+from .. import mensajes_agenda as mensajes
 from ..dependencies import (
     get_appointment_service,
     get_business_settings_repository,
@@ -64,13 +65,13 @@ def create_appointment(
             data.resource_id, data.service_id, data.client_id, data.starts_at
         )
     except ServiceNotFound:
-        raise HTTPException(404, "service not found")
+        raise HTTPException(404, mensajes.SERVICIO_NO_ENCONTRADO)
     except OutsideBusinessHours:
-        raise HTTPException(409, "outside business hours")
+        raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
     except AppointmentConflict:
-        raise HTTPException(409, "appointment conflict")
+        raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:
-        raise HTTPException(409, "appointment unavailable")
+        raise HTTPException(*mensajes.describir(AppointmentUnavailable("")))
     return {"id": appointment.id, "status": appointment.status.value, "ends_at": appointment.ends_at}
 
 
@@ -82,9 +83,9 @@ def confirm_appointment(
     try:
         appointment = service.confirm(appointment_id)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     return {"id": appointment.id, "status": appointment.status.value}
 
 
@@ -97,9 +98,9 @@ def cancel_appointment(
     try:
         appointment = service.cancel(appointment_id, reason=data.reason)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     return {"id": appointment.id, "status": appointment.status.value, "reason": appointment.reason}
 
 
@@ -112,15 +113,15 @@ def reschedule_appointment(
     try:
         appointment = service.reschedule(appointment_id, data.starts_at, reason=data.reason)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     except OutsideBusinessHours:
-        raise HTTPException(409, "outside business hours")
+        raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
     except AppointmentConflict:
-        raise HTTPException(409, "appointment conflict")
+        raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:
-        raise HTTPException(409, "appointment unavailable")
+        raise HTTPException(*mensajes.describir(AppointmentUnavailable("")))
     return {
         "id": appointment.id, "status": appointment.status.value,
         "starts_at": appointment.starts_at, "reason": appointment.reason,
@@ -154,7 +155,7 @@ async def complete_appointment(
     admite otra transicion)."""
     current = service.appointments.get(appointment_id)
     if current is None:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
 
     price_row = None
     patient: dict = {}
@@ -175,9 +176,9 @@ async def complete_appointment(
     try:
         appointment = service.complete(appointment_id)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
 
     factura = None
     if price_row is not None:
