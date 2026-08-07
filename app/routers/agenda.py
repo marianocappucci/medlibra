@@ -3,6 +3,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .. import mensajes_agenda as mensajes
 from ..dependencies import get_appointment_service
 from ..services.appointments import AppointmentService
 
@@ -28,7 +29,7 @@ def get_agenda(
     service: AppointmentService = Depends(get_appointment_service),
 ):
     if date_to < date_from:
-        raise HTTPException(422, "date_to must not be before date_from")
+        raise HTTPException(422, mensajes.RANGO_INVERTIDO)
     return [
         AppointmentOut(
             id=item.id, resource_id=item.resource_id, service_id=item.service_id,
