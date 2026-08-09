@@ -3,7 +3,7 @@
 from conftest import https_client
 
 from app.main import create_app
-from tests.motor import fresh_database_url
+from motor_de_test import fresh_database_url
 
 
 def test_verify_without_secret_configured_returns_401(monkeypatch, admin_client):

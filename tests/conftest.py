@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from tests.motor import fresh_database_url
+from motor_de_test import fresh_database_url
 
 @pytest.fixture(autouse=True)
 def _dev_env(monkeypatch, tmp_path):

@@ -7,7 +7,7 @@ app real.
 """
 from app.main import create_app
 from conftest import https_client
-from tests.motor import fresh_database_url
+from motor_de_test import fresh_database_url
 
 
 def _app_con_mailbox(monkeypatch):

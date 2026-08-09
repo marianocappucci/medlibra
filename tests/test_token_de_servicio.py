@@ -18,7 +18,7 @@ from libraauth.session_auth import SERVICE_TOKEN_ENV, SERVICE_TOKEN_HEADER
 
 from app.main import create_app
 from conftest import https_client
-from tests.motor import fresh_database_url
+from motor_de_test import fresh_database_url
 
 TOKEN = "un-token-de-servicio-de-prueba"
 RUTA_USERS = "/users"
