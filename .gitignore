@@ -30,3 +30,27 @@ admin/
 dev-data/
 # credenciales de Nginx Proxy Manager
 scripts/.npm_config.json
+\.env
+\.env.*
+!.env.example
+config.local.*
+credentials.*
+secrets.*
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sql
+*.dump
+*.bak
+*.backup
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+data/
+logs/
+*.log
