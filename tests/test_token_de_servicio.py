@@ -18,6 +18,7 @@ from libraauth.session_auth import SERVICE_TOKEN_ENV, SERVICE_TOKEN_HEADER
 
 from app.main import create_app
 from conftest import https_client
+from motor_de_test import fresh_database_url
 
 TOKEN = "un-token-de-servicio-de-prueba"
 RUTA_USERS = "/users"
@@ -29,7 +30,7 @@ ACEPTAN_TOKEN = {RUTA_USERS, "/admin/smtp"}
 @pytest.fixture
 def sin_sesion():
     """Cliente sin loguear: es como llega el backoffice, que no es usuario."""
-    with https_client(create_app("sqlite:///:memory:")) as client:
+    with https_client(create_app(fresh_database_url())) as client:
         yield client
 
 
