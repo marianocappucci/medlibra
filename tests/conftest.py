@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-
+from tests.motor import fresh_database_url
 
 @pytest.fixture(autouse=True)
 def _dev_env(monkeypatch, tmp_path):
@@ -48,7 +48,7 @@ def admin_client():
     a `with` block, TestClient spins up a brand new anyio portal thread per
     request instead of reusing one (see starlette.testclient.TestClient).
     """
-    with https_client(create_app("sqlite:///:memory:")) as client:
+    with https_client(create_app(fresh_database_url())) as client:
         response = client.post("/auth/login", json={"username": "admin", "password": "admin"})
         assert response.status_code == 200, response.text
         yield client

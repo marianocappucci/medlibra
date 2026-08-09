@@ -3,6 +3,7 @@
 from conftest import https_client
 
 from app.main import create_app
+from tests.motor import fresh_database_url
 
 
 def test_verify_without_secret_configured_returns_401(monkeypatch, admin_client):
@@ -49,7 +50,7 @@ def test_verify_with_correct_secret_and_invalid_password_returns_valid_false(mon
 
 def test_verify_does_not_create_a_session(monkeypatch):
     monkeypatch.setenv("DOCS_AUTH_SECRET", "the-real-secret")
-    client = https_client(create_app("sqlite:///:memory:"))
+    client = https_client(create_app(fresh_database_url()))
     response = client.post(
         "/auth/verify",
         json={"username": "admin", "password": "admin"},

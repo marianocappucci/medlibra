@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import https_client
+from tests.motor import fresh_database_url
 
 
 @pytest.fixture
@@ -210,6 +211,6 @@ def test_staff_can_manage_own_appointments_and_patients_but_not_catalog(
 
 def test_unauthenticated_request_returns_401():
     from app.main import create_app
-    client = https_client(create_app("sqlite:///:memory:"))
+    client = https_client(create_app(fresh_database_url()))
     assert client.get("/branches").status_code == 401
     assert client.post("/appointments", json={}).status_code == 401

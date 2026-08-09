@@ -7,19 +7,20 @@ app real.
 """
 from app.main import create_app
 from conftest import https_client
+from tests.motor import fresh_database_url
 
 
 def _app_con_mailbox(monkeypatch):
     monkeypatch.setenv("LIBRAAUTH_SMTP_HOST", "smtp.test")
     monkeypatch.setenv("LIBRAAUTH_SMTP_FROM_EMAIL", "no-reply@test")
-    app = create_app("sqlite:///:memory:")
+    app = create_app(fresh_database_url())
     enviados = []
     app.state.password_reset._send_email = lambda **kw: enviados.append(kw)
     return app, enviados
 
 
 def test_los_endpoints_estan_montados():
-    client = https_client(create_app("sqlite:///:memory:"))
+    client = https_client(create_app(fresh_database_url()))
     # Sin SMTP responde 503: prueba de que el endpoint existe y llega al
     # servicio (un 404 sería "no montado").
     assert client.post("/auth/forgot-password",
@@ -63,6 +64,6 @@ def test_flujo_completo(monkeypatch):
 
 
 def test_token_invalido_da_400():
-    client = https_client(create_app("sqlite:///:memory:"))
+    client = https_client(create_app(fresh_database_url()))
     assert client.post("/auth/reset-password",
                        json={"token": "inventado", "new_password": "nueva-clave-1"}).status_code == 400
