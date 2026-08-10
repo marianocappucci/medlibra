@@ -1,0 +1,17 @@
+-- La SEGUNDA base del sidecar: la de LibraCore.
+--
+-- 🔴 Son dos bases y no dos schemas de la misma, y no es preferencia:
+-- LibraCore y LibraGenda declaran los dos una tabla `clients`, con
+-- `id INTEGER PRIMARY KEY AUTOINCREMENT` el primero y `id VARCHAR(100)` el
+-- segundo. En SQLite vivian en dos ARCHIVOS y nunca se cruzaban. Juntas, el
+-- segundo `CREATE TABLE IF NOT EXISTS` no hace nada y no avisa, y despues
+-- PostgreSQL rechaza el DDL de LibraCore por las nueve FK que apuntan a
+-- `clients(id)`: *"Key columns are of incompatible types: integer and
+-- character varying"*.
+--
+-- Dos bases en el mismo servidor es la traduccion fiel de los dos archivos.
+--
+-- Este archivo lo corre la imagen de postgres UNA sola vez, al inicializar el
+-- volumen. Si el volumen ya existe, no se ejecuta: agregar una base a una
+-- instancia que ya arranco es un `CREATE DATABASE` a mano.
+CREATE DATABASE medlibra_core OWNER medlibra;
