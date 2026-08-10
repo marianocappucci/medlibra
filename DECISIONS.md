@@ -985,6 +985,70 @@ Registro ADR. Las decisiones no se borran; si dejan de aplicar, se marcan como r
   MedLibra (Fase 4): login, agenda/turnos, pacientes, dominio clínico
   completo, dashboard y facturación.**
 
+## ADR-027 — Alícuota de IVA configurable por servicio
+
+**Fecha:** 2026-08-02
+**Estado:** aceptada
+
+### Contexto
+
+`billing._split_iva()` separaba subtotal e IVA asumiendo **21% fijo**. El
+propio docstring lo marcaba como simplificación a revisar con un contador
+antes de facturar contra ARCA real. En un producto de salud el 21% no es
+una simplificación menor: la mayoría de las prestaciones médicas están
+**exentas** de IVA y algunas tributan al 10,5%, así que el caso por defecto
+estaba mal.
+
+Al relevarlo apareció algo que cambia el diseño: `libracore.arca_wsfe`
+**deriva la alícuota de los números**, no de un campo. Calcula
+`pct = round(iva / sub * 100, 1)` y con `pct == 0` arma el comprobante con
+`ImpNeto=0.00`, el importe en `ImpOpEx` y **sin** bloque `<AlicIva>` — que
+es exactamente como ARCA espera una operación exenta. **No hace falta tocar
+LibraCore**: alcanza con que MedLibra calcule bien el par subtotal/IVA.
+
+Y una trampa: `_iva_id()` resuelve el `Id` de ARCA con
+`_IVA_ID.get(round(pct, 1), _IVA_ID.get(round(pct), 5))`. Ante un
+porcentaje que no conoce **cae al Id 5, que es 21%**. Una alícuota
+arbitraria (13%, por ejemplo) no fallaría: se declararía como 21% ante
+ARCA, sin error a la vista.
+
+### Decisión
+
+1. **La alícuota vive en una tabla propia de MedLibra**
+   (`service_iva_rates`, clave `service_id`), no en el `Service` de
+   LibraGenda: el motor de turnos es genérico y no sabe de impuestos.
+   Mismo patrón que `service_prices` (ADR-013).
+2. **Default por instancia** en `business_settings.default_iva_rate`. Un
+   consultorio con todas sus prestaciones exentas lo baja a 0 una sola vez,
+   en vez de servicio por servicio. Un servicio sin alícuota propia hereda
+   ese default, y el endpoint lo dice explícitamente (`inherited: true`) —
+   sin ese flag la pantalla no puede distinguir "exento porque alguien lo
+   decidió" de "exento porque lo es todo el consultorio".
+3. **Lista cerrada de alícuotas**: 0%, 10,5%, 21% y 27%, las cuatro que
+   `_IVA_ID` mapea. Cualquier otra se rechaza con 422. No es validación
+   cosmética: es lo que evita que una alícuota inválida se declare
+   silenciosamente como 21%.
+4. **El default arranca en 21%**, el valor que ya estaba hardcodeado. La
+   migración no le cambia la facturación a ninguna instalación existente;
+   el cambio de comportamiento es siempre una acción explícita del usuario.
+5. **`default_iva_rate` es opcional en el `PUT /business`** y omitirla deja
+   la que estaba. Un PUT que sólo renombra el consultorio no tiene por qué
+   moverle la alícuota a la facturación.
+
+### Consecuencias
+
+- Una prestación exenta se factura con el total entero como subtotal e IVA
+  0, y viaja a ARCA en `ImpOpEx`. Hay un test que arma el **XML real** de
+  `libracore.arca_wsfe` con el transporte interceptado y lo verifica, junto
+  con su contracara al 21% — sin esa segunda mitad, un bug que mandara todo
+  a `ImpOpEx` también pasaría el primero.
+- **Esto no decide la política fiscal.** Qué alícuota le corresponde a cada
+  prestación lo carga el usuario con su contador; lo que se cierra acá es
+  que antes no había forma de expresarlo.
+- Falta la pantalla: hoy la alícuota se configura por API. Cuando se sume
+  al frontend, va en la misma pantalla donde ya se carga el precio del
+  servicio.
+
 ## ADR-026 — Endpoint `POST /auth/verify` para el login de `/docs/` de medlibra_web
 
 - Estado: aceptada

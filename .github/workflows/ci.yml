@@ -6,13 +6,46 @@ on:
   pull_request:
     branches: [develop, main]
 
+# Una sola corrida viva por rama. Si entra un push nuevo mientras esta
+# corriendo, se cancela la anterior en vez de pagar las dos: su resultado ya
+# no le sirve a nadie, porque reporta sobre un codigo que no es el que quedo
+# en la rama.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    # SQLite is the production default for the whole Libra family (silo
-    # deployment: one isolated instance per client) -- no service
-    # container needed, the smoke check below runs against a plain file.
+    # SQLite sigue siendo el motor de hoy de este producto (silo por cliente),
+    # y el smoke de abajo corre contra un archivo.
+    #
+    # 🔴 Pero la suite corre AHORA TAMBIEN contra PostgreSQL, en un segundo
+    # paso. El PR #25 la dejo *capaz* de correr contra otro motor y ahi quedaron
+    # 91 failed / 67 errors, asi que no se pudo poner en el CI. Con el pin de
+    # libraauth al dia son 281 passed / 0 failed: ya se puede exigir.
+    #
+    # La imagen es la de Debian (`postgres:16`) y no la alpine: el collation
+    # viene de la imagen y tiene que ser el de produccion.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: medlibra
+          POSTGRES_USER: medlibra
+          POSTGRES_PASSWORD: medlibra-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U medlibra -d medlibra"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     env:
       DATABASE_URL: sqlite:///${{ github.workspace }}/ci.db
 
@@ -97,6 +130,25 @@ jobs:
       # fijado 2 puntos debajo de lo medido el 2026-07-31, no una meta.
       - name: Run tests
         run: pytest -v --cov --cov-report=term-missing
+
+      # La misma suite contra el motor de destino. Sin `--cov`: la cobertura ya
+      # se midio arriba y es la misma, y el trinquete no tiene por que contarse
+      # dos veces.
+      #
+      # 🔴 Desde el 2026-08-10 esta corrida ejercita **las dos mitades**. Antes
+      # el conftest le daba a LibraCore un archivo SQLite temporal aunque el
+      # resto fuera a PostgreSQL, asi que el verde de este job no decia nada
+      # sobre las ~340 consultas crudas del core.
+      #
+      # LibraCore va a `medlibra_core`, otra base en el mismo servidor, que el
+      # arnes crea si no esta (ver `motor_de_test.url_libracore`). No puede
+      # compartir schema con el dominio: LibraCore y LibraGenda declaran las dos
+      # una tabla `clients` con formas incompatibles -- `id` INTEGER contra
+      # VARCHAR(100) -- y en SQLite eso no chocaba porque eran dos archivos.
+      - name: Run tests (PostgreSQL)
+        env:
+          MEDLIBRA_TEST_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
+        run: pytest -v
 
       # Smoke check for the two independent Alembic chains this repo
       # depends on: LibraGenda's own (engine schema) applied first, then

@@ -30,3 +30,38 @@ admin/
 dev-data/
 # credenciales de Nginx Proxy Manager
 scripts/.npm_config.json
+\.env
+\.env.*
+!.env.example
+config.local.*
+credentials.*
+secrets.*
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.sql
+*.dump
+*.bak
+*.backup
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+data/
+logs/
+*.log
+
+# Carpetas que aparecen si algun codigo trata la URL de la base como
+# ruta de archivo. El arreglo es el codigo; esto es para que un descuido no
+# termine commiteando una contrasena en el nombre de un directorio.
+postgresql:*/
+postgres:*/
+
+# Excepcion a `*.sql`: el init del sidecar PostgreSQL es codigo de
+# infraestructura, no un dump. Sin versionarlo, el sidecar del VPS arranca sin
+# la base de LibraCore y el producto no levanta.
+!docker/postgres-init/*.sql

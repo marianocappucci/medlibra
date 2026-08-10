@@ -13,16 +13,21 @@ from libragenda import (
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import DepositRepository
 
+from .. import mensajes_agenda as mensajes
 from ..dependencies import (
     get_appointment_service,
+    get_business_settings_repository,
     get_catalog_repository,
     get_deposit_repository,
+    get_iva_rate_repository,
     get_patient_repository,
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
 from ..services.appointments import AppointmentService, OutsideBusinessHours, ServiceNotFound
 from ..services.billing import invoice_appointment
+from ..services.business_settings import BusinessSettingsRepository
+from ..services.iva_rates import IvaRateRepository
 from ..services.modules import ModuleRepository
 from ..services.patients import PatientRepository
 from ..services.service_prices import ServicePriceRepository
@@ -60,13 +65,13 @@ def create_appointment(
             data.resource_id, data.service_id, data.client_id, data.starts_at
         )
     except ServiceNotFound:
-        raise HTTPException(404, "service not found")
+        raise HTTPException(404, mensajes.SERVICIO_NO_ENCONTRADO)
     except OutsideBusinessHours:
-        raise HTTPException(409, "outside business hours")
+        raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
     except AppointmentConflict:
-        raise HTTPException(409, "appointment conflict")
+        raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:
-        raise HTTPException(409, "appointment unavailable")
+        raise HTTPException(*mensajes.describir(AppointmentUnavailable("")))
     return {"id": appointment.id, "status": appointment.status.value, "ends_at": appointment.ends_at}
 
 
@@ -78,9 +83,9 @@ def confirm_appointment(
     try:
         appointment = service.confirm(appointment_id)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     return {"id": appointment.id, "status": appointment.status.value}
 
 
@@ -93,9 +98,9 @@ def cancel_appointment(
     try:
         appointment = service.cancel(appointment_id, reason=data.reason)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     return {"id": appointment.id, "status": appointment.status.value, "reason": appointment.reason}
 
 
@@ -108,15 +113,15 @@ def reschedule_appointment(
     try:
         appointment = service.reschedule(appointment_id, data.starts_at, reason=data.reason)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
     except OutsideBusinessHours:
-        raise HTTPException(409, "outside business hours")
+        raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
     except AppointmentConflict:
-        raise HTTPException(409, "appointment conflict")
+        raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:
-        raise HTTPException(409, "appointment unavailable")
+        raise HTTPException(*mensajes.describir(AppointmentUnavailable("")))
     return {
         "id": appointment.id, "status": appointment.status.value,
         "starts_at": appointment.starts_at, "reason": appointment.reason,
@@ -133,6 +138,8 @@ async def complete_appointment(
     deposits: DepositRepository = Depends(get_deposit_repository),
     catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
     modules: ModuleRepository = Depends(get_module_repository),
+    iva_rates: IvaRateRepository = Depends(get_iva_rate_repository),
+    business: BusinessSettingsRepository = Depends(get_business_settings_repository),
 ):
     """Completa el turno y, si hay un precio configurado para el servicio
     en la sucursal Y el plan incluye el módulo "facturacion" (ver
@@ -148,7 +155,7 @@ async def complete_appointment(
     admite otra transicion)."""
     current = service.appointments.get(appointment_id)
     if current is None:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
 
     price_row = None
     patient: dict = {}
@@ -169,9 +176,9 @@ async def complete_appointment(
     try:
         appointment = service.complete(appointment_id)
     except AppointmentNotFound:
-        raise HTTPException(404, "appointment not found")
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
     except InvalidTransition as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(*mensajes.describir(exc))
 
     factura = None
     if price_row is not None:
@@ -181,6 +188,9 @@ async def complete_appointment(
             deposit_amount=deposit.amount if paid else None,
             deposit_medio_pago=deposit.medio_pago if paid else None,
             balance_medio_pago=data.medio_pago,
+            iva_rate=iva_rates.resolve(
+                current.service_id, business.get()["default_iva_rate"],
+            ),
         )
 
     return {"id": appointment.id, "status": appointment.status.value, "factura": factura}
