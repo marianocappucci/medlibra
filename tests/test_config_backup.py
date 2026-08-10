@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from motor_de_test import url_para_archivo
 
 
 def https_client(app) -> TestClient:
@@ -39,8 +40,13 @@ def admin_client(tmp_path):
        y el test de las dos bases fallaría por el motivo equivocado.
     2. `engine.dispose()` sobre una base en memoria **la borra**: la base vive
        en la conexión. En producción siempre es un archivo.
+
+    🔴 Por `url_para_archivo()` y no con la URL escrita a mano: contra
+    PostgreSQL no hay archivo, y con la cadena fija el dominio quedaba en un
+    `.db` mientras LibraCore iba a la base nueva. El ZIP salía con una sola
+    base y el test fallaba por el cableado del test, no por el producto.
     """
-    app = create_app(f"sqlite:///{tmp_path / 'medlibra.db'}")
+    app = create_app(url_para_archivo(tmp_path / "medlibra.db"))
     with https_client(app) as client:
         r = client.post("/auth/login", json={"username": "admin", "password": "admin"})
         assert r.status_code == 200, r.text
@@ -92,7 +98,11 @@ def test_el_backup_trae_las_dos_bases(admin_client):
         bases = sorted(n for n in z.namelist() if n.startswith("bases/"))
 
     assert len(bases) == 2, f"esperaba dos bases, vinieron {bases}"
-    assert any("libracore" in b for b in bases), f"falta la base de usuarios: {bases}"
+    # "core" y no "libracore" porque el nombre depende del motor: en SQLite es
+    # el archivo `medlibra_libracore.db` y en PostgreSQL el dump de la base
+    # `medlibra_core`. Lo que se prueba es que la mitad de usuarios/facturación
+    # esté, no cómo se llama el archivo.
+    assert any("core" in b for b in bases), f"falta la base de usuarios: {bases}"
 
 
 def test_el_backup_trae_los_documentos_clinicos(admin_client):

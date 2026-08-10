@@ -54,3 +54,9 @@ id_ed25519*
 data/
 logs/
 *.log
+
+# Carpetas que aparecen si algun codigo trata la URL de la base como
+# ruta de archivo. El arreglo es el codigo; esto es para que un descuido no
+# termine commiteando una contrasena en el nombre de un directorio.
+postgresql:*/
+postgres:*/
