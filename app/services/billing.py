@@ -62,9 +62,23 @@ def configure(db_path: str) -> None:
     """Llamar una vez al arrancar la app: configura libracore.db contra su
     propio archivo SQLite (independiente del engine de LibraGenda) y
     asegura que el schema compartido y una caja por defecto existan."""
-    directory = os.path.dirname(db_path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
+    # 🔴 `db_path` puede ser una URL de PostgreSQL, y entonces NO hay carpeta
+    # que crear. Sin esta guarda, `os.path.dirname()` de
+    # `postgresql://usuario:clave@host:5432/base` devuelve
+    # `postgresql://usuario:clave@host:5432` y `makedirs` lo crea como
+    # directorio: **la contraseña queda escrita en el nombre de una carpeta**.
+    # Y donde el repo está bind-mounteado en `/app`, esa carpeta cae dentro del
+    # checkout del VPS y el siguiente `docker build` la mete en la imagen.
+    # Encontrado en VentaLibra el 2026-08-10, al cortar su demo a PostgreSQL.
+    #
+    # El chequeo va escrito acá y no con `libracore.db.core.es_url_postgres()`
+    # porque ese helper existe desde LibraCore v1.18.0 y este producto todavía
+    # pinea v1.14.0. Cuando suba el pin para su propio corte, cambiar por el
+    # helper y borrar este comentario.
+    if not str(db_path).startswith(("postgres://", "postgresql://")):
+        directory = os.path.dirname(db_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
     libracore_core.configure(db_path)
     conn = libracore_core.get_connection()
     try:
