@@ -62,6 +62,60 @@ from .services.users import UserRepository, ensure_default_admin
 from .services import billing
 
 
+def _carpeta_de_backups(libracore_db_path: str) -> str:
+    """Donde se guardan los ZIP de backup.
+
+    🔴 **Salia de `os.path.dirname(libracore_db_path)`, y con la base en
+    PostgreSQL eso no es una carpeta.** `dirname()` de
+    `postgresql://usuario:clave@host:5432/base` devuelve
+    `postgresql://usuario:clave@host:5432`, y ahi se creaba `backups/`: una
+    carpeta **con la contrasena en el nombre**, colgando del directorio de
+    trabajo. Es el mismo defecto que `billing.configure()` tenia en los tres
+    productos, en otro lugar del mismo arranque.
+
+    Con la base en PostgreSQL no hay "al lado de la base": se usa `DATA_DIR`,
+    que es donde viven los logos y los documentos de esta instancia.
+    """
+    if str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://")):
+        return os.path.join(os.environ.get("DATA_DIR", "./data"), "backups")
+    return os.path.join(os.path.dirname(libracore_db_path), "backups")
+
+
+def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
+                           directorios: list) -> Instancia:
+    """Que se lleva el backup, segun el motor de cada mitad.
+
+    🔴 **Las dos mitades o ninguna.** El dominio y LibraCore son dos bases
+    separadas -- dos archivos en SQLite, dos bases PostgreSQL despues del corte,
+    porque no pueden compartir schema: las dos declaran una tabla `clients` con
+    `id` de tipos incompatibles. Un backup con una sola no se puede restaurar:
+    o volves el dominio y te quedan usuarios de otro momento, o al reves. Y no
+    falla: da un ZIP que se descarga y pesa poco.
+
+    Eso es exactamente lo que pasaba al cortar a PostgreSQL: `bases=` sirve para
+    rutas de archivo, asi que la URL de la base entraba como si fuera una ruta,
+    el archivo no existia y el ZIP salia con una sola base -- sin avisar. Lo
+    encontro `test_el_backup_trae_las_dos_bases` al correr la suite contra
+    PostgreSQL, no un cliente al intentar restaurar.
+    """
+    dominio = make_url(database_url)
+    if dominio.drivername.startswith("postgresql"):
+        extra = []
+        if str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://")):
+            extra.append(str(libracore_db_path))
+        return Instancia(
+            nombre="medlibra",
+            postgres_url=database_url,
+            postgres_extra=extra,
+            directorios=directorios,
+        )
+    return Instancia(
+        nombre="medlibra",
+        bases=[dominio.database, libracore_db_path],
+        directorios=directorios,
+    )
+
+
 def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
@@ -86,9 +140,20 @@ def create_app(database_url: str) -> FastAPI:
         "MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"
     )
     billing.configure(libracore_db_path)
-    auth_engine = create_engine(
-        f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
-    )
+    # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
+    # fuera una URL PostgreSQL: la interpolacion la convertia en una ruta
+    # relativa sin sentido (`sqlite:///postgresql://...`) y el engine moria con
+    # *unable to open database file*. `postgresql://` se pasa tal cual, con el
+    # driver psycopg que es el de la familia, y `connect_args` es de SQLite.
+    # Mismo arreglo que [[ventalibra]] y [[gestiolibra]].
+    if libracore_db_path.startswith(("postgresql://", "postgresql+psycopg://")):
+        auth_engine = create_engine(
+            libracore_db_path.replace("postgresql://", "postgresql+psycopg://", 1)
+        )
+    else:
+        auth_engine = create_engine(
+            f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
+        )
     AuthBase.metadata.create_all(auth_engine)
     auth_sessions = sessionmaker(bind=auth_engine)
 
@@ -279,15 +344,15 @@ def create_app(database_url: str) -> FastAPI:
     engine = get_engine()
     app.include_router(
         build_backup_router(
-            Instancia(
-                nombre="medlibra",
-                bases=[make_url(database_url).database, libracore_db_path],
+            _instancia_a_respaldar(
+                database_url,
+                libracore_db_path,
                 directorios=[
                     config_manager.LOGO_DIR,
                     os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents"),
                 ],
             ),
-            os.path.join(os.path.dirname(libracore_db_path), "backups"),
+            _carpeta_de_backups(libracore_db_path),
             # Sin estos dos el restore devuelve `ok` y no tiene efecto hasta
             # que alguien reinicie el contenedor: el pool sigue con el archivo
             # viejo abierto. `dispose()` sirve para los dos momentos.

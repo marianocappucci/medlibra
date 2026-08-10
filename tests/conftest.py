@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from motor_de_test import fresh_database_url
+from motor_de_test import destino_libracore, fresh_database_url
 
 @pytest.fixture(autouse=True)
 def _dev_env(monkeypatch, tmp_path):
@@ -16,7 +16,15 @@ def _dev_env(monkeypatch, tmp_path):
     # libracore.db is raw sqlite3 (a fresh connection per call, unlike
     # SQLAlchemy's pooled engine) -- ":memory:" would give every call an
     # empty, unrelated database. A real temp file per test is required.
-    monkeypatch.setenv("MEDLIBRA_LIBRACORE_DB_PATH", str(tmp_path / "medlibra_libracore.db"))
+    #
+    # 🔴 Y contra PostgreSQL va a SU PROPIA base, no a la del dominio. Hasta el
+    # 2026-08-10 esta linea daba un archivo SQLite temporal aunque el resto de
+    # la corrida fuera a PostgreSQL: la mitad cruda del producto -- las ~340
+    # consultas de LibraCore -- nunca se ejercitaba contra el motor nuevo.
+    monkeypatch.setenv(
+        "MEDLIBRA_LIBRACORE_DB_PATH",
+        destino_libracore(tmp_path / "medlibra_libracore.db"),
+    )
 
 
 def https_client(app) -> TestClient:
