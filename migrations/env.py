@@ -18,6 +18,8 @@ tracking.
 """
 import os
 
+from libracore.db.url_de_instancia import url_de_instancia
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -26,7 +28,7 @@ VERSION_TABLE = "alembic_version_medlibra"
 
 
 def get_url():
-    return os.environ.get("DATABASE_URL") or context.config.get_main_option("sqlalchemy.url")
+    return url_de_instancia("medlibra") or context.config.get_main_option("sqlalchemy.url")
 
 
 def run_migrations_offline():
