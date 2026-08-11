@@ -26,6 +26,8 @@ from libracore.provisioning.panel_admin import (
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 configure(
+    postgres=True,
+    base_core_separada=True,
     product_name="MEDLIBRA",
     image_name="medlibra:latest",
     container_prefix="medlibra",
