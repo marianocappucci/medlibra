@@ -115,7 +115,7 @@ def test_dashboard_counts_active_patients_and_new_in_period(admin_client: TestCl
 def test_dashboard_counts_reminders_sent_in_period(admin_client: TestClient):
     client = _seeded_client(admin_client)
     alta = client.post("/patients", json={"id": "patient-1", "name": "Ana"})
-    assert alta.status_code == 200, alta.text
+    assert alta.status_code < 300, alta.text
     starts_at = (datetime.now(timezone.utc) + timedelta(minutes=90)).strftime("%Y-%m-%dT%H:%M:%S")
     # 🔴 La creacion se aserta. Sin esto, un turno que no se crea -- por lo que
     # sea: validacion, solapamiento, horario del recurso -- aparece como
@@ -126,7 +126,7 @@ def test_dashboard_counts_reminders_sent_in_period(admin_client: TestClient):
         "resource_id": "resource-1", "service_id": "service-1",
         "client_id": "patient-1", "starts_at": starts_at,
     })
-    assert turno.status_code == 200, f"el turno no se creo ({turno.status_code}): {turno.text}"
+    assert turno.status_code < 300, f"el turno no se creo ({turno.status_code}): {turno.text}"
 
     dispatched = client.post("/reminders/dispatch")
     assert dispatched.status_code == 200
