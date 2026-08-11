@@ -20,6 +20,8 @@ de node), cae a `frontend/dist` relativo al repo para build+preview local
 sin Docker. Si no existe ninguno de los dos (API pura sin frontend
 buildeado), el mount se salta solo."""
 import os
+
+from libracore.db.url_de_instancia import url_de_instancia
 from pathlib import Path
 
 from fastapi.responses import FileResponse
@@ -28,9 +30,16 @@ from fastapi.staticfiles import StaticFiles
 DATA_DIR = os.environ.get("DATA_DIR")
 if DATA_DIR:
     os.makedirs(DATA_DIR, exist_ok=True)
-    database_url = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR}/medlibra.db")
+    database_url = url_de_instancia(
+        "medlibra", default=f"sqlite:///{DATA_DIR}/medlibra.db"
+    )
+    # Puente al nombre NORMALIZADO -- ver el comentario equivalente en
+    # gestiolibra/app/asgi.py: se resuelve primero para que un compose con
+    # el nombre viejo gane sobre el default de SQLite.
     os.environ.setdefault(
-        "MEDLIBRA_LIBRACORE_DB_PATH", f"{DATA_DIR}/medlibra_libracore.db"
+        "MEDLIBRA_LIBRACORE_DATABASE_URL",
+        url_de_instancia("medlibra", core=True,
+                         default=f"{DATA_DIR}/medlibra_libracore.db"),
     )
     os.environ.setdefault(
         "MEDLIBRA_DOCUMENTS_DIR", f"{DATA_DIR}/medlibra_documents"
@@ -40,7 +49,7 @@ if DATA_DIR:
     if os.environ.get("ADMIN_PASSWORD"):
         os.environ.setdefault("MEDLIBRA_ADMIN_PASSWORD", os.environ["ADMIN_PASSWORD"])
 else:
-    database_url = os.environ["DATABASE_URL"]
+    database_url = url_de_instancia("medlibra", requerida=True)
 
 from .main import create_app  # noqa: E402 -- after env bridging above
 

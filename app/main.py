@@ -3,6 +3,8 @@ clinical-note extensions, and mounts the routers."""
 
 import os
 
+from libracore.db.url_de_instancia import url_de_instancia
+
 from fastapi import Depends, FastAPI
 
 from libraauth.auditoria import (
@@ -136,8 +138,8 @@ def create_app(database_url: str) -> FastAPI:
     #
     # libraauth lee sin problema la tabla que escribio el sqlite3 crudo de
     # libracore (mismo schema, mismo hashing) y `create_all` no la altera.
-    libracore_db_path = os.environ.get(
-        "MEDLIBRA_LIBRACORE_DB_PATH", "./data/medlibra_libracore.db"
+    libracore_db_path = url_de_instancia(
+        "medlibra", core=True, default="./data/medlibra_libracore.db"
     )
     billing.configure(libracore_db_path)
     # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
