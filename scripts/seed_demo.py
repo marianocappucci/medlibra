@@ -361,14 +361,14 @@ def _sembrar_turnos(api: Api, contar) -> None:
         except RuntimeError as e:
             # Un turno que se pisa, o que cae en fin de semana, no corta el
             # seed: se avisa y se sigue.
-            print(f"  -- {inicio:%d/%m %H:%M} {profesional}: {e}")
+            print(f"  -- {inicio:%d-%m %H:%M} {profesional}: {e}")
             continue
         contar("turnos", True)
         for paso in pasos:
             try:
                 api.post(f"/appointments/{turno['id']}/{paso}", CUERPOS[paso])
             except RuntimeError as e:
-                print(f"  -- {inicio:%d/%m %H:%M} {paso}: {e}")
+                print(f"  -- {inicio:%d-%m %H:%M} {paso}: {e}")
                 break
 
 

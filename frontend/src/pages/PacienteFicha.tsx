@@ -27,10 +27,17 @@ function describeError(err: unknown): string {
   return 'Error de conexión.'
 }
 
+// dd-mm-aaaa HH:MM (regla del 2026-08-12). Se arma por partes en vez de
+// devolver el string de `toLocaleString`, que usa barra y mete una coma entre
+// la fecha y la hora.
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-AR', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  const partes = new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const p: Record<string, string> = {}
+  for (const parte of partes) p[parte.type] = parte.value
+  return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`
 }
 
 function formatBytes(bytes: number): string {

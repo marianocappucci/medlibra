@@ -46,10 +46,18 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+// El separador de la fecha es el GUION (regla del 2026-08-12: el formato
+// visible del ecosistema es dd-mm-aaaa). Se arma por partes en vez de devolver
+// el string de `toLocaleString`, que usa barra y ademas mete una coma entre la
+// fecha y la hora.
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-AR', {
+  const partes = new Intl.DateTimeFormat('es-AR', {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  })
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const p: Record<string, string> = {}
+  for (const parte of partes) p[parte.type] = parte.value
+  return `${p.day}-${p.month} ${p.hour}:${p.minute}`
 }
 
 const STATUS_BADGE_VARIANT: Record<AppointmentStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
