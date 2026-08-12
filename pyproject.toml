@@ -22,7 +22,21 @@ dependencies = [
     # Que el pin ya este arriba significa que el modulo aterriza sobre la base
     # arreglada en vez de heredar un bug conocido -- hasta v1.6.0 un guion
     # largo en el nombre de empresa devolvia 500 al descargar el comprobante.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.29.0",
+    #
+    # v1.29.0 -> v1.31.0 (2026-08-12). Son dos, y solo una cambia algo hoy:
+    #
+    # - v1.30.0: un comprobante se fecha con SU fecha y no con el reloj, asi que
+    #   reimprimirlo da byte a byte el mismo archivo. **Aca no cambia nada**:
+    #   sigue sin haber un solo import de los generadores (verificado). Vale lo
+    #   mismo que arriba — cuando llegue facturacion, aterriza sobre la base
+    #   arreglada.
+    # - v1.31.0: `pinear_image` escribia la imagen de la app en el primer
+    #   `image:` del compose. **Aca eso es el sidecar**: en docker-compose.yml
+    #   `medlibra-postgres` (con `image: postgres:16`) va declarado ANTES que
+    #   `medlibra-dev`, o sea el layout exacto donde el bug le pone la imagen de
+    #   la aplicacion al contenedor de la base. Este SI es un bug vivo para este
+    #   producto. Ahora el servicio se elige por `container_name`.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.31.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
