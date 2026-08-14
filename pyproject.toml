@@ -36,7 +36,18 @@ dependencies = [
     #   `medlibra-dev`, o sea el layout exacto donde el bug le pone la imagen de
     #   la aplicacion al contenedor de la base. Este SI es un bug vivo para este
     #   producto. Ahora el servicio se elige por `container_name`.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.33.0",
+    #
+    # v1.33.0 -> v1.37.0 (2026-08-14): **alineacion, no arreglo.** El salto trae
+    # los margenes de los PDF (los comprobantes de la familia se salian del
+    # marco del papel), pero **este producto no importa `pdf_generator`** -- se
+    # verifico con un grep de los imports, no de memoria. De los cuatro modulos
+    # que cambiaron entre las dos versiones no consume ninguno, asi que el bump
+    # no le cambia comportamiento.
+    #
+    # Se bumpea igual para que los 12 repos no diverjan: un parque con pines
+    # distintos convierte cada arreglo del motor en una arqueologia de quien
+    # tiene que. La suite se corrio contra v1.37.0 antes de subir el pin.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.37.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
