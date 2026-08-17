@@ -25,6 +25,28 @@ def _dev_env(monkeypatch, tmp_path):
         "MEDLIBRA_LIBRACORE_DB_PATH",
         destino_libracore(tmp_path / "medlibra_libracore.db"),
     )
+    # `libracore.config_manager` resuelve sus rutas AL IMPORTARSE, desde
+    # DATA_DIR o -- si no esta -- el cwd, que corriendo pytest es la raiz del
+    # repo. Setear la variable de entorno aca ya llega tarde, por eso se
+    # parchean los atributos del modulo y no el entorno.
+    #
+    # Sin esto, `test_config_backup.py` escribe `config.json` y `logos/logo.png`
+    # EN EL ARBOL DE TRABAJO: guardar los datos del consultorio deja el nombre
+    # y el CUIT del test commiteados, y subir el logo graba en `logo_path` la
+    # ruta absoluta de la maquina que corrio la suite -- un valor que no puede
+    # ser correcto para ninguna otra. El que corre los tests se lleva un ` M
+    # config.json` que es facil que se cuele en un commit o un PR.
+    #
+    # Es el mismo bug que VentaLibra encontro el 2026-07-28 al agregar la
+    # config del ticket (ver su tests/conftest.py); aca llego con la pantalla
+    # de Configuracion y quedo sin arreglar hasta el 2026-08-16.
+    #
+    # `CERTS_DIR` no se parchea a proposito: los certificados ARCA de este
+    # producto salen de la config de facturacion en la base
+    # (`app/routers/billing.py`), no de `config_manager`.
+    from libracore import config_manager
+    monkeypatch.setattr(config_manager, "CONFIG_PATH", str(tmp_path / "config.json"))
+    monkeypatch.setattr(config_manager, "LOGO_DIR", str(tmp_path / "logos"))
 
 
 def https_client(app) -> TestClient:
