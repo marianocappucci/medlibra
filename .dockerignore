@@ -5,5 +5,12 @@ __pycache__
 *.pyc
 clientes/
 dev-data/
+# Estado de la instancia que `libracore.config_manager` deja en el cwd cuando
+# se corre sin DATA_DIR (el uvicorn local del README). El contenedor lee su
+# propio DATA_DIR, asi que estas copias no las usa nadie -- pero `config.json`
+# puede tener el token de MercadoPago y la clave SMTP del que la genero, y
+# `COPY . .` la hornearia en la imagen. Mismo par que en `.gitignore`.
+config.json
+logos/
 frontend/node_modules
 frontend/dist
