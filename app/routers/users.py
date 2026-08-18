@@ -21,12 +21,22 @@ class UserCreate(BaseModel):
     name: str
     password: str
     role: Role
+    # Opcional: el alta se puede seguir haciendo sin correo. Es la
+    # dirección a la que llega el mail de `POST /auth/forgot-password`,
+    # y el ABM es el único lugar donde se carga.
+    email: str = ""
 
 
 class UserUpdate(BaseModel):
     name: str
     role: Role
     active: bool = True
+    # `None` = "dejalo como está" en `UserRepository.update()`; `""` =
+    # borralo. El default tiene que ser None porque el toggle de
+    # activo/inactivo de la grilla manda este mismo cuerpo sin tocar el
+    # correo -- con un default vacío, desactivar a alguien le borraba el
+    # mail en silencio.
+    email: str | None = None
 
 
 class PasswordUpdate(BaseModel):
@@ -39,12 +49,13 @@ class UserOut(BaseModel):
     name: str
     role: str
     active: bool
+    email: str = ""
 
 
 @router.post("", status_code=201, response_model=UserOut)
 def create_user(data: UserCreate, users: UserRepository = Depends(get_user_repository)):
     try:
-        return users.create(data.username, data.name, data.password, data.role)
+        return users.create(data.username, data.name, data.password, data.role, email=data.email)
     # Excepcion de dominio de libraauth (v0.1.1+), no la del motor de storage:
     # antes esto era `except sqlite3.IntegrityError`, que filtraba la
     # implementacion sqlite3 de libracore y dejo de matchear al migrar.
@@ -70,7 +81,7 @@ def update_user(
     user_id: str, data: UserUpdate, users: UserRepository = Depends(get_user_repository),
 ):
     try:
-        return users.update(user_id, data.name, data.role, data.active)
+        return users.update(user_id, data.name, data.role, data.active, email=data.email)
     except KeyError:
         raise HTTPException(404, "user not found")
 
@@ -79,6 +90,14 @@ def update_user(
 def update_user_password(
     user_id: str, data: PasswordUpdate, users: UserRepository = Depends(get_user_repository),
 ):
+    # Único rechazo: la clave vacía. Sin mínimo de longitud ni de
+    # complejidad -- este endpoint existe para destrabar a alguien que
+    # quedó afuera, y un requisito que el administrador no puede cumplir
+    # en el momento lo manda de vuelta a la base de datos. Pero `""`
+    # hasheada deja la cuenta abierta con el campo en blanco, que no es
+    # una contraseña floja: es ninguna.
+    if not (data.password or "").strip():
+        raise HTTPException(422, "la contraseña no puede estar vacía")
     try:
         users.update_password(user_id, data.password)
     except KeyError:
