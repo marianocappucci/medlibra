@@ -19,6 +19,7 @@ from libraauth.session_auth import (
     build_demo_codigos_router, build_smtp_settings_router, demo_username,
 )
 from libraauth.smtp_settings import SmtpSettingsRepository, resolver_smtp_config
+from libraauth.terminos import TerminosRepository, build_terminos_router
 from libracore import config_manager
 from libracore.config_router import (
     build_backup_router, build_empresa_admin_router, build_empresa_router,
@@ -231,6 +232,13 @@ def create_app(database_url: str) -> FastAPI:
     # Config SMTP editable por backoffice (libraauth v0.6.0), con la contraseña
     # cifrada en reposo. Mismo `auth_sessions` que el resto del motor.
     app.state.smtp_settings = SmtpSettingsRepository(auth_sessions)
+    # Terminos y Condiciones del Servicio: la prueba de la aceptacion y lo que
+    # enciende el gate. MISMA fabrica de sesiones que el SMTP y los usuarios --
+    # la tabla tiene FK a `usuarios`, que no siempre vive en la base del dominio.
+    #
+    # 🔴 Sin esta linea el gate NO corta y la instancia no falla: se queda sin
+    # gate, en silencio. Por eso cada producto tiene un test que lo prueba.
+    app.state.terminos = TerminosRepository(auth_sessions)
     app.state.password_reset = PasswordResetService(
         auth_sessions,
         product_name="MedLibra",
@@ -266,6 +274,9 @@ def create_app(database_url: str) -> FastAPI:
     # quien pueda escribir ahí puede redirigir a dónde salen los enlaces de
     # recuperación de contraseña de todos los usuarios.
     app.include_router(build_smtp_settings_router())
+    # `GET /terminos`, `POST /terminos/aceptar`, `GET /terminos/historial`.
+    # NO se gatea desde afuera: es el unico camino para salir del gate.
+    app.include_router(build_terminos_router())
     # `GET`/`POST`/`DELETE /admin/demo-codigos`, **solo en la demo**: es por
     # donde el backoffice emite los codigos que se le pasan a un interesado.
     # Exige rol admin o token de servicio por dentro, igual que el de SMTP.
