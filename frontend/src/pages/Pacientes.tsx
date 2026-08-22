@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { BadgeEstado } from 'libra-ui/badge-estado'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -17,7 +17,8 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { DataTable, sortableHeader } from '@/components/data-table'
-import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Trash2, Users } from 'lucide-react'
+import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 
 const CONDICIONES_IVA = [
   'Responsable Inscripto',
@@ -154,9 +155,9 @@ export function Pacientes() {
         size: 100,
         minSize: 85,
         cell: ({ row }) => (
-          <Badge variant={row.original.active ? 'default' : 'outline'}>
+          <BadgeEstado tono={row.original.active ? 'ok' : 'neutro'}>
             {row.original.active ? 'Activo' : 'Inactivo'}
-          </Badge>
+          </BadgeEstado>
         ),
       },
       {
@@ -182,7 +183,7 @@ export function Pacientes() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Pacientes</h2>
+        <TituloPantalla icono={Users}>Pacientes</TituloPantalla>
         {editingId === null && (
           <Button onClick={startCreate}>+ Nuevo paciente</Button>
         )}
