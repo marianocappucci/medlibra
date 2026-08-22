@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { BadgeEstado } from 'libra-ui/badge-estado'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -154,9 +154,9 @@ export function Pacientes() {
         size: 100,
         minSize: 85,
         cell: ({ row }) => (
-          <Badge variant={row.original.active ? 'default' : 'outline'}>
+          <BadgeEstado tono={row.original.active ? 'ok' : 'neutro'}>
             {row.original.active ? 'Activo' : 'Inactivo'}
-          </Badge>
+          </BadgeEstado>
         ),
       },
       {
