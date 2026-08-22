@@ -17,7 +17,8 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { DataTable, sortableHeader } from '@/components/data-table'
-import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Trash2, Users } from 'lucide-react'
+import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 
 const CONDICIONES_IVA = [
   'Responsable Inscripto',
@@ -182,7 +183,7 @@ export function Pacientes() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Pacientes</h2>
+        <TituloPantalla icono={Users}>Pacientes</TituloPantalla>
         {editingId === null && (
           <Button onClick={startCreate}>+ Nuevo paciente</Button>
         )}

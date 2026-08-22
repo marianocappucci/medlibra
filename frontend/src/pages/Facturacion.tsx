@@ -13,6 +13,8 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Receipt } from 'lucide-react'
+import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 
 // punto_venta se maneja como string en el form (evita la friccion de tipos
 // entre z.coerce.number() y react-hook-form) y se convierte a number recien
@@ -95,7 +97,7 @@ export function Facturacion() {
   if (forbidden) {
     return (
       <div className="grid gap-4">
-        <h2 className="text-lg font-semibold">Facturación</h2>
+        <TituloPantalla icono={Receipt}>Facturación</TituloPantalla>
         <p className="text-sm text-muted-foreground">
           No tenés acceso a facturación (requiere rol admin y el módulo "facturacion" habilitado
           en el plan).
@@ -106,7 +108,7 @@ export function Facturacion() {
 
   return (
     <div className="grid gap-4">
-      <h2 className="text-lg font-semibold">Facturación</h2>
+      <TituloPantalla icono={Receipt}>Facturación</TituloPantalla>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       {saved && <p className="text-sm text-emerald-600">Configuración guardada.</p>}
