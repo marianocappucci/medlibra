@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -60,13 +60,13 @@ function formatTime(iso: string): string {
   return `${p.day}-${p.month} ${p.hour}:${p.minute}`
 }
 
-const STATUS_BADGE_VARIANT: Record<AppointmentStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'outline',
-  confirmed: 'secondary',
-  in_progress: 'secondary',
-  completed: 'default',
-  cancelled: 'destructive',
-  no_show: 'destructive',
+const STATUS_TONO: Record<AppointmentStatus, TonoEstado> = {
+  pending: 'neutro',
+  confirmed: 'curso',
+  in_progress: 'curso',
+  completed: 'ok',
+  cancelled: 'negativo',
+  no_show: 'negativo',
 }
 
 const appointmentSchema = z.object({
@@ -214,7 +214,7 @@ export function Agenda() {
       size: 120,
       minSize: 100,
       cell: ({ row }) => (
-        <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
+        <BadgeEstado tono={STATUS_TONO[row.original.status]}>{STATUS_LABELS[row.original.status]}</BadgeEstado>
       ),
     },
     {
