@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LayoutDashboard } from 'lucide-react'
+import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -44,7 +46,7 @@ export function Dashboard() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Dashboard</h2>
+        <TituloPantalla icono={LayoutDashboard}>Dashboard</TituloPantalla>
         <div className="flex items-end gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="date-from">Desde</Label>

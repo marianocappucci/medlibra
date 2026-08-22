@@ -21,6 +21,8 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Users } from 'lucide-react'
+import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.detail
@@ -930,7 +932,7 @@ export function PacienteFicha() {
         <Button asChild variant="outline" size="sm">
           <Link to="/pacientes">← Pacientes</Link>
         </Button>
-        <h2 className="text-lg font-semibold">{patient?.name ?? 'Cargando…'}</h2>
+        <TituloPantalla icono={Users}>{patient?.name ?? 'Cargando…'}</TituloPantalla>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

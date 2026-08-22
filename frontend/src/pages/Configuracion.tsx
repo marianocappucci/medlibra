@@ -17,8 +17,11 @@
 import {
   SECCIONES_BASE, SECCION_ARCA, createConfiguracion,
 } from 'libra-ui/Configuracion'
+import { Settings } from 'lucide-react'
 
 export const Configuracion = createConfiguracion({
+  // El icono que el sidebar de este producto le da a /configuracion.
+  icono: Settings,
   // empresa (+logo), correo (SMTP) y Datos / Backup, más ARCA.
   secciones: [...SECCIONES_BASE, SECCION_ARCA],
 })
