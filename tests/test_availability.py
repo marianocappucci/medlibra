@@ -99,6 +99,13 @@ def test_booking_succeeds_once_a_window_is_configured(seeded_client: TestClient)
 
 
 def test_block_prevents_booking_within_an_otherwise_open_window(seeded_client: TestClient):
+    """🔴 **Este test es el único guard de la conversión de bloqueos** que hace
+    `_instantes()` en `app/routers/availability.py`, y sólo lo es porque la sede
+    del fixture está en UTC-3 (el default de `POST /branches` desde el
+    2026-08-22). Un bloqueo se carga en hora de pared pero se guarda como
+    instante; sin convertirlo, uno cargado de 10 a 11 tapa en realidad de 7 a 8
+    y el turno de las 10 se da igual. Medido: quitando esa conversión, este test
+    se pone rojo — y si la sede volviera a UTC, dejaría de detectarlo."""
     client = seeded_client
     client.post("/resources/resource-1/availability", json={
         "weekday": 0, "starts_at": "09:00:00", "ends_at": "18:00:00",

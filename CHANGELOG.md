@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- **La agenda corre en hora de pared, no en UTC** (ver ADR-028): la
+  disponibilidad del profesional, el horario de atención y las excepciones se
+  cargan en hora del reloj del consultorio, pero el turno se guardaba
+  interpretando ese mismo número como UTC. Un turno dado para las **17:00**
+  quedaba guardado como `17:00Z`, o sea las **14:00** del consultorio — tres
+  horas de corrimiento, que es lo que leen después los recordatorios. Y un
+  `starts_at` con offset explícito (una integración, no la pantalla) se
+  rechazaba con *"fuera del horario de atención"* aunque cayera adentro.
+  Ahora la validación entera —ventanas, excepciones, bloqueos y choques— corre
+  en hora de pared y la conversión a instante ocurre en el repositorio
+  (`app/services/husos.py`, `_TurnosEnHoraLocal`). Los bloqueos también se
+  convierten: uno cargado de 10 a 11 tapaba de 7 a 8.
+  **El huso por defecto de una sede nueva pasa de `UTC` a
+  `America/Argentina/Buenos_Aires`** — con offset cero el defecto es invisible,
+  porque validar en el terreno equivocado da el mismo resultado que validar en
+  el correcto. 6 tests nuevos (325 en la suite); 5 existentes cambiaron su valor
+  esperado. Sin migración: no cambia el schema.
+  > ⚠️ **Los turnos ya guardados no se tocan.** Una instancia que venía
+  > operando con la sede en UTC tiene sus instantes escritos con el criterio
+  > viejo; el arreglo cambia cómo se interpreta lo que entra de acá en más, no
+  > reescribe el pasado.
+
 - **Alícuota de IVA configurable por servicio** (ver ADR-027): hasta ahora
   `billing._split_iva` asumía **21% fijo** para todo, que en un producto de
   salud es el caso equivocado — la mayoría de las prestaciones médicas están

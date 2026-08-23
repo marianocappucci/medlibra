@@ -1075,3 +1075,95 @@ ARCA, sin error a la vista.
   corrida, no relacionado con este cambio). Sin cambios de frontend ni
   de ningún otro endpoint. Detalle del lado de la landing en
   `medlibra_web` (`auth/app.py`).
+
+## ADR-028 — La agenda corre en hora de pared, no en UTC
+
+**Fecha**: 2026-08-22
+**Estado**: Aceptada
+
+### Contexto
+
+El producto maneja dos unidades de tiempo distintas y las estaba mezclando:
+
+- **Hora de pared**: lo que alguien escribe en el formulario y lo que dice el
+  reloj del consultorio. Es la unidad de la disponibilidad del profesional
+  (`Availability`, `(día de la semana, 09:00, 19:00)`), del horario de atención
+  (`branch_hours`) y de las excepciones por fecha.
+- **Instante**: lo que se guarda (`DateTime(timezone=True)`, normalizado a UTC
+  por LibraGenda).
+
+🔴 **El defecto de MedLibra no era el mismo que el de Gestiolibra**, y conviene
+decirlo porque los dos productos comparten el archivo y la confusión ya dejó
+rastro (ver abajo). Gestiolibra interpretaba el valor naive del formulario como
+hora local del negocio y lo convertía a UTC **antes** de validar, así que
+comparaba las 20:00 UTC contra una ventana cargada 9-19 y **rechazaba** el turno
+de las 17:00: un 409 en la cara del usuario.
+
+MedLibra nunca tuvo esa conversión. Trataba el valor naive como UTC de punta a
+punta, así que su validación era internamente consistente —comparaba 17:00
+contra 9-19 y aceptaba— y el defecto salía por el otro lado, **callado**: el
+turno que la secretaria daba para las 17:00 se guardaba como `17:00Z`, o sea
+las 14:00 del reloj del consultorio. Tres horas de corrimiento en el instante,
+que es lo que después leen los recordatorios y cualquier consumidor que no esté
+en UTC. Y por la puerta de un `starts_at` **con offset explícito** —lo que
+manda una integración, no este formulario— MedLibra sí llegaba al 409 de
+Gestiolibra: `20:00Z` se comparaba como las 20:00 contra 9-19.
+
+Ninguno de los dos se veía en la práctica todavía, por una sola razón: las
+sedes nacían en `UTC`. **Con offset cero, validar en el terreno equivocado da
+exactamente el mismo resultado que validar en el correcto.**
+
+El rastro de la confusión estaba en `scripts/seed_demo.py`, con una advertencia
+que restringía los turnos de ejemplo a la mañana y culpaba a
+`AppointmentService._resolve_utc` — **una función que nunca existió en este
+repo**: era el nombre del código de Gestiolibra, copiado junto con la nota.
+
+### Decisión
+
+**La validación entera corre en hora de pared de la sede, y la conversión a
+instante ocurre en el repositorio.** Es el mismo diseño que Gestiolibra
+(su ADR-030), portado con el mismo pin de LibraGenda (`v0.9.0`) — no hace falta
+cortar versión del motor.
+
+No se toca el motor, y no por comodidad: `libragenda/timezones.py` declara el
+contrato al revés — *"verticals are expected to collect wall-clock times ... and
+convert at the boundary using this module, rather than teaching the scheduling
+engine about civil time zones"*. El borde es este producto.
+
+- `app/services/husos.py` (nuevo) concentra las cuatro conversiones.
+- `_TurnosEnHoraLocal` adapta el repositorio de turnos: hacia el motor devuelve
+  todo en hora de pared —la misma unidad de las ventanas, las excepciones y el
+  horario de atención— y hacia la base guarda en UTC. Con eso el motor compara
+  ventanas, excepciones, bloqueos y **choques entre turnos** en un solo terreno.
+- Los bloqueos (`TimeBlock`) se cargan por el mismo formulario que un turno pero
+  se guardan como instante: el router de disponibilidad los convierte en el alta
+  y en la edición. Sin eso, un bloqueo cargado de 10 a 11 tapa de 7 a 8.
+- `agenda()` filtra por el día **del calendario de la sede**.
+- El huso por defecto de una sede nueva pasa de `UTC` a
+  `America/Argentina/Buenos_Aires` (regla de arranque de la familia, 2026-08-12).
+
+### Consecuencias
+
+- **La suite pasa a correr con offset distinto de cero**, que es lo que hace
+  visible el defecto. Cinco tests existentes cambiaron su valor esperado.
+  `tests/test_reminders.py` pide explícitamente una sede en UTC porque mide
+  plazos contra `now()` y el huso no es lo que prueba.
+- 6 tests nuevos (325 en la suite). **Sólo tres fallan contra el código viejo**
+  —los dos que asertan el instante guardado y el del `starts_at` con offset
+  explícito—, y está dicho en el archivo: los otros tres cubren los síntomas que
+  tuvo Gestiolibra y el estado intermedio de un arreglo a medias, no lo que
+  MedLibra tenía roto. La primera versión de esos tres se escribió creyendo que
+  reproducían el defecto de acá y **pasaban en verde contra el código viejo**.
+- `test_block_prevents_booking_within_an_otherwise_open_window`, que ya existía,
+  pasa a ser el único guard de la conversión de bloqueos — y lo es sólo porque
+  la sede del fixture quedó en UTC-3. Está anotado en el test: volver esa sede a
+  UTC apaga el guard sin poner nada en rojo.
+- `scripts/seed_demo.py`: la advertencia se reemplaza por lo que pasó de
+  verdad, y los turnos de ejemplo pasan a cubrir **de 9 a 17**, con dos
+  profesionales solapados a la misma hora. Con todo amontonado antes del
+  mediodía y sin superposiciones, una grilla horaria rota se ve igual que una
+  sana — y la grilla llega en el próximo cambio.
+- El umbral de turnos sembrados que el test de la demo verificaba pasa de
+  `>= 7` (sobre un plan de 9) a **`== 11` exacto**: un turno que el alta rechaza
+  no rompe nada, `sembrar()` lo saltea, y con margen la demo queda con menos
+  turnos de los que dice tener, en verde.

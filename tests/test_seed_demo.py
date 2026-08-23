@@ -165,7 +165,12 @@ def test_deja_turnos_en_mas_de_un_estado(api):
     sembrar(api)
 
     estados = _estados(api)
-    assert len(estados) >= 7, f"pocos turnos: {len(estados)}"
+    # 🔴 **Los 11 del PLAN, exactos.** Antes decía `>= 7` sobre un plan de 9, y
+    # ese margen es justo el que hace invisible el modo de falla que importa:
+    # un turno que el alta rechaza (fuera de horario, sin disponibilidad, huso
+    # corrido) no rompe nada — `sembrar()` lo saltea — y la demo queda con
+    # menos turnos de los que dice tener, en verde.
+    assert len(estados) == 11, f"turnos sembrados: {len(estados)}"
     assert len(set(estados)) >= 3, f"un solo estado o dos: {set(estados)}"
 
 

@@ -140,7 +140,8 @@ def test_reschedule_appointment_with_reason(seeded_client: TestClient):
     assert response.status_code == 200
     body = response.json()
     assert body["reason"] == "pidio otro horario"
-    assert body["starts_at"].startswith("2026-07-20T12:00:00")
+    # +3: la sucursal del fixture esta en UTC-3 y "12:00" es hora de pared.
+    assert body["starts_at"].startswith("2026-07-20T15:00:00")
 
 
 def test_reschedule_unknown_appointment_returns_404(admin_client: TestClient):
