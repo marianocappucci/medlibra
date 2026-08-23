@@ -15,6 +15,7 @@ services:
   # Sin `ports:` a propósito: sólo se llega desde la red interna.
   medlibra-postgres:
     image: postgres:16
+    command: postgres -c timezone=America/Argentina/Buenos_Aires
     container_name: medlibra-postgres
     restart: unless-stopped
     environment:
