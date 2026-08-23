@@ -1,6 +1,6 @@
 """CRUD for a resource's weekly windows, point-in-time blocks and date
 exceptions — the three concepts LibraGenda uses to decide when a resource
-can receive an appointment (see AppointmentService.create, which reads
+can receive an appointment (see AppointmentService.create, which now reads
 this configuration instead of a hardcoded window)."""
 
 from datetime import date, datetime, time
@@ -10,9 +10,11 @@ from pydantic import BaseModel
 
 from libragenda import Availability
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
+from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.scheduling import AvailabilityException, TimeBlock
 
-from ..dependencies import get_availability_repository
+from ..dependencies import get_availability_repository, get_catalog_repository
+from ..services.husos import como_instante, zona_del_recurso
 
 router = APIRouter(prefix="/resources/{resource_id}", tags=["availability"])
 
@@ -97,6 +99,23 @@ class BlockCreate(BaseModel):
     reason: str = ""
 
 
+def _instantes(
+    catalog: SqlAlchemyCatalogRepository, resource_id: str, data: BlockCreate,
+) -> tuple[datetime, datetime]:
+    """Los extremos del bloqueo como instantes.
+
+    🔴 **Un bloqueo se carga en hora de pared** — "el box 1 no atiende de
+    10 a 11 el lunes" —, igual que un turno, y por el mismo formulario
+    (`datetime-local`, que no manda huso). Pero a diferencia de la ventana
+    semanal, se guarda como **instante**, y el motor lo compara contra el turno
+    por solapamiento de instantes. Sin esta conversión el bloqueo entraba a la
+    base como si esa hora de pared fuera UTC: en UTC-3, un bloqueo cargado de
+    10 a 11 tapaba en realidad de 7 a 8 y el turno de las 10 se daba igual.
+    """
+    zona = zona_del_recurso(catalog, resource_id)
+    return como_instante(data.starts_at, zona), como_instante(data.ends_at, zona)
+
+
 class BlockOut(BaseModel):
     id: int
     resource_id: str
@@ -116,9 +135,11 @@ def _block_out(block_id: int, item: TimeBlock) -> BlockOut:
 def create_block(
     resource_id: str, data: BlockCreate,
     repo: SqlAlchemyAvailabilityRepository = Depends(get_availability_repository),
+    catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
 ):
+    desde, hasta = _instantes(catalog, resource_id, data)
     try:
-        item = TimeBlock(resource_id, data.starts_at, data.ends_at, data.reason)
+        item = TimeBlock(resource_id, desde, hasta, data.reason)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
     block_id = repo.add_block(item)
@@ -137,9 +158,11 @@ def list_blocks(
 def update_block(
     resource_id: str, block_id: int, data: BlockCreate,
     repo: SqlAlchemyAvailabilityRepository = Depends(get_availability_repository),
+    catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
 ):
+    desde, hasta = _instantes(catalog, resource_id, data)
     try:
-        item = TimeBlock(resource_id, data.starts_at, data.ends_at, data.reason)
+        item = TimeBlock(resource_id, desde, hasta, data.reason)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
     try:

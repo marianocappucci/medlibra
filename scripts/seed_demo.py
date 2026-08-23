@@ -166,15 +166,20 @@ HORARIOS = [(dia, time(8, 0), time(18, 0)) for dia in range(0, 5)]
 #: `appointment unavailable`.
 DISPONIBILIDAD = [(dia, time(8, 0), time(18, 0)) for dia in range(0, 5)]
 
-# ⚠️ **Los turnos de ejemplo van entre las 9 y las 13, no más tarde.**
+# Los turnos de ejemplo cubren **la jornada entera, de 9 a 17**, y no sólo la
+# mañana.
 #
-# `AppointmentService._resolve_utc` interpreta la hora naive como hora local de
-# la sucursal y la convierte a **UTC**; después `is_within_hours` compara esa
-# hora UTC contra las ventanas de `branch_hours`, que se cargan como hora
-# local. Con `America/Argentina/Buenos_Aires` (UTC-3) eso corre la comparación
-# tres horas. Es el mismo defecto que se encontró en Gestiolibra el 2026-08-06
-# —los dos productos comparten `AppointmentService`— y tampoco se arregla acá:
-# tocar la conversión de husos es un cambio con su propia verificación.
+# Hasta el 2026-08-22 esta nota decía lo contrario —*"entre las 9 y las 13, no
+# más tarde"*— y culpaba a `AppointmentService._resolve_utc`, **una función que
+# nunca existió en MedLibra**: era el nombre del código de Gestiolibra, copiado
+# junto con la advertencia. Lo que MedLibra sí tenía era el otro lado del mismo
+# problema (la hora de pared se guardaba como si fuera UTC, ver ADR-028), que la
+# franja de la mañana tampoco esquivaba: la escondía.
+#
+# Con la validación corriendo en hora de pared, la restricción no existe más. Y
+# que los turnos ocupen el día completo es parte de lo que la demo tiene que
+# mostrar: con todo amontonado antes del mediodía, una grilla horaria rota se ve
+# igual que una sana.
 
 #: Motivos de consulta genéricos. **Nada que se parezca a la historia clínica
 #: de alguien**: esto se publica.
@@ -335,13 +340,20 @@ def _sembrar_turnos(api: Api, contar) -> None:
     # Las acciones son las rutas del router, **en inglés**.
     PLAN = [
         (-1, 9, "dr-molina", "consulta", "p-001", ["confirm", "complete"]),
-        (-1, 10, "dra-vidal", "control", "p-003", ["confirm", "complete"]),
+        (-1, 15, "dra-vidal", "control", "p-003", ["confirm", "complete"]),
         (0, 9, "dr-molina", "electro", "p-002", ["confirm"]),
         (0, 11, "dra-vidal", "consulta", "p-004", ["confirm"]),
-        (0, 12, "dr-arce", "laboratorio", "p-005", []),
+        # 🔴 Las 11 de dos profesionales distintos, a propósito: en la vista de
+        # semana los turnos de todos van mezclados en la columna del día, y dos
+        # que se pisan son el único caso que ejercita el reparto de ancho de la
+        # rejilla. Sin un solapamiento, uno se dibuja encima del otro y no se
+        # nota.
+        (0, 11, "dr-arce", "laboratorio", "p-005", []),
+        (0, 16, "dr-molina", "consulta", "p-001", []),
         (1, 9, "dr-molina", "consulta", "p-003", ["confirm"]),
-        (1, 11, "dra-vidal", "ecografia", "p-001", []),
+        (1, 14, "dra-vidal", "ecografia", "p-001", []),
         (2, 10, "dr-arce", "consulta", "p-002", ["cancel"]),
+        (2, 17, "dr-molina", "control", "p-004", ["confirm"]),
         (3, 9, "dra-vidal", "control", "p-005", []),
     ]
 

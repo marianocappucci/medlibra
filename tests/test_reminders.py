@@ -27,7 +27,17 @@ def _inicio_sin_cruzar_medianoche(minutos_adelante, duracion_minutos=30):
 
 
 def _seeded_client(client: TestClient):
-    client.post("/branches", json={"id": "branch-1", "name": "Consultorio demo"})
+    # 🔴 **La sucursal va en UTC a proposito**, aunque el default del alta sea
+    # Argentina. Este archivo mide plazos de recordatorio contra `now()`, y
+    # `_inicio_sin_cruzar_medianoche` arma la hora futura en UTC: con la
+    # sucursal en UTC-3 esa hora se leeria como hora de pared y el turno
+    # quedaria tres horas mas lejos de lo pedido, cayendo fuera de la ventana
+    # de 2 h que el test necesita. El huso no es lo que este archivo prueba
+    # -- lo prueban `test_agenda.py` y `test_availability.py`, cuyas sucursales
+    # si estan en UTC-3.
+    client.post("/branches", json={
+        "id": "branch-1", "name": "Consultorio demo", "timezone": "UTC",
+    })
     client.post("/resources", json={"id": "resource-1", "name": "Consultorio 1", "branch_id": "branch-1"})
     client.post("/services", json={"id": "service-1", "name": "Consulta", "duration_minutes": 30})
     client.post("/patients", json={"id": "patient-1", "name": "Ana"})

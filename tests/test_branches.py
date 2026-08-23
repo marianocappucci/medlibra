@@ -8,7 +8,12 @@ def test_branch_crud_round_trip(admin_client: TestClient):
     })
     assert created.status_code == 201
     assert created.json() == {
-        "id": "branch-1", "name": "Centro", "active": True, "timezone": "UTC",
+        # El huso por defecto es el de Argentina, no UTC: es la regla de
+        # arranque de la familia y ademas UTC esconde los defectos de
+        # conversion, porque con offset cero validar en el terreno equivocado
+        # da el mismo resultado que validar en el correcto.
+        "id": "branch-1", "name": "Centro", "active": True,
+        "timezone": "America/Argentina/Buenos_Aires",
         "phone": "011-1234", "address": "Av. Siempre Viva 742",
     }
 
