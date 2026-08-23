@@ -41,6 +41,7 @@ jobs:
           POSTGRES_DB: medlibra
           POSTGRES_USER: medlibra
           POSTGRES_PASSWORD: medlibra-ci
+          TZ: America/Argentina/Buenos_Aires
         ports:
           - 5432:5432
         options: >-
@@ -50,6 +51,7 @@ jobs:
           --health-retries=5
 
     env:
+      TZ: America/Argentina/Buenos_Aires
       DATABASE_URL: sqlite:///${{ github.workspace }}/ci.db
 
     steps:
@@ -173,6 +175,8 @@ jobs:
   # frontend del producto.
   frontend:
     runs-on: ubuntu-latest
+    env:
+      TZ: America/Argentina/Buenos_Aires
     defaults:
       run:
         working-directory: frontend
