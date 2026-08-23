@@ -24,7 +24,12 @@ from ..dependencies import (
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
-from ..services.appointments import AppointmentService, OutsideBusinessHours, ServiceNotFound
+from ..services.appointments import (
+    AppointmentService,
+    ConsultorioOcupado,
+    OutsideBusinessHours,
+    ServiceNotFound,
+)
 from ..services.billing import invoice_appointment
 from ..services.business_settings import BusinessSettingsRepository
 from ..services.iva_rates import IvaRateRepository
@@ -68,6 +73,8 @@ def create_appointment(
         raise HTTPException(404, mensajes.SERVICIO_NO_ENCONTRADO)
     except OutsideBusinessHours:
         raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
+    except ConsultorioOcupado as exc:
+        raise HTTPException(*mensajes.describir(exc))
     except AppointmentConflict:
         raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:
@@ -118,6 +125,8 @@ def reschedule_appointment(
         raise HTTPException(*mensajes.describir(exc))
     except OutsideBusinessHours:
         raise HTTPException(409, mensajes.FUERA_DE_HORARIO)
+    except ConsultorioOcupado as exc:
+        raise HTTPException(*mensajes.describir(exc))
     except AppointmentConflict:
         raise HTTPException(*mensajes.describir(AppointmentConflict("")))
     except AppointmentUnavailable:

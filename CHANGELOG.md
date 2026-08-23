@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+- **Consultorios y bloques de agenda** (ver ADR-030): el consultorio pasa a ser
+  una **entidad propia** (`/consultorios`) y la agenda de un profesional se arma
+  con **bloques** (`/agenda-blocks`): *"la Dra. Vidal atiende los lunes de 9 a 13
+  en el Consultorio 2, turnos de 20 minutos, hasta el 31 de diciembre"*. Sobre la
+  `Availability` de LibraGenda, el bloque agrega las tres cosas que le faltaban —
+  **dónde** se atiende, **hasta cuándo** (vigencia por rango de fechas) y
+  **cuánto dura** un turno (10/15/20/25/30 min, lista cerrada que sirve
+  `GET /agenda-blocks/opciones`) — más la modalidad **por turnos o por demanda
+  espontánea**.
+  - 🔴 **Dos profesionales ya no entran en el mismo consultorio a la misma
+    hora.** Es un choque que el motor no puede ver: LibraGenda asocia el turno a
+    un solo recurso —el profesional— así que dos agendas impecables por separado
+    se pisaban en la puerta de la sala sin que nada protestara.
+  - **La duración la manda el bloque**, no la prestación: la prestación dice qué
+    se hace, el bloque cuánto dura un turno de esa agenda.
+  - Un bloque **por demanda espontánea no genera horarios**: si los generara, se
+    le podrían dar turnos con hora encima de una franja que no trabaja con
+    horarios. La cola por orden de llegada llega en el cambio siguiente.
+  - **Nada de lo que ya andaba cambia.** Los bloques se **suman** a la
+    disponibilidad semanal cargada por `/resources/{id}/availability`; sin bloque
+    que cubra el horario, la duración sigue siendo la de la prestación y no hay
+    sala que declarar. La migración `0015` sólo crea tablas vacías.
+  - El log de actividad **llamaba "consultorio" al profesional** — con
+    consultorios de verdad al lado eso pasó de confuso a incorrecto. La etiqueta
+    ahora dice `profesional`.
+  - 23 tests nuevos (348 en la suite), verificados por mutación. Migración
+    probada contra `postgres:16` real con datos, ida y vuelta.
+
 - **La agenda corre en hora de pared, no en UTC** (ver ADR-028): la
   disponibilidad del profesional, el horario de atención y las excepciones se
   cargan en hora del reloj del consultorio, pero el turno se guardaba

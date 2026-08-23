@@ -1167,3 +1167,95 @@ engine about civil time zones"*. El borde es este producto.
   `>= 7` (sobre un plan de 9) a **`== 11` exacto**: un turno que el alta rechaza
   no rompe nada, `sembrar()` lo saltea, y con margen la demo queda con menos
   turnos de los que dice tener, en verde.
+
+## ADR-030 — El consultorio es una entidad, y la agenda se arma por bloques
+
+**Fecha**: 2026-08-23
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"parametrizar consultorios, entonces la agenda
+del profesional se parametriza en un consultorio, en un rango horario, en un día
+o días de la semana y se repite hasta determinada fecha"*, más *"agregar duración
+de consulta (poner 10, 15, 20, 25, 30 minutos) y posibilidad de armar la agenda
+por turnos o por demanda espontánea"*.
+
+Lo único que MedLibra sabía ocupar era el **profesional** — el `Resource` de
+LibraGenda. De ahí salían dos límites:
+
+1. **El consultorio no existía.** La pregunta *"¿la Dra. Vidal y el Dr. Molina no
+   están los dos en el Consultorio 2 a las 10?"* no se podía ni formular. Una
+   sala tiene capacidad uno y es el recurso más escaso de una clínica chica: dos
+   agendas correctas por separado se pisan en la puerta.
+2. **`Availability` no sabe vencer.** Es `(profesional, día de la semana, 09:00,
+   19:00)`: una vez cargada vale para siempre. El *"se repite hasta determinada
+   fecha"* del pedido no era expresable, y tampoco la duración del turno ni la
+   modalidad.
+
+### Decisión
+
+**Un consultorio no es un `Resource`.** El motor asocia un turno a *un solo*
+recurso y busca choques sobre él (`find_conflicts`); modelar la sala como un
+segundo `Resource` obligaría a un turno a ocupar dos, que es justo lo que el
+motor no hace. La sala vive en MedLibra (`app/services/consultorios.py`) y su
+choque lo valida `AppointmentService`. Es el reparto que LibraGenda ya declara:
+el vertical resuelve lo que el motor no modela, en vez de deformar el motor.
+
+**Un bloque de agenda no se guarda como `Availability`: se deriva.** El bloque
+—profesional × consultorio × día de la semana × rango horario × vigencia ×
+duración × modalidad— vive en `agenda_blocks`, y las ventanas que el motor
+necesita se construyen **para el día que se está validando**. Así la vigencia
+por rango de fechas se resuelve antes de que el motor la vea, sin enseñarle un
+concepto nuevo ni cortar versión del paquete.
+
+- **La duración la manda el bloque** (decisión del humano): la prestación dice
+  *qué* se hace, el bloque dice cuánto dura un turno de esa agenda. La lista es
+  cerrada (10/15/20/25/30) y la sirve el backend en `GET
+  /agenda-blocks/opciones` — repetida en el frontend, las dos copias divergen y
+  la pantalla termina ofreciendo un valor que el alta rechaza con 422.
+- **El choque de sala se compara en UTC**, no en hora de pared: un consultorio
+  puede recibir turnos de profesionales de sedes distintas, y dos horas de pared
+  de husos distintos no se pueden comparar entre sí.
+- **Un bloque `espontanea` no genera ventana.** Si la generara, se le podrían dar
+  turnos con horario encima de una franja que justamente no trabaja con
+  horarios. La cola por orden de llegada es un mecanismo aparte y llega en el
+  cambio siguiente.
+- **En qué sala ocurre un turno va en una tabla propia** (`appointment_rooms`) y
+  no en una columna del turno: el turno es un dataclass del motor. Mismo patrón
+  con el que `Patient` extiende al `Client` y `branch_contacts` a la sede. Sin
+  FK a `appointments` a propósito — el motor no conoce esta tabla y no la
+  limpiaría, y una FK dejaría su borrado fallando por algo que no ve.
+
+### Compatibilidad
+
+**Los bloques se suman a la disponibilidad semanal, no la reemplazan ni la
+migran.** Las instancias que hoy están andando —dev, la demo— tienen su jornada
+cargada por `/resources/{id}/availability` y tienen que seguir dando turnos
+igual; sin bloque que cubra el horario, la duración sigue siendo la de la
+prestación y no hay sala que declarar. La migración `0015` sólo crea tablas
+vacías: un `upgrade` sobre una base con datos no le cambia el comportamiento a
+nadie.
+
+### Consecuencias
+
+- 23 tests nuevos (348 en la suite). **Verificados por mutación**: apagando el
+  chequeo de sala y la vigencia, se ponen en rojo exactamente tres —el choque de
+  sala en el alta, el mismo al reprogramar, y el corte por `valid_to`— y los
+  controles siguen verdes. Cada test que exige un rechazo tiene al lado el que
+  exige que en el caso vecino **entre**: sin eso, "rechazar siempre" los pasaría
+  a todos.
+- **El log de actividad llamaba "consultorio" al `Resource`.** Con el
+  consultorio como entidad propia eso pasó de confuso a incorrecto: el log
+  habría dicho "consultorio Dr. Molina" al lado de consultorios de verdad. La
+  etiqueta pasa a `profesional`, que es lo que el `Resource` es en este producto
+  —lo dicen el seed y los mensajes de la agenda— y se suman las tres tablas
+  nuevas al mapa.
+- `app/services/agenda_blocks.py` lleva `from __future__ import annotations` y
+  está dicho por qué: los repositorios de este proyecto tienen un método `list`
+  (y acá además uno `set`), y dentro del cuerpo de la clase ese nombre tapa al
+  builtin — `def vigentes(...) -> list[dict]` explota con *"'function' object is
+  not subscriptable"*.
+- Migración probada contra `postgres:16` real, con datos: `upgrade head` →
+  filas cargadas → `downgrade -1` (las tres tablas se van, `resources` y
+  `branches` quedan) → `upgrade head`.
