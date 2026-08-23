@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from .. import mensajes_agenda as mensajes
 from ..dependencies import get_appointment_service
 from ..services.appointments import AppointmentService
+from ._instantes import InstanteUTC
 
 router = APIRouter(tags=["agenda"])
 
@@ -15,8 +16,8 @@ class AppointmentOut(BaseModel):
     resource_id: str
     service_id: str
     client_id: str
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: InstanteUTC
+    ends_at: InstanteUTC
     status: str
     reason: str | None = None
 

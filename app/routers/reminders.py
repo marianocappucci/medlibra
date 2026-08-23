@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from libragenda import ReminderDispatcher
 
 from ..dependencies import get_reminder_dispatcher
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
@@ -16,7 +17,7 @@ class ReminderOut(BaseModel):
     resource_id: str
     service_id: str
     client_id: str
-    starts_at: datetime
+    starts_at: InstanteUTC
 
 
 @router.post("/dispatch", response_model=list[ReminderOut])

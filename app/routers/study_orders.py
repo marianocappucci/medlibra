@@ -7,6 +7,7 @@ from ..auth import require_admin
 from ..dependencies import get_patient_repository, get_study_order_repository
 from ..services.patients import PatientRepository
 from ..services.study_orders import StudyOrderRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/study-orders", tags=["study-orders"])
 
@@ -29,7 +30,7 @@ class StudyResultCreate(BaseModel):
 class StudyResultOut(BaseModel):
     id: str
     item_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     text: str
 
@@ -44,7 +45,7 @@ class StudyOrderItemOut(BaseModel):
 class StudyOrderOut(BaseModel):
     id: str
     patient_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     items: list[StudyOrderItemOut]
 
