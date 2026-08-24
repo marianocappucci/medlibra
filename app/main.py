@@ -41,17 +41,22 @@ from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
-    agenda, appointments, availability, billing as billing_router, branch_hours, branches,
-    business_settings, clinical_documents, clinical_notes, consents, dashboard as dashboard_router,
-    deposits, health, prescriptions, reminders, resources, service_iva_rates, service_prices,
-    services, study_orders,
+    agenda, agenda_blocks as agenda_blocks_router, appointments, availability,
+    billing as billing_router, branch_hours, branches,
+    business_settings, clinical_documents, clinical_notes, consents,
+    consultorios as consultorios_router, dashboard as dashboard_router,
+    deposits, health, holidays, prescriptions, reminders, resources, service_iva_rates,
+    service_prices, services, study_orders, walkins as walkins_router,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
 from .routers import users as users_router
 from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
+from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .services.branches import BranchRepository
+from .services.consultorios import ConsultorioRepository
+from .services.walkins import WalkinRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
@@ -213,8 +218,13 @@ def create_app(database_url: str) -> FastAPI:
     app.state.service_prices = ServicePriceRepository(sessions)
     app.state.iva_rates = IvaRateRepository(sessions)
     app.state.business_settings = BusinessSettingsRepository(sessions)
+    app.state.consultorios = ConsultorioRepository(sessions)
+    app.state.agenda_blocks = AgendaBlockRepository(sessions)
+    app.state.appointment_rooms = AppointmentRoomRepository(sessions)
+    app.state.walkins = WalkinRepository(sessions)
     app.state.appointment_service = AppointmentService(
         catalog, appointment_repository, availability_repository, branch_hours_repository,
+        app.state.agenda_blocks, app.state.appointment_rooms,
     )
     app.state.patients = patient_repository
     app.state.clinical_notes = ClinicalNoteRepository(sessions)
@@ -299,11 +309,14 @@ def create_app(database_url: str) -> FastAPI:
     admin_only = [Depends(require_admin)]
     app.include_router(branches.router, dependencies=admin_only)
     app.include_router(branch_hours.router, dependencies=admin_only)
+    app.include_router(holidays.router, dependencies=admin_only)
     app.include_router(resources.router, dependencies=admin_only)
     app.include_router(services.router, dependencies=admin_only)
     app.include_router(service_prices.router, dependencies=admin_only)
     app.include_router(service_iva_rates.router, dependencies=admin_only)
     app.include_router(availability.router, dependencies=admin_only)
+    app.include_router(consultorios_router.router, dependencies=admin_only)
+    app.include_router(agenda_blocks_router.router, dependencies=admin_only)
     app.include_router(business_settings.router, dependencies=admin_only)
     # Usuarios acepta ADEMAS el token de servicio (libraauth v0.7.0): es lo
     # unico que el backoffice de la suite necesita y que no puede salir del
@@ -345,6 +358,12 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(consents.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
     app.include_router(agenda.router, dependencies=staff_or_admin)
+    # La fila por orden de llegada va con los turnos y NO con la configuración:
+    # armar el bloque de agenda es tarea de quien parametriza (admin), pero
+    # anotar a quien acaba de entrar por la puerta la hace la secretaria todas
+    # las mañanas. Con `admin_only` la función existiría y no la podría usar
+    # nadie del mostrador.
+    app.include_router(walkins_router.router, dependencies=staff_or_admin)
     app.include_router(
         deposits.request_router, dependencies=staff_or_admin + [Depends(require_module("senas"))],
     )

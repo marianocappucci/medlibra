@@ -65,6 +65,81 @@ export type Service = {
   active: boolean
 }
 
+/** La sala física donde se atiende. **No es un `Resource`**: el motor asocia el
+ *  turno a un solo recurso —el profesional— y la ocupación de la sala la valida
+ *  MedLibra aparte (ADR-030). */
+export type Consultorio = {
+  id: string
+  name: string
+  branch_id: string | null
+  active: boolean
+}
+
+export const DIAS_SEMANA = [
+  'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+] as const
+
+/** Una franja semanal: día + rango horario, en hora de pared de la sede. Es la
+ *  forma del horario de atención (`/branches/{id}/hours`). */
+export type VentanaSemanal = {
+  id: number
+  weekday: number
+  starts_at: string
+  ends_at: string
+}
+
+/** Un bloque de agenda: *"los lunes de 9 a 13 en el Consultorio 2, turnos de 20
+ *  minutos, hasta el 31 de diciembre"*. Ver ADR-030. */
+export type BloqueDeAgenda = {
+  id: string
+  resource_id: string
+  consultorio_id: string
+  weekday: number
+  starts_at: string
+  ends_at: string
+  valid_from: string
+  /** `null` = se repite indefinidamente. */
+  valid_to: string | null
+  slot_minutes: number
+  modality: 'turnos' | 'espontanea'
+}
+
+/** Lo que el backend ofrece elegir. **Sale de la API y no de una constante acá**:
+ *  la lista de duraciones es la que el alta valida, y dos copias divergen — la
+ *  pantalla terminaría ofreciendo un valor que el alta rechaza con 422. */
+export type OpcionesDeBloque = {
+  duraciones: number[]
+  modalidades: string[]
+}
+
+/** Un rato puntual en el que el profesional no atiende. Se carga en hora de
+ *  pared de la sede y **se guarda como instante**; vuelve en UTC. */
+export type Bloqueo = {
+  id: number
+  resource_id: string
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+/** Un día concreto que se cierra o se abre. **Le gana a la jornada**, en las dos
+ *  direcciones. */
+export type ExcepcionDeAgenda = {
+  id: number
+  resource_id: string
+  day: string
+  starts_at: string
+  ends_at: string
+  available: boolean
+}
+
+export type PrecioDeServicio = {
+  id: string
+  service_id: string
+  branch_id: string
+  price: string
+}
+
 export type Patient = {
   id: string
   name: string

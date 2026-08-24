@@ -45,11 +45,18 @@ from libragenda import Appointment, InMemoryScheduler
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import AppointmentRepository
-from libragenda.scheduling import TimeBlock
+from libragenda.scheduling import TimeBlock, intervals_overlap
 from libragenda.timezones import to_utc
 
+from .agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .branch_hours import BranchHoursRepository
 from .husos import como_hora_de_pared, hora_de_pared, zona_del_recurso
+
+#: Estados que ya no ocupan la sala: un turno cancelado o ausente libera el
+#: consultorio. Es el mismo criterio que usa `find_conflicts` del motor para el
+#: profesional, y tiene que ser el mismo o la sala y el profesional dirían
+#: cosas distintas sobre el mismo turno.
+NO_OCUPAN = {"cancelled", "no_show"}
 
 
 class ServiceNotFound(Exception):
@@ -60,6 +67,18 @@ class OutsideBusinessHours(Exception):
     """Raised when the slot falls outside the resource's branch hours,
     only for branches that actually have hours configured (see
     branch_hours.py's opt-in gating)."""
+
+
+class ConsultorioOcupado(Exception):
+    """El consultorio ya tiene otro turno encima a esa hora.
+
+    🔴 **Es un choque que el motor no puede ver.** LibraGenda asocia un turno a
+    *un solo* recurso —acá el profesional— y busca conflictos sobre él
+    (`find_conflicts`). Dos agendas impecables por separado, la de la Dra. Vidal
+    y la del Dr. Molina, se pisan en la puerta del Consultorio 2 sin que nada
+    proteste. La sala la modela MedLibra (ver `agenda_blocks.py`) y por lo tanto
+    su choque lo valida este archivo.
+    """
 
 
 def _bloque_local(bloque: TimeBlock, zona: str) -> TimeBlock:
@@ -122,11 +141,15 @@ class AppointmentService:
         appointments: AppointmentRepository,
         availability: SqlAlchemyAvailabilityRepository,
         branch_hours: BranchHoursRepository,
+        blocks: AgendaBlockRepository,
+        rooms: AppointmentRoomRepository,
     ) -> None:
         self.catalog = catalog
         self.appointments = appointments
         self.availability = availability
         self.branch_hours = branch_hours
+        self.blocks = blocks
+        self.rooms = rooms
 
     def _zona(self, resource_id: str) -> str:
         return zona_del_recurso(self.catalog, resource_id)
@@ -146,17 +169,86 @@ class AppointmentService:
         if not self.branch_hours.is_within_hours(resource.branch_id, starts_at, ends_at):
             raise OutsideBusinessHours(resource.branch_id)
 
-    def _agenda_local(self, resource_id: str, zona: str) -> InMemoryScheduler:
+    def _consultorio_libre(
+        self, consultorio_id: str, desde_utc: datetime, hasta_utc: datetime,
+        excepto: str | None = None,
+    ) -> bool:
+        """Si esa sala está libre en ese rato.
+
+        ⚠️ **La comparación va en UTC, no en hora de pared**, y es a propósito:
+        un consultorio puede recibir turnos de profesionales de sedes distintas,
+        y dos horas de pared de husos distintos no se pueden comparar entre sí.
+        El instante sí, siempre.
+        """
+        ocupan = self.rooms.ids_en(consultorio_id)
+        if not ocupan:
+            return True
+        for otro in self.appointments.list():
+            if otro.id == excepto or otro.id not in ocupan:
+                continue
+            if otro.status.value in NO_OCUPAN:
+                continue
+            if intervals_overlap(desde_utc, hasta_utc, otro.starts_at, otro.ends_at):
+                return False
+        return True
+
+    def _agenda_local(self, resource_id: str, zona: str, dia: date) -> InMemoryScheduler:
         """El motor cargado con la disponibilidad del recurso, toda en hora
-        local: ventanas y excepciones ya lo están, los bloqueos se traducen."""
+        local: ventanas y excepciones ya lo están, los bloqueos se traducen.
+
+        Las ventanas son **la disponibilidad semanal más los bloques de agenda
+        vigentes ese día**. Se suman en vez de reemplazarse: las instancias que
+        ya están andando tienen su jornada cargada por
+        `/resources/{id}/availability` y tienen que seguir dando turnos igual
+        (ver `agenda_blocks.py`). Y se derivan **para el día que se valida**,
+        que es lo que hace valer el "se repite hasta determinada fecha" sin
+        enseñarle vigencias al motor.
+
+        🔴 **`holidays` y `resources` faltaban, y la regla de feriados del
+        motor no podía dispararse** (arreglado el 2026-08-24). Hasta acá este
+        constructor recibía sólo ventanas, bloqueos y excepciones, así que los
+        dos parámetros quedaban en lista vacía — y `_is_branch_holiday()` de
+        `libragenda/scheduling.py` necesita **los dos**: busca el recurso
+        dentro de `resources` para sacarle la sucursal y recién ahí compara
+        contra `holidays`. Con cualquiera de las dos vacía devuelve `False`
+        siempre. La tabla `holidays` existía desde la migración
+        `0003_timezone_holidays_branch` y nadie podía cargarla, así que el
+        defecto no tenía síntoma que alguien pudiera reportar.
+
+        🔑 **El feriado se evalúa en el día LOCAL, y eso sale gratis acá.**
+        `_is_branch_holiday()` compara `appointment.starts_at.date()`, y todo
+        lo que entra a este scheduler está en hora de pared de la sucursal (ver
+        el docstring del módulo). Si el turno llegara como instante UTC, en
+        UTC-3 uno de las 21:00 caería en el día siguiente y se lo compararía
+        contra el feriado equivocado — el mismo defecto de terreno que se
+        arregló el 2026-08-22, ahora en la fecha en vez de la hora.
+        """
         windows = [item for _, item in self.availability.list_availability(resource_id)]
+        windows += self.blocks.ventanas_vigentes(resource_id, dia)
         blocks = [
             _bloque_local(item, zona)
             for _, item in self.availability.list_blocks(resource_id)
         ]
         exceptions = [item for _, item in self.availability.list_exceptions(resource_id)]
+        resource = self.catalog.get_resource(resource_id)
+        # Un recurso sin sucursal no tiene calendario de feriados que aplicarle
+        # -- el motor ya lo trata así, pero pedirle los feriados de `None`
+        # sería traer los de todas las sucursales.
+        #
+        # 📝 Se traen TODOS los feriados de la sucursal, no los del día. Hoy
+        # son los que alguien cargó a mano y no llegan a la decena; cuando
+        # entre el feed nacional por API (unos 19 por año) va a convenir que
+        # el motor sepa filtrar por fecha — `list_holidays()` sólo acepta
+        # sucursal.
+        holidays = (
+            list(self.catalog.list_holidays(resource.branch_id))
+            if resource is not None and resource.branch_id is not None
+            else []
+        )
         return InMemoryScheduler(
             windows, blocks, exceptions,
+            holidays=holidays,
+            resources=[resource] if resource is not None else [],
             repository=_TurnosEnHoraLocal(self.appointments, zona, resource_id),
         )
 
@@ -169,15 +261,32 @@ class AppointmentService:
             raise ServiceNotFound(service_id)
         zona = self._zona(resource_id)
         inicio = como_hora_de_pared(starts_at, zona)
-        self._check_branch_hours(resource_id, inicio, inicio + service.duration)
+        # 🔴 **La duración la manda el bloque de agenda**, no la prestación
+        # (decisión del humano, 2026-08-23). La prestación dice *qué* se hace;
+        # cuánto dura un turno de esa agenda es del bloque, que es donde se
+        # eligió 10/15/20/25/30. Sin bloque que cubra el horario —una jornada
+        # cargada por el camino viejo— sigue mandando la prestación.
+        duracion = self.blocks.duracion_de(resource_id, inicio) or service.duration
+        self._check_branch_hours(resource_id, inicio, inicio + duracion)
         appointment = Appointment(
-            str(uuid4()), resource_id, service_id, client_id, inicio, service.duration,
+            str(uuid4()), resource_id, service_id, client_id, inicio, duracion,
         )
-        self._agenda_local(resource_id, zona).create(appointment)
+        # El choque de sala se chequea ANTES de que el motor persista el turno.
+        # Después sería tarde: quedaría guardado y habría que borrarlo, y un
+        # borrado a mitad de camino es exactamente el estado que nadie limpia.
+        bloque = self.blocks.cubre(resource_id, inicio, duracion)
+        inicio_utc = to_utc(inicio, zona)
+        if bloque is not None and not self._consultorio_libre(
+            bloque["consultorio_id"], inicio_utc, inicio_utc + duracion,
+        ):
+            raise ConsultorioOcupado(bloque["consultorio_id"])
+        self._agenda_local(resource_id, zona, inicio.date()).create(appointment)
+        if bloque is not None:
+            self.rooms.set(appointment.id, bloque["consultorio_id"])
         # Lo que se devuelve es lo que se guardó: el turno en UTC. El router
         # publica su `ends_at`, y devolver la hora local lo dejaría diciendo
         # tres horas menos que la agenda que lo lista un segundo después.
-        return replace(appointment, starts_at=to_utc(inicio, zona))
+        return replace(appointment, starts_at=inicio_utc)
 
     def confirm(self, appointment_id: str) -> Appointment:
         scheduler = InMemoryScheduler(repository=self.appointments)
@@ -202,9 +311,22 @@ class AppointmentService:
         inicio = como_hora_de_pared(starts_at, zona)
         if current is not None:
             self._check_branch_hours(resource_id, inicio, inicio + current.duration)
-        turno = self._agenda_local(resource_id, zona).reschedule(
+            # Mismo chequeo de sala que en el alta, y por la misma razón: mover
+            # un turno encima de otro del mismo consultorio es el mismo choque.
+            # `excepto` es él mismo: sin eso, todo turno que ya ocupa esa sala
+            # chocaría consigo mismo y no se podría reprogramar nunca.
+            bloque = self.blocks.cubre(resource_id, inicio, current.duration)
+            inicio_utc = to_utc(inicio, zona)
+            if bloque is not None and not self._consultorio_libre(
+                bloque["consultorio_id"], inicio_utc, inicio_utc + current.duration,
+                excepto=appointment_id,
+            ):
+                raise ConsultorioOcupado(bloque["consultorio_id"])
+        turno = self._agenda_local(resource_id, zona, inicio.date()).reschedule(
             appointment_id, inicio, reason=reason,
         )
+        if current is not None and bloque is not None:
+            self.rooms.set(appointment_id, bloque["consultorio_id"])
         return replace(turno, starts_at=to_utc(inicio, zona))
 
     def agenda(self, resource_id: str, day_from: date, day_to: date) -> list[Appointment]:

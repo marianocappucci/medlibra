@@ -2,6 +2,86 @@
 
 ## [Unreleased]
 
+- **Configuración: Sedes, Consultorios, Prestaciones y Profesionales** (ver
+  ADR-032). Todo lo que ADR-030 y ADR-031 construyeron en el backend **no tenía
+  pantalla**: los endpoints existían y sólo se llegaba a ellos por API o por el
+  seed, así que un consultorio nuevo no podía parametrizar nada de lo suyo.
+  Ahora se carga desde Configuración, **en el orden del arranque**: dónde se
+  atiende → en qué sala → qué se hace → quién lo hace.
+  - **El armador de la agenda del profesional** es el corazón: días de la
+    semana, rango horario, consultorio, duración del turno, modalidad y
+    *"repetir hasta"*. Deja elegir **varios días de una vez** y crea un bloque
+    por día — cargar "lunes a viernes" a mano, por cada profesional, es el gesto
+    que más se repite.
+  - Cuelgan del profesional también los **bloqueos** (un rato puntual) y las
+    **excepciones por fecha** (un feriado que cierra, un sábado que abre).
+  - 🔴 Si el profesional no tiene ningún bloque, **la pantalla lo dice**: sin
+    bloques no recibe ningún turno, y antes eso se descubría recién cuando toda
+    alta se rechazaba.
+  - En demanda espontánea **no se ofrece duración**: no hay turnos que durar.
+  - La jornada ya no se carga como ventana semanal suelta. El endpoint viejo
+    sigue existiendo y sumando, pero la pantalla no lo ofrece: dos maneras de
+    cargar lo mismo terminan con la mitad de los profesionales configurados de
+    un modo y la otra mitad del otro.
+  - 16 tests nuevos (36 en la suite del frontend). Dos arreglos que aparecieron
+    escribiéndolos: faltaba el **polyfill de captura de puntero** en el setup
+    (sin él, abrir un `Select` desde un test tira un `TypeError` que se lee como
+    un defecto de la pantalla) y `waitFor` corría con **1 segundo**, que bajo
+    carga se cae — medido, dos tests del calendario en falso rojo tras un
+    `npm ci`. Ahora son 5 s.
+  > La **fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
+  > parametrización, no la operación diaria del llamador.
+
+- **Demanda espontánea: la fila por orden de llegada** (ver ADR-031). ADR-030
+  dejó la modalidad `espontanea` a medias — el bloque se podía crear pero no se
+  le podía anotar a nadie. Ahora un bloque de demanda espontánea tiene su
+  **fila**: se registra la llegada (`POST /agenda-blocks/{id}/walkins`), se ve la
+  cola del día, y se llama / completa / cancela.
+  - 🔴 **No es un turno sin hora.** Un `Appointment` de LibraGenda *es* un
+    horario, y darle uno inventado haría que ese horario falso choque contra los
+    turnos de verdad, ocupe el consultorio y aparezca en la grilla como si
+    alguien tuviera esa media hora reservada.
+  - **El número de llegada es histórico y no se renumera**: cancelar al segundo
+    no convierte al tercero en segundo. Quién sigue se calcula filtrando por
+    estado, no por el número.
+  - Registrar una llegada **valida el bloque**: tiene que ser de demanda
+    espontánea, y el día tiene que caer en su día de la semana y su vigencia.
+  - Va con los turnos y no con la configuración: **la secretaria** anota a quien
+    entra por la puerta, no hace falta ser admin.
+  - 14 tests nuevos (372 en la suite), verificados por mutación. Migración
+    `0016_walkins` probada contra `postgres:16` real, ida y vuelta; el único por
+    `(bloque, día, orden)` verificado **en la base**, no sólo en el modelo.
+  > Todavía **sin pantalla**: como el resto de la parametrización de agenda, hoy
+  > se opera por API.
+
+- **Consultorios y bloques de agenda** (ver ADR-030): el consultorio pasa a ser
+  una **entidad propia** (`/consultorios`) y la agenda de un profesional se arma
+  con **bloques** (`/agenda-blocks`): *"la Dra. Vidal atiende los lunes de 9 a 13
+  en el Consultorio 2, turnos de 20 minutos, hasta el 31 de diciembre"*. Sobre la
+  `Availability` de LibraGenda, el bloque agrega las tres cosas que le faltaban —
+  **dónde** se atiende, **hasta cuándo** (vigencia por rango de fechas) y
+  **cuánto dura** un turno (10/15/20/25/30 min, lista cerrada que sirve
+  `GET /agenda-blocks/opciones`) — más la modalidad **por turnos o por demanda
+  espontánea**.
+  - 🔴 **Dos profesionales ya no entran en el mismo consultorio a la misma
+    hora.** Es un choque que el motor no puede ver: LibraGenda asocia el turno a
+    un solo recurso —el profesional— así que dos agendas impecables por separado
+    se pisaban en la puerta de la sala sin que nada protestara.
+  - **La duración la manda el bloque**, no la prestación: la prestación dice qué
+    se hace, el bloque cuánto dura un turno de esa agenda.
+  - Un bloque **por demanda espontánea no genera horarios**: si los generara, se
+    le podrían dar turnos con hora encima de una franja que no trabaja con
+    horarios. La cola por orden de llegada llega en el cambio siguiente.
+  - **Nada de lo que ya andaba cambia.** Los bloques se **suman** a la
+    disponibilidad semanal cargada por `/resources/{id}/availability`; sin bloque
+    que cubra el horario, la duración sigue siendo la de la prestación y no hay
+    sala que declarar. La migración `0015` sólo crea tablas vacías.
+  - El log de actividad **llamaba "consultorio" al profesional** — con
+    consultorios de verdad al lado eso pasó de confuso a incorrecto. La etiqueta
+    ahora dice `profesional`.
+  - 23 tests nuevos (348 en la suite), verificados por mutación. Migración
+    probada contra `postgres:16` real con datos, ida y vuelta.
+
 - **La agenda, como calendario** (ver ADR-029): `/agenda` deja de ser un
   formulario arriba y una tabla abajo con dos `<input type="date">` de rango, y
   pasa a ser el calendario compartido de la familia — **día / semana / mes**,

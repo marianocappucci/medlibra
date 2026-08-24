@@ -32,7 +32,17 @@ AUDITABLES: dict[str, str] = {
     "ClientRow": "paciente",
     "AppointmentRow": "turno",
     "ServiceRow": "prestacion",
-    "ResourceRow": "consultorio",
+    # 🔴 "profesional" y no "consultorio", que es lo que decía hasta el
+    # 2026-08-23. En MedLibra el `Resource` de LibraGenda ES el profesional —lo
+    # dicen el seed (`dr-molina`, `dra-vidal`) y los mensajes de la agenda—, y
+    # desde que el consultorio es una entidad propia esta etiqueta ya no era
+    # sólo confusa: dejaba el log diciendo "consultorio Dr. Molina" al lado de
+    # consultorios de verdad.
+    "ResourceRow": "profesional",
+    "ConsultorioRow": "consultorio",
+    "AgendaBlockRow": "bloque de agenda",
+    "AppointmentRoomRow": "sala del turno",
+    "WalkinRow": "llegada",
     "BranchRow": "sede",
     "AvailabilityRow": "disponibilidad",
     "AvailabilityExceptionRow": "excepcion",

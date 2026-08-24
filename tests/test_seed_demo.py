@@ -148,9 +148,18 @@ def test_no_todos_los_pacientes_tienen_historia(api):
 # ── Los turnos ────────────────────────────────────────────────────────────
 
 def _estados(api):
+    """Los estados de todos los turnos que sembró la demo.
+
+    🔴 **La ventana se mide en días de CALENDARIO y el plan de la demo está en
+    días HÁBILES**, así que tiene que sobrar por los dos lados. Hasta el
+    2026-08-24 iba de `hoy - 2` a `hoy + 5`, y un lunes eso dejaba afuera los dos
+    turnos de "ayer hábil" — que caen el viernes, tres días de calendario atrás.
+    No lo notaba nadie porque el test pedía `>= 7` sobre un plan de 9: el margen
+    se comía justo el agujero. Al pasar a una cuenta exacta apareció.
+    """
     from datetime import date, timedelta
 
-    desde, hasta = date.today() - timedelta(days=2), date.today() + timedelta(days=5)
+    desde, hasta = date.today() - timedelta(days=7), date.today() + timedelta(days=10)
     estados = []
     for r in api.get("/resources"):
         agenda = api.get(f"/resources/{r['id']}/agenda"
@@ -185,6 +194,27 @@ def test_correrlo_dos_veces_no_duplica(api, capsys):
     salida = capsys.readouterr().out
     assert "pacientes       0 creados, 6 ya estaban" in salida
     assert len(api.get("/patients")) == 6
+
+
+def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
+    """🔴 **La ventana con la que el seed se pregunta "¿ya sembré?" tiene que
+    cubrir el plan entero**, y el plan avanza en días HÁBILES mientras que
+    cualquier margen fijo se mide en días de CALENDARIO.
+
+    Hasta el 2026-08-24 la cuenta iba de `HOY - 2` a `HOY + 5` y un lunes
+    dejaba afuera los dos turnos de "ayer hábil" —que caen el viernes, tres
+    días de calendario atrás—: el seed informaba 9 sobre 11. No duplicó nunca
+    nada de puro suerte, porque el corte de abajo es 8 y 9 lo pasa igual. Es
+    el mismo agujero que ya tapó dos veces el margen en este archivo, así que
+    acá se mira el número exacto y no un "alcanza".
+    """
+    sembrar(api)
+    capsys.readouterr()
+
+    sembrar(api)
+
+    salida = capsys.readouterr().out
+    assert "(ya hay 11 turnos cargados)" in salida, salida
 
 
 def test_la_segunda_corrida_no_agrega_evoluciones(api):

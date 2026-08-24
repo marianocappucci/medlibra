@@ -1238,3 +1238,241 @@ sede, que es la misma cuenta que hace el backend al filtrar.
   ahí y sin eso no hay forma de saber a qué día pertenece cada turno.
 - El alta, el diálogo de medio de pago y el de factura emitida **no se tocaron**:
   siguen siendo los de ADR-025.
+
+## ADR-030 — El consultorio es una entidad, y la agenda se arma por bloques
+
+**Fecha**: 2026-08-23
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"parametrizar consultorios, entonces la agenda
+del profesional se parametriza en un consultorio, en un rango horario, en un día
+o días de la semana y se repite hasta determinada fecha"*, más *"agregar duración
+de consulta (poner 10, 15, 20, 25, 30 minutos) y posibilidad de armar la agenda
+por turnos o por demanda espontánea"*.
+
+Lo único que MedLibra sabía ocupar era el **profesional** — el `Resource` de
+LibraGenda. De ahí salían dos límites:
+
+1. **El consultorio no existía.** La pregunta *"¿la Dra. Vidal y el Dr. Molina no
+   están los dos en el Consultorio 2 a las 10?"* no se podía ni formular. Una
+   sala tiene capacidad uno y es el recurso más escaso de una clínica chica: dos
+   agendas correctas por separado se pisan en la puerta.
+2. **`Availability` no sabe vencer.** Es `(profesional, día de la semana, 09:00,
+   19:00)`: una vez cargada vale para siempre. El *"se repite hasta determinada
+   fecha"* del pedido no era expresable, y tampoco la duración del turno ni la
+   modalidad.
+
+### Decisión
+
+**Un consultorio no es un `Resource`.** El motor asocia un turno a *un solo*
+recurso y busca choques sobre él (`find_conflicts`); modelar la sala como un
+segundo `Resource` obligaría a un turno a ocupar dos, que es justo lo que el
+motor no hace. La sala vive en MedLibra (`app/services/consultorios.py`) y su
+choque lo valida `AppointmentService`. Es el reparto que LibraGenda ya declara:
+el vertical resuelve lo que el motor no modela, en vez de deformar el motor.
+
+**Un bloque de agenda no se guarda como `Availability`: se deriva.** El bloque
+—profesional × consultorio × día de la semana × rango horario × vigencia ×
+duración × modalidad— vive en `agenda_blocks`, y las ventanas que el motor
+necesita se construyen **para el día que se está validando**. Así la vigencia
+por rango de fechas se resuelve antes de que el motor la vea, sin enseñarle un
+concepto nuevo ni cortar versión del paquete.
+
+- **La duración la manda el bloque** (decisión del humano): la prestación dice
+  *qué* se hace, el bloque dice cuánto dura un turno de esa agenda. La lista es
+  cerrada (10/15/20/25/30) y la sirve el backend en `GET
+  /agenda-blocks/opciones` — repetida en el frontend, las dos copias divergen y
+  la pantalla termina ofreciendo un valor que el alta rechaza con 422.
+- **El choque de sala se compara en UTC**, no en hora de pared: un consultorio
+  puede recibir turnos de profesionales de sedes distintas, y dos horas de pared
+  de husos distintos no se pueden comparar entre sí.
+- **Un bloque `espontanea` no genera ventana.** Si la generara, se le podrían dar
+  turnos con horario encima de una franja que justamente no trabaja con
+  horarios. La cola por orden de llegada es un mecanismo aparte y llega en el
+  cambio siguiente.
+- **En qué sala ocurre un turno va en una tabla propia** (`appointment_rooms`) y
+  no en una columna del turno: el turno es un dataclass del motor. Mismo patrón
+  con el que `Patient` extiende al `Client` y `branch_contacts` a la sede. Sin
+  FK a `appointments` a propósito — el motor no conoce esta tabla y no la
+  limpiaría, y una FK dejaría su borrado fallando por algo que no ve.
+
+### Compatibilidad
+
+**Los bloques se suman a la disponibilidad semanal, no la reemplazan ni la
+migran.** Las instancias que hoy están andando —dev, la demo— tienen su jornada
+cargada por `/resources/{id}/availability` y tienen que seguir dando turnos
+igual; sin bloque que cubra el horario, la duración sigue siendo la de la
+prestación y no hay sala que declarar. La migración `0015` sólo crea tablas
+vacías: un `upgrade` sobre una base con datos no le cambia el comportamiento a
+nadie.
+
+### Consecuencias
+
+- 23 tests nuevos (348 en la suite). **Verificados por mutación**: apagando el
+  chequeo de sala y la vigencia, se ponen en rojo exactamente tres —el choque de
+  sala en el alta, el mismo al reprogramar, y el corte por `valid_to`— y los
+  controles siguen verdes. Cada test que exige un rechazo tiene al lado el que
+  exige que en el caso vecino **entre**: sin eso, "rechazar siempre" los pasaría
+  a todos.
+- **El log de actividad llamaba "consultorio" al `Resource`.** Con el
+  consultorio como entidad propia eso pasó de confuso a incorrecto: el log
+  habría dicho "consultorio Dr. Molina" al lado de consultorios de verdad. La
+  etiqueta pasa a `profesional`, que es lo que el `Resource` es en este producto
+  —lo dicen el seed y los mensajes de la agenda— y se suman las tres tablas
+  nuevas al mapa.
+- `app/services/agenda_blocks.py` lleva `from __future__ import annotations` y
+  está dicho por qué: los repositorios de este proyecto tienen un método `list`
+  (y acá además uno `set`), y dentro del cuerpo de la clase ese nombre tapa al
+  builtin — `def vigentes(...) -> list[dict]` explota con *"'function' object is
+  not subscriptable"*.
+- Migración probada contra `postgres:16` real, con datos: `upgrade head` →
+  filas cargadas → `downgrade -1` (las tres tablas se van, `resources` y
+  `branches` quedan) → `upgrade head`.
+- **Un hallazgo del cambio anterior, que apareció recién acá.** Al pasar el test
+  de la demo de `>= 7` a una cuenta exacta (ADR-028), un lunes se puso en rojo
+  con 9 de 11: la ventana que ese test mira iba de `hoy - 2` a `hoy + 5` en días
+  de **calendario**, y el plan de la demo está en días **hábiles** — un lunes,
+  los dos turnos de "ayer hábil" caen el viernes, tres días atrás, y quedaban
+  afuera. El margen del `>= 7` se comía justo ese agujero, así que el test decía
+  verde mirando 9 de 11 turnos. La ventana pasa a `hoy - 7` … `hoy + 10`.
+
+## ADR-031 — La demanda espontánea es una fila, no un turno sin hora
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-030 dejó los bloques de agenda con dos modalidades y **una a medias**: un
+bloque `espontanea` se podía crear y, deliberadamente, no generaba ventana de
+disponibilidad — así que no se le podía dar ningún turno y tampoco había otra
+forma de anotar a nadie. Faltaba el mecanismo.
+
+Al preguntarle al humano qué significaba operativamente *"por demanda
+espontánea"*, eligió **sin horario, por orden de llegada**.
+
+### Decisión
+
+**No es un `Appointment` de LibraGenda, ni siquiera uno con horario inventado.**
+
+Un `Appointment` **es** un horario: tiene `starts_at` y una duración, y todas
+sus reglas —choques, ventanas, bloqueos, ocupación de sala— se calculan sobre
+ese rato. Una demanda espontánea no tiene rato: tiene una **posición en una
+fila**. Darle un `starts_at` de mentira —el inicio del bloque, digamos— haría
+que ese horario falso choque contra los turnos de verdad, ocupe el consultorio y
+aparezca en la grilla horaria como si alguien tuviera reservada esa media hora.
+El dato inventado no se queda quieto: se propaga a todas las reglas que miran
+horarios.
+
+Entonces: tabla propia (`walkins`), sin pasar por el `InMemoryScheduler`. Lo que
+sí comparte con un turno es **de dónde cuelga**: un bloque de agenda, con su
+profesional, su consultorio y su vigencia.
+
+- **El orden de llegada es histórico y no se renumera nunca.** Cancelar al
+  segundo de la fila no convierte al tercero en segundo: el número dice en qué
+  momento llegó cada uno, y reescribirlo borraría el único dato que la cola
+  tiene — además de dejar a dos personas distintas habiendo sido "la segunda"
+  del mismo día. Quién sigue se calcula filtrando por estado (`solo_activos`),
+  no por el número.
+- **El máximo para el número siguiente incluye a los cancelados**, por lo mismo.
+- **Un único por `(block_id, day, arrival_order)`.** El número se asigna con un
+  `max + 1`, que entre dos llegadas simultáneas es una condición de carrera.
+  Sin la restricción, dos pacientes quedan en la misma posición y la fila se ve
+  perfectamente bien.
+- **Registrar una llegada valida el bloque, no sólo su existencia**: tiene que
+  ser `espontanea` (sobre uno de `turnos` habría dos maneras simultáneas de
+  ocupar la misma franja, cada una ciega a la otra) y el día tiene que caer en su
+  día de la semana y su vigencia (si no, es una fila que nadie va a llamar).
+- **Estados más chicos que los de un turno**: `waiting → in_progress →
+  completed`, más `cancelled`. No hay `pending` ni `confirmed` —quien está en la
+  fila ya llegó, no hay nada que confirmar— ni `no_show`, que es exactamente lo
+  que la demanda espontánea no puede tener.
+- **Va con los turnos y no con la configuración** (`staff_or_admin`): armar el
+  bloque lo hace quien parametriza, pero anotar a quien acaba de entrar por la
+  puerta lo hace la secretaria todas las mañanas. Con `admin_only` la función
+  existiría y no la podría usar nadie del mostrador.
+
+### Consecuencias
+
+- 14 tests nuevos (372 en la suite), **verificados por mutación**: apagando la
+  validación de modalidad, la de día y la tabla de transiciones se ponen en rojo
+  exactamente cuatro, y los controles siguen verdes.
+- Migración `0016_walkins`, probada contra `postgres:16` real: `upgrade` → filas
+  cargadas → `downgrade -1` (la tabla se va, `agenda_blocks` queda) → `upgrade`.
+  El único se verificó **en la base**, no en el modelo: un segundo `INSERT` con
+  el mismo `(bloque, día, orden)` es rechazado por PostgreSQL.
+- **Todavía no tiene pantalla.** Como el resto de la parametrización de agenda,
+  hoy se opera por API. La pantalla llega con Configuración.
+
+## ADR-032 — La parametrización de la agenda, adentro de Configuración
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-030 y ADR-031 dejaron el backend entero —consultorios, bloques de agenda,
+bloqueos, excepciones, fila de llegada— y **ninguna pantalla**. Los endpoints
+existían y sólo se llegaba a ellos por API o por `scripts/seed_demo.py`: un
+consultorio nuevo no podía parametrizar nada de lo suyo, que es exactamente el
+estado en el que Gestiolibra estaba antes de su ADR-031.
+
+### Decisión
+
+Cuatro secciones nuevas **adentro de Configuración**, no como ítems propios del
+sidebar: lo que se configura vive en un solo lugar, y estas cuatro son
+exactamente eso — se cargan al arrancar y se tocan poco, a diferencia de la
+agenda y los pacientes, que se usan todos los días.
+
+🔴 **El orden es el del arranque de un consultorio nuevo**: Sedes →
+Consultorios → Prestaciones → Profesionales. Al revés, un consultorio se carga
+sin sede a la cual pertenecer, una prestación sin poder ponerle precio (el
+precio es por sede) y un bloque de agenda sin consultorio donde ubicarlo — que
+es el único campo del bloque que no se puede dejar vacío.
+
+- **El armador de bloques deja elegir varios días de una vez y crea un bloque
+  por día.** El backend modela un bloque por día de la semana a propósito —así
+  el miércoles puede estar en otra sala—, pero cargar "lunes a viernes de 9 a
+  13" como cinco altas idénticas a mano, por cada profesional, es el gesto que
+  más se repite en la pantalla. **La multiplicación va en la UI**: el modelo de
+  datos no tiene por qué cargar con una comodidad de la pantalla.
+- **Las altas van secuenciales y no en `Promise.all`.** Si una falla —una
+  duración que el backend no acepta— hay que cortar ahí; en paralelo se crearían
+  las otras cuatro igual y el error diría una sola cosa con la agenda a medio
+  cargar. Y se recarga la lista **también en el error**, para que los días que
+  sí entraron se vean: si no, el usuario los vuelve a cargar y se duplican.
+- **En demanda espontánea no se ofrece el campo de duración.** No hay turnos que
+  durar; ofrecerlo igual haría creer que hace algo.
+- **La jornada del profesional ya no se carga como ventana semanal.** El
+  endpoint viejo (`/resources/{id}/availability`) sigue existiendo y sigue
+  sumando —ADR-030 lo conserva a propósito—, pero la pantalla no lo ofrece: dos
+  maneras de cargar lo mismo, una más pobre que la otra, es cómo se termina con
+  la mitad de los profesionales configurados de un modo y la otra mitad del
+  otro. `ventanas.tsx` queda sólo para el horario de atención de la sede.
+
+### Consecuencias
+
+- 16 tests nuevos (36 en la suite del frontend), **con su control al lado**: el
+  atajo de "lunes a viernes" tiene el test de que no pisa un día ya cargado, y
+  el de los cinco bloques tiene el de que deseleccionar días cambia cuántos se
+  crean — sin ese, "mandar siempre los cinco hábiles" pasaría igual.
+- **Dos cosas que este producto no tenía y aparecieron al escribir los tests:**
+  - `src/test/setup.ts` no tenía el polyfill de **captura de puntero**. Sin él,
+    abrir un `Select` de Radix desde un test tira `hasPointerCapture is not a
+    function` y no despliega ninguna opción — que se lee como un defecto de la
+    pantalla y no lo es. No se notaba porque ningún test de acá abría un
+    `Select`. Gestiolibra ya lo tenía.
+  - `waitFor`/`findBy*` corrían con el **default de 1 segundo**. Medido: en la
+    corrida inmediatamente posterior a un `npm ci` —con el transform tardando
+    9 s en vez de 2,6— se cayeron dos tests del calendario que en las tres
+    corridas siguientes pasaron sin tocar una línea. Se sube a 5 s en vez de
+    convivir con el flake: un rojo intermitente enseña a re-correr el CI hasta
+    que salga verde, que es el hábito que vuelve inútil al CI. No hace más lenta
+    ninguna corrida sana — `waitFor` corta apenas la condición se cumple.
+- Cobertura del frontend: **55,29 % de líneas**, muy por encima del trinquete de
+  22.
+- **La fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
+  parametrización (dónde, cuándo, quién, cuánto), no la operación diaria del
+  llamador.
