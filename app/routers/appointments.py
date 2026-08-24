@@ -21,6 +21,7 @@ from ..dependencies import (
     get_deposit_repository,
     get_iva_rate_repository,
     get_patient_repository,
+    get_resource_price_repository,
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
@@ -35,6 +36,7 @@ from ..services.business_settings import BusinessSettingsRepository
 from ..services.iva_rates import IvaRateRepository
 from ..services.modules import ModuleRepository
 from ..services.patients import PatientRepository
+from ..services.resource_prices import ResourcePriceRepository, precio_del_turno
 from ..services.service_prices import ServicePriceRepository
 
 router = APIRouter()
@@ -144,6 +146,7 @@ async def complete_appointment(
     service: AppointmentService = Depends(get_appointment_service),
     patients: PatientRepository = Depends(get_patient_repository),
     service_prices: ServicePriceRepository = Depends(get_service_price_repository),
+    resource_prices: ResourcePriceRepository = Depends(get_resource_price_repository),
     deposits: DepositRepository = Depends(get_deposit_repository),
     catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
     modules: ModuleRepository = Depends(get_module_repository),
@@ -172,8 +175,16 @@ async def complete_appointment(
     if modules.is_enabled("facturacion"):
         resource = catalog.get_resource(current.resource_id)
         branch_id = resource.branch_id if resource else None
-        if branch_id:
-            price_row = service_prices.get(current.service_id, branch_id)
+        # 🔴 UN SOLO resolvedor. Lo que se cobra es el honorario del profesional
+        # si lo tiene, y si no el precio de lista de la sede (ver
+        # `app/services/resource_prices.py`). Copiar acá un
+        # `service_prices.get(...)` —o hacerlo en la seña, o en el envío a
+        # facturar— deja el honorario aplicando en un camino y no en el otro, y
+        # la diferencia aparece como un descuadre que nadie sabe de dónde sale.
+        price_row = precio_del_turno(
+            resource_prices, service_prices,
+            current.service_id, current.resource_id, branch_id,
+        )
     if price_row is not None:
         patient = patients.get(current.client_id) or {}
         deposit = deposits.get_by_appointment(appointment_id)

@@ -1476,3 +1476,71 @@ es el único campo del bloque que no se puede dejar vacío.
 - **La fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
   parametrización (dónde, cuándo, quién, cuánto), no la operación diaria del
   llamador.
+
+## ADR-033 — Honorarios: el valor de la consulta por profesional
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"agregar cobro de honorarios por médico,
+permitiendo setear valor de la consulta por profesional"*.
+
+`service_prices` modela **(prestación × sede)**: la misma consulta puede costar
+distinto en dos consultorios. Lo que no puede decir es que la consulta con la
+Dra. Vidal salga más cara que con el Dr. Molina **en la misma sede**, que es
+justamente lo que distingue a un honorario de un precio de lista.
+
+### Decisión
+
+Una tabla `(prestación × profesional)` que **pisa** al precio de la sede cuando
+existe.
+
+**El orden no es arbitrario.** El precio por sede es el de lista —lo que sale
+esa prestación en ese consultorio— y el del profesional es la excepción
+explícita que alguien cargó para él; una excepción que no pisara al general no
+serviría para nada. Y **sacar el honorario no deja la prestación sin precio**:
+vuelve a cobrarse la de lista. Si dejara un hueco, el turno se completaría sin
+facturar y el consultorio perdería la consulta sin que nada avise.
+
+🔴 **Un solo resolvedor, y tiene que seguir siendo uno.** `precio_del_turno()`
+es el único lugar donde se decide qué se cobra. Hoy tiene un único consumidor
+—`complete_appointment`— y ahí está la trampa: es fácil que mañana la seña, un
+presupuesto o el envío a facturar copien la línea `service_prices.get(...)` en
+vez de llamar acá. Con dos lugares resolviendo lo mismo, el honorario aplica en
+un camino y no en el otro, y la diferencia aparece como un descuadre de caja que
+nadie sabe de dónde sale. Queda dicho en el código, en los dos lados.
+
+**El honorario alcanza solo**: no es un descuento sobre un precio de lista que
+tenga que existir. Un consultorio que cobra distinto por profesional y no maneja
+precio de lista es un caso normal, y tiene su test.
+
+**El endpoint cuelga del profesional** (`/resources/{id}/prices`) y no de la
+prestación, porque es como se carga: se entra a la ficha de la persona y se le
+ponen sus honorarios. La otra forma obligaría a recorrer las prestaciones una
+por una para configurar a alguien.
+
+### Consecuencias
+
+- 9 tests nuevos de backend (381 en la suite) y 5 de frontend (41). **El que
+  manda no mira la fila de la tabla**: completa un turno de verdad y verifica el
+  **total de la factura emitida**.
+- **Verificados por mutación**: ignorando el honorario propio se ponen en rojo
+  cinco, y el control —*sin honorario se cobra el precio de la sede*— sigue
+  verde.
+- El control que distingue *"pisa el precio"* de *"cambió el precio"* va con las
+  **dos filas cargadas y distintas**: el turno de la Dra. Vidal sale 2500 y el
+  del Dr. Molina, que no tiene honorario propio, sigue en los 1000 de la sede.
+  Con una sola fila, un bug que aplicara el honorario a todo el mundo pasaría
+  igual.
+- **La tabla nace vacía**: sin honorario propio se factura exactamente como
+  hasta ahora, y hay un test que lo fija. La migración `0017` no le cambia la
+  facturación a ninguna instancia existente.
+- En la pantalla, la card de Honorarios lista **todas las prestaciones activas
+  con el precio de la sede al lado**, no sólo las que tienen honorario propio: un
+  honorario es una excepción, y mostrar sólo las excepciones deja invisible lo
+  que se cobra en todo lo demás. Cuando no hay ninguno de los dos precios, lo
+  dice — *"se completa sin facturar"* es un estado válido pero silencioso.
+- Migración probada contra `postgres:16` real, ida y vuelta; el único por
+  `(prestación, profesional)` verificado **en la base**.

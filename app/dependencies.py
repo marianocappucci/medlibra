@@ -20,6 +20,7 @@ from .services.dashboard import DashboardService
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.iva_rates import IvaRateRepository
+from .services.resource_prices import ResourcePriceRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from .services.users import UserRepository
@@ -92,6 +93,10 @@ def get_branch_hours_repository(request: Request) -> BranchHoursRepository:
 
 def get_service_price_repository(request: Request) -> ServicePriceRepository:
     return request.app.state.service_prices
+
+
+def get_resource_price_repository(request: Request) -> ResourcePriceRepository:
+    return request.app.state.resource_prices
 
 
 def get_business_settings_repository(request: Request) -> BusinessSettingsRepository:
