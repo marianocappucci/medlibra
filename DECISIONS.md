@@ -1603,3 +1603,81 @@ fecha de vencimiento: se va con el cambio que conecte Contalibra.
   número calcado de la foto del día que se escribió, y con él **toda baja
   legítima es un rojo que no dice nada**. Baja a 5, que sigue siendo un piso de
   "midió algo" con margen para otra baja.
+
+## ADR-035 — Las consultas se mandan a Contalibra, y acá se deja de facturar
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-034 sacó la facturación **de la vista** y dejó el motor vivo a propósito,
+para que ninguna instancia quedara sin poder facturar en el medio. Esta es la
+otra mitad del pedido: *"permitir enviar a facturar consultas con enlace a
+contalibra"*.
+
+Del otro lado, Contalibra sumó el endpoint que las recibe (su
+`POST /api/integraciones/consultas`, PR #142). El hallazgo que definió ese
+diseño: **el token de servicio no es un usuario**, y en Contalibra el
+`usuario_id` de una venta es lo que la engancha al turno de caja — una venta
+creada con el token quedaría fuera de todo turno y el cierre no la vería.
+
+### Decisión
+
+🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.**
+
+`complete_appointment` emite la factura con LibraCore/ARCA desde ADR-016. Si
+además mandara la consulta a Contalibra —que también factura— saldrían **dos
+comprobantes por una consulta**, y un CAE emitido no se borra: se anula con una
+nota de crédito. Por eso el destino es un **interruptor**, no un agregado:
+
+- Con `CONTALIBRA_URL` configurada → se manda y **este producto no emite**.
+- Vacía → se factura acá, exactamente como hasta ahora.
+
+**El token va en una variable propia** (`CONTALIBRA_SERVICE_TOKEN`) y no en la
+`LIBRA_SERVICE_TOKEN` que este producto ya lee para su propio guard de entrada:
+son dos permisos distintos —el que nos dejan usar y el que nosotros aceptamos— y
+compartir el nombre haría que rotar uno rote el otro sin que nadie lo pida.
+
+**Lo que viaja pasa por el mismo resolvedor que la factura local**
+(`precio_del_turno`, ADR-033). Si el envío leyera el precio por su cuenta, el
+honorario del profesional aplicaría facturando acá y no mandando allá.
+
+### Un fallo del otro lado no rompe el turno, pero tampoco es invisible
+
+Son las dos mitades, y las dos importan:
+
+- **No rompe el completar.** La atención ya ocurrió; negarse a completarla
+  porque la contabilidad de otro producto no contesta sería castigar al
+  consultorio por una falla que no es suya. Y `COMPLETED` no admite otra
+  transición: un turno que no se puede completar queda trabado para siempre.
+- **No es invisible.** Una consulta que no se facturó y de la que nadie se
+  entera es plata que se pierde en silencio. Cada envío deja su fila en
+  `envios_a_contalibra` con su estado y su error; `GET /facturacion-externa` los
+  lista y `POST /facturacion-externa/{id}/reintentar` los reintenta.
+
+El reintento **recalcula todo desde el turno** en vez de guardar el cuerpo del
+envío fallido: si entre el intento y el reintento cambió el honorario, lo que
+tiene que viajar es el precio de hoy. Y es seguro repetirlo — Contalibra es
+idempotente por `(sistema, referencia)`, y la referencia es el id del turno.
+
+### Consecuencias
+
+- 14 tests nuevos (412 en la suite). **Verificados por mutación**: forzando a
+  que nunca mande, se ponen en rojo seis.
+- 🔴 **Tres de esos tests miden el pedido HTTP de verdad**, no el doble. Todo lo
+  demás reemplaza `enviar_consulta`, así que el nombre de los campos, la URL y
+  el header quedarían sin cubrir — y son exactamente lo que hace que el otro
+  lado conteste 401 o 422 sin que nada de acá se ponga rojo. **Escribiendo eso
+  ya apareció uno**: el header se había puesto como `X-Service-Token` y el que
+  libraauth valida es `x-internal-auth`. Ahora la constante se importa del
+  motor en vez de escribirse.
+- **La respuesta de completar suma `contalibra`**, con el estado del envío. Sin
+  eso, el mostrador no tendría forma de saber que la consulta no llegó.
+- `GET /facturacion-externa` devuelve **el destino junto a la lista**: una lista
+  vacía significa cosas opuestas —"todo salió bien" contra "esto ni siquiera
+  está prendido"— y sin ese dato la pantalla no las puede distinguir.
+- Migración `0018`, probada contra `postgres:16` real, ida y vuelta. La tabla
+  nace vacía y sólo se escribe si la instancia tiene `CONTALIBRA_URL`.
+- **Todavía sin pantalla.** `GET /facturacion-externa` se opera por API, como el
+  resto de lo que se construyó esta semana.

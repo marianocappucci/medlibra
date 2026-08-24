@@ -45,7 +45,7 @@ from .routers import (
     billing as billing_router, branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, health, holidays, prescriptions, reminders,
+    deposits, facturacion_externa, health, holidays, prescriptions, reminders,
     resource_prices as resource_prices_router,
     resources, service_iva_rates, service_prices,
     services, study_orders, walkins as walkins_router,
@@ -58,6 +58,7 @@ from .services.branch_hours import BranchHoursRepository
 from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .services.branches import BranchRepository
 from .services.consultorios import ConsultorioRepository
+from .services.contalibra import EnvioRepository as EnvioContalibraRepository
 from .services.walkins import WalkinRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
@@ -226,6 +227,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.agenda_blocks = AgendaBlockRepository(sessions)
     app.state.appointment_rooms = AppointmentRoomRepository(sessions)
     app.state.walkins = WalkinRepository(sessions)
+    app.state.envios_contalibra = EnvioContalibraRepository(sessions)
     app.state.appointment_service = AppointmentService(
         catalog, appointment_repository, availability_repository, branch_hours_repository,
         app.state.agenda_blocks, app.state.appointment_rooms,
@@ -318,6 +320,9 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(services.router, dependencies=admin_only)
     app.include_router(service_prices.router, dependencies=admin_only)
     app.include_router(resource_prices_router.router, dependencies=admin_only)
+    # Que consultas se mandaron a Contalibra y cuales no pudieron. Admin: es
+    # plata y es configuracion de la instancia, no operacion del mostrador.
+    app.include_router(facturacion_externa.router, dependencies=admin_only)
     app.include_router(service_iva_rates.router, dependencies=admin_only)
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(consultorios_router.router, dependencies=admin_only)

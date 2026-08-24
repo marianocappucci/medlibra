@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,7 @@ from ..dependencies import (
     get_business_settings_repository,
     get_catalog_repository,
     get_deposit_repository,
+    get_envio_contalibra_repository,
     get_iva_rate_repository,
     get_patient_repository,
     get_resource_price_repository,
@@ -31,6 +33,7 @@ from ..services.appointments import (
     OutsideBusinessHours,
     ServiceNotFound,
 )
+from ..services import contalibra
 from ..services.billing import invoice_appointment
 from ..services.business_settings import BusinessSettingsRepository
 from ..services.iva_rates import IvaRateRepository
@@ -38,6 +41,8 @@ from ..services.modules import ModuleRepository
 from ..services.patients import PatientRepository
 from ..services.resource_prices import ResourcePriceRepository, precio_del_turno
 from ..services.service_prices import ServicePriceRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -152,10 +157,17 @@ async def complete_appointment(
     modules: ModuleRepository = Depends(get_module_repository),
     iva_rates: IvaRateRepository = Depends(get_iva_rate_repository),
     business: BusinessSettingsRepository = Depends(get_business_settings_repository),
+    envios: contalibra.EnvioRepository = Depends(get_envio_contalibra_repository),
 ):
-    """Completa el turno y, si hay un precio configurado para el servicio
-    en la sucursal Y el plan incluye el módulo "facturacion" (ver
-    plans.py), factura el total con LibraCore (una sola factura,
+    """Completa el turno y, si hay precio configurado Y el plan incluye el
+    módulo "facturacion" (ver plans.py), cobra.
+
+    🔴 **Dónde se factura lo decide `CONTALIBRA_URL`.** Configurada, la consulta
+    se manda a Contalibra y este producto NO emite; vacía, se factura acá con
+    LibraCore como siempre. Nunca las dos — serían dos comprobantes por una
+    consulta. Ver `app/services/contalibra.py`.
+
+    Cuando factura acá: una sola factura,
     reconciliando la sena ya cobrada -- si existe -- y el saldo restante
     como movimientos de caja separados). Sin precio configurado, o sin el
     módulo habilitado, no factura nada -- completar el turno nunca se
@@ -201,16 +213,62 @@ async def complete_appointment(
         raise HTTPException(*mensajes.describir(exc))
 
     factura = None
+    enviado_a_contalibra = None
     if price_row is not None:
         paid = deposit is not None and deposit.status is DepositStatus.PAID
-        factura = await invoice_appointment(
-            patient, price_row["price"], appointment_id,
-            deposit_amount=deposit.amount if paid else None,
-            deposit_medio_pago=deposit.medio_pago if paid else None,
-            balance_medio_pago=data.medio_pago,
-            iva_rate=iva_rates.resolve(
-                current.service_id, business.get()["default_iva_rate"],
-            ),
-        )
+        # 🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.**
+        # Con `CONTALIBRA_URL` configurada la contabilidad vive allá, y emitir
+        # además acá daría DOS comprobantes por una consulta — y un CAE emitido
+        # no se borra, se anula con una nota de crédito. El destino es un
+        # interruptor, no un agregado (ver `app/services/contalibra.py`).
+        if contalibra.destino():
+            enviado_a_contalibra = await _mandar(
+                envios, appointment_id, current, patient,
+                price_row["price"], data.medio_pago or "efectivo",
+            )
+        else:
+            factura = await invoice_appointment(
+                patient, price_row["price"], appointment_id,
+                deposit_amount=deposit.amount if paid else None,
+                deposit_medio_pago=deposit.medio_pago if paid else None,
+                balance_medio_pago=data.medio_pago,
+                iva_rate=iva_rates.resolve(
+                    current.service_id, business.get()["default_iva_rate"],
+                ),
+            )
 
-    return {"id": appointment.id, "status": appointment.status.value, "factura": factura}
+    return {
+        "id": appointment.id, "status": appointment.status.value,
+        "factura": factura, "contalibra": enviado_a_contalibra,
+    }
+
+
+async def _mandar(
+    envios: contalibra.EnvioRepository, appointment_id: str, turno,
+    patient: dict, importe, medio_pago: str,
+) -> dict:
+    """Manda la consulta a Contalibra y **deja registro pase lo que pase**.
+
+    🔴 **Un fallo acá no rompe el completar del turno.** La atención ya ocurrió;
+    negarse a completarla porque la contabilidad de otro producto no contesta
+    sería castigar al consultorio por una falla que no es suya. Pero tampoco
+    puede terminar en una consulta que no se facturó y de la que nadie se
+    entera: por eso el error queda en `envios_a_contalibra`, se lista en
+    `GET /facturacion-externa` y se puede reintentar.
+    """
+    try:
+        respuesta = await contalibra.enviar_consulta(
+            appointment_id=appointment_id,
+            fecha=turno.starts_at.date().isoformat(),
+            descripcion=turno.service_id,
+            importe=importe,
+            medio_pago=medio_pago,
+            paciente=patient,
+        )
+    except Exception as exc:  # noqa: BLE001 — cualquier fallo se registra igual
+        logger.exception("No se pudo mandar la consulta %s a Contalibra", appointment_id)
+        return envios.registrar(appointment_id, contalibra.ERROR, error=str(exc))
+    venta = (respuesta or {}).get("venta") or {}
+    return envios.registrar(
+        appointment_id, contalibra.ENVIADO, venta_id=venta.get("id"),
+    )

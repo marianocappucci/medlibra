@@ -109,6 +109,15 @@ services:
       - LIBRAAUTH_SMTP_FROM_EMAIL=${LIBRAAUTH_SMTP_FROM_EMAIL:-}
       - LIBRAAUTH_SMTP_FROM_NAME=${LIBRAAUTH_SMTP_FROM_NAME:-MedLibra}
       - DOCS_AUTH_SECRET=${DOCS_AUTH_SECRET:-}
+      # 🔴 Con CONTALIBRA_URL puesta, MedLibra manda las consultas a Contalibra
+      # y DEJA DE FACTURAR por su cuenta. Vacía = factura acá, como siempre.
+      # No hay estado en el que hagan las dos cosas (ver ADR-035).
+      - CONTALIBRA_URL=${CONTALIBRA_URL:-}
+      # Variable propia y NO la LIBRA_SERVICE_TOKEN que este producto lee para
+      # su propio guard de entrada: son dos permisos distintos —el que nos
+      # dejan usar y el que nosotros aceptamos— y compartir el nombre haría que
+      # rotar uno rote el otro sin que nadie lo pida.
+      - CONTALIBRA_SERVICE_TOKEN=${CONTALIBRA_SERVICE_TOKEN:-}
     networks:
       - stack-net
       - datos
