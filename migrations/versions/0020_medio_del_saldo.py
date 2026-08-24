@@ -16,8 +16,14 @@ mandando. No hay backfill posible porque el dato nunca existio.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0019_medio_del_saldo"
-down_revision = "0018_envios_a_contalibra"
+# 🔴 Va detras de `0019_sin_users`, que entro en `develop` en paralelo mientras
+# esta rama estaba abierta. Las dos colgaban de `0018` y Alembic quedaba con DOS
+# CABEZAS: `upgrade head` falla con "Multiple head revisions are present".
+#
+# No lo vio la suite local --este worktree tenia una sola de las dos-- sino el
+# CI, que corre sobre el MERGE con `develop`. Es la unica forma de verlo.
+revision = "0020_medio_del_saldo"
+down_revision = "0019_sin_users"
 branch_labels = None
 depends_on = None
 
