@@ -1168,6 +1168,77 @@ engine about civil time zones"*. El borde es este producto.
   no rompe nada, `sembrar()` lo saltea, y con margen la demo queda con menos
   turnos de los que dice tener, en verde.
 
+## ADR-029 — La agenda como calendario, con el componente compartido
+
+**Fecha**: 2026-08-22
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano: *"agregar agenda normalizada, la que tiene libradesk y
+gestiolibra por libra-ui"*.
+
+`/agenda` era un formulario de alta arriba y una tabla abajo, con dos
+`<input type="date">` de rango. Podía decir **qué** turnos hay, pero no **cuánto
+ocupa cada uno ni dónde está el hueco**, que es la pregunta de quien atiende el
+teléfono. Y para saber qué había el jueves había que mover el rango y perder de
+vista el resto.
+
+El calendario ya existía: salió de LibraDesk a `libra-ui/agenda` el mismo día
+(v0.38.0) y Gestiolibra lo adoptó en su ADR-031. Traerlo acá es consumir el
+paquete, no escribir un tercer calendario.
+
+### Decisión
+
+`libra-ui` sube de `v0.37.0` a `v0.38.0`. **El bump es puramente aditivo**: el
+diff entre los dos tags son `src/agenda/*`, el export nuevo en `package.json` y
+un stub de test — nada de lo que MedLibra ya consumía cambia.
+
+El reparto es el que fija el propio paquete: de `libra-ui` la aritmética de días,
+la paleta por posición, el reparto de ancho entre bloques que se pisan, la
+rejilla horaria y las vistas de semana y mes; **de MedLibra** de dónde salen los
+turnos, qué es un evento, el alta, las acciones sobre un turno y **la vista de
+día**, cuyo encabezado es lo más específico de cada agenda (acá, el profesional
+y su sede).
+
+- `components/agenda/datos.ts` — una llamada por profesional con el rango
+  entero, no siete de un día. El filtro de profesional recorta **al dibujar, no
+  al pedir**: recortando el fetch, el "+N más" de la celda del mes pasaría a
+  mentir en cuanto alguien elige uno.
+- `components/agenda/eventos.ts` — **el título es el paciente**, no la
+  prestación: en una agenda de turnos lo que se busca de un vistazo es a quién
+  se atiende.
+- `components/agenda/vista-dia.tsx` — una columna por profesional.
+- **Todo el estado de la pantalla vive en la URL** (`?vista=`, `?dia=`,
+  `?profesional=`, `?turno=`): se puede mandar "mirá el jueves" por mensaje, el
+  botón atrás vuelve del turno al día y del día a la semana, y recargar deja al
+  usuario donde estaba.
+
+🔴 **El día de un turno es el de la sede, no el del navegador.** Es el mismo
+defecto de ADR-028, del otro lado del cable: un turno de las 21:30 del lunes en
+Buenos Aires viaja como `2026-07-21T00:30:00Z`. Agrupar por el primer tramo del
+string lo pone en la columna del martes; agrupar con la zona del navegador pone
+a cada usuario el turno en un día distinto. Se agrupa por la hora de pared de la
+sede, que es la misma cuenta que hace el backend al filtrar.
+
+### Consecuencias
+
+- 11 tests nuevos (20 en la suite del frontend). **Medido**: reemplazando la
+  conversión por el string crudo de UTC, dos se ponen en rojo — el del turno de
+  la noche y el que lee la hora en el detalle. El tercero, *"la conversión no
+  corre todos los turnos un día"*, es el control que impide arreglar el primero
+  restándole un día a todo.
+- **La paleta del calendario se verificó en el CSS emitido, no en el fuente.**
+  `colores.ts` escribe las ocho clases enteras a mano porque Tailwind escanea
+  texto, y el consumidor necesita `@source "../node_modules/libra-ui"` en su
+  `index.css` o los bloques salen sin fondo. MedLibra ya lo tenía; se confirmó
+  que las 16 clases (`bg-*-100` y `bg-*-400`) están en `dist/assets/index-*.css`,
+  con una clase inventada como control negativo en 0.
+- `api.ts` suma el tipo `Branch` y la pantalla pide `/branches`: el huso sale de
+  ahí y sin eso no hay forma de saber a qué día pertenece cada turno.
+- El alta, el diálogo de medio de pago y el de factura emitida **no se tocaron**:
+  siguen siendo los de ADR-025.
+
 ## ADR-030 — El consultorio es una entidad, y la agenda se arma por bloques
 
 **Fecha**: 2026-08-23

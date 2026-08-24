@@ -7,6 +7,7 @@ from ..auth import require_admin
 from ..dependencies import get_patient_repository, get_prescription_repository
 from ..services.patients import PatientRepository
 from ..services.prescriptions import PrescriptionRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/prescriptions", tags=["prescriptions"])
 
@@ -32,7 +33,7 @@ class PrescriptionItemOut(BaseModel):
 class PrescriptionOut(BaseModel):
     id: str
     patient_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     items: list[PrescriptionItemOut]
 

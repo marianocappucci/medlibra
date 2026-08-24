@@ -44,6 +44,20 @@ export type Resource = {
   active: boolean
 }
 
+/** Una sede. **El `timezone` no es decorativo**: es el huso en el que el
+ *  backend valida y guarda los turnos (ADR-028), y por lo tanto el único con el
+ *  que la agenda puede decir a qué día y a qué hora pertenece cada turno. Un
+ *  turno de las 21:30 del lunes en Buenos Aires viaja como `2026-07-21T00:30Z`;
+ *  leído con el huso del navegador, cada usuario lo pondría en un día distinto. */
+export type Branch = {
+  id: string
+  name: string
+  active: boolean
+  timezone: string
+  phone: string | null
+  address: string | null
+}
+
 export type Service = {
   id: string
   name: string

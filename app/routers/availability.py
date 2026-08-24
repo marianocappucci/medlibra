@@ -15,6 +15,7 @@ from libragenda.scheduling import AvailabilityException, TimeBlock
 
 from ..dependencies import get_availability_repository, get_catalog_repository
 from ..services.husos import como_instante, zona_del_recurso
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/resources/{resource_id}", tags=["availability"])
 
@@ -119,8 +120,8 @@ def _instantes(
 class BlockOut(BaseModel):
     id: int
     resource_id: str
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: InstanteUTC
+    ends_at: InstanteUTC
     reason: str
 
 

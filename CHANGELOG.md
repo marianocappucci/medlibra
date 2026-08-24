@@ -30,6 +30,22 @@
   - 23 tests nuevos (348 en la suite), verificados por mutación. Migración
     probada contra `postgres:16` real con datos, ida y vuelta.
 
+- **La agenda, como calendario** (ver ADR-029): `/agenda` deja de ser un
+  formulario arriba y una tabla abajo con dos `<input type="date">` de rango, y
+  pasa a ser el calendario compartido de la familia — **día / semana / mes**,
+  con rejilla horaria, color por profesional, referencia y filtro. Decía *qué*
+  turnos hay; ahora dice **cuánto ocupa cada uno y dónde está el hueco**, que es
+  la pregunta de quien atiende el teléfono. Todo el estado va en la URL
+  (`?vista=&dia=&profesional=&turno=`): se puede mandar "mirá el jueves" por
+  mensaje y el botón atrás vuelve del turno al día y del día a la semana.
+  `libra-ui` sube de `v0.37.0` a **`v0.38.0`** — bump puramente aditivo, sólo
+  agrega `src/agenda/*`. El alta, el diálogo de medio de pago y el de factura
+  emitida no se tocaron. 11 tests nuevos (20 en la suite del frontend).
+  > 🔴 **El día de un turno es el de la sede, no el del navegador.** Un turno de
+  > las 21:30 del lunes en Buenos Aires viaja como `2026-07-21T00:30:00Z`;
+  > agrupado por el string crudo aparecería el martes. Es ADR-028 del otro lado
+  > del cable, y hay dos tests que se ponen en rojo si esa conversión se saca.
+
 - **La agenda corre en hora de pared, no en UTC** (ver ADR-028): la
   disponibilidad del profesional, el horario de atención y las excepciones se
   cargan en hora del reloj del consultorio, pero el turno se guardaba
