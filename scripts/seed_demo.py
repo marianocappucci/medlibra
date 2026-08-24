@@ -354,10 +354,10 @@ def _sembrar_turnos(api: Api, contar) -> None:
     # "ayer hábil" —que caen el viernes, tres días de calendario atrás— y el
     # seed informaba "ya hay 9 turnos cargados" cuando había 11.
     #
-    # No llegó a duplicar nada porque el corte de abajo es 8 y 9 lo pasa igual:
-    # otra vez el margen tapando el agujero, que es justo lo que este archivo
-    # ya aprendió dos veces. Derivada del plan, la ventana no puede quedar corta
-    # por más que el plan cambie.
+    # No llegó a duplicar nada porque el corte de entonces era 8 y 9 lo pasa
+    # igual: otra vez el margen tapando el agujero, que es justo lo que este
+    # archivo ya aprendió dos veces. Derivada del plan, la ventana no puede
+    # quedar corta por más que el plan cambie.
     fechas = [cuando(dias, hora).date() for dias, hora, *_ in PLAN]
     desde, hasta = min(fechas), max(fechas)
     ya_cargados = sum(
@@ -365,9 +365,31 @@ def _sembrar_turnos(api: Api, contar) -> None:
                     f"?date_from={desde}&date_to={hasta}") or [])
         for r in PROFESIONALES
     )
-    if ya_cargados >= 8:
+
+    # 🔴 **El corte es `len(PLAN)`, no un número escrito a mano.** Era `>= 8`,
+    # heredado de cuando el plan tenía 9; con 11 ya no describía nada. Atado al
+    # plan no puede volver a quedarse viejo cuando se agregue o se saque un
+    # turno, que es la única forma de que un umbral así no rote.
+    if ya_cargados >= len(PLAN):
         contar("turnos", False)
         print(f"  (ya hay {ya_cargados} turnos cargados)")
+        return
+
+    # 🔴 **Y la franja de en medio existe para no duplicar.** Un turno **no
+    # tiene clave natural**: no hay `obtener_o_crear` que lo salve, así que
+    # sembrar sobre una demo a medias agrega los 11 **encima** de los que ya
+    # estaban. Con el corte en 8 esa franja —8, 9 o 10 turnos— se salteaba en
+    # silencio y la demo se quedaba incompleta para siempre; subir el corte a
+    # `len(PLAN)` sin esta rama la haría duplicar, que es peor.
+    #
+    # Ninguna de las dos se puede elegir sola sin mentir, así que el estado
+    # ambiguo se deja **a la vista**. Se sale reseteando la demo, que es
+    # exactamente lo que hace el cron antes de sembrar.
+    if ya_cargados:
+        contar("turnos", False)
+        print(f"  🔴 PARCIAL: hay {ya_cargados} turnos de los {len(PLAN)} del "
+              f"plan. No se siembra, para no duplicar los que ya están: "
+              f"resetear la demo y volver a correr el seed.")
         return
 
     CUERPOS = {

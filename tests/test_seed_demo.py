@@ -147,8 +147,8 @@ def test_no_todos_los_pacientes_tienen_historia(api):
 
 # ── Los turnos ────────────────────────────────────────────────────────────
 
-def _estados(api):
-    """Los estados de todos los turnos que sembró la demo.
+def _turnos(api):
+    """Todos los turnos que sembró la demo.
 
     🔴 **La ventana se mide en días de CALENDARIO y el plan de la demo está en
     días HÁBILES**, así que tiene que sobrar por los dos lados. Hasta el
@@ -160,12 +160,16 @@ def _estados(api):
     from datetime import date, timedelta
 
     desde, hasta = date.today() - timedelta(days=7), date.today() + timedelta(days=10)
-    estados = []
+    turnos = []
     for r in api.get("/resources"):
-        agenda = api.get(f"/resources/{r['id']}/agenda"
-                         f"?date_from={desde}&date_to={hasta}") or []
-        estados += [t["status"] for t in agenda]
-    return estados
+        turnos += api.get(f"/resources/{r['id']}/agenda"
+                          f"?date_from={desde}&date_to={hasta}") or []
+    return turnos
+
+
+def _estados(api):
+    """Los estados de todos los turnos que sembró la demo."""
+    return [t["status"] for t in _turnos(api)]
 
 
 def test_deja_turnos_en_mas_de_un_estado(api):
@@ -204,7 +208,7 @@ def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
     Hasta el 2026-08-24 la cuenta iba de `HOY - 2` a `HOY + 5` y un lunes
     dejaba afuera los dos turnos de "ayer hábil" —que caen el viernes, tres
     días de calendario atrás—: el seed informaba 9 sobre 11. No duplicó nunca
-    nada de puro suerte, porque el corte de abajo es 8 y 9 lo pasa igual. Es
+    nada de puro suerte, porque el corte de entonces era 8 y 9 lo pasa igual. Es
     el mismo agujero que ya tapó dos veces el margen en este archivo, así que
     acá se mira el número exacto y no un "alcanza".
     """
@@ -215,6 +219,52 @@ def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
 
     salida = capsys.readouterr().out
     assert "(ya hay 11 turnos cargados)" in salida, salida
+
+
+def test_una_demo_a_medias_no_se_re_siembra(api, capsys):
+    """🔴 **Un turno no tiene clave natural.** No hay `obtener_o_crear` que lo
+    salve, así que sembrar sobre una demo a medias agrega los 11 **encima** de
+    los que ya estaban.
+
+    Es la franja que el corte viejo tapaba: con `>= 8` sobre un plan de 11, una
+    demo con 8, 9 o 10 turnos se salteaba en silencio y quedaba incompleta para
+    siempre. Subir el corte a `len(PLAN)` **sin** esta rama la haría duplicar,
+    que es peor que dejarla corta. Este test fija que no hace ninguna de las
+    dos: avisa y no toca nada.
+
+    El estado a medias se arma **por la API**, reprogramando dos turnos fuera de
+    la ventana del plan — que es como se llega en la vida real (alguien mueve un
+    turno de la demo) y además la única forma disponible: no hay
+    `DELETE /appointments`.
+    """
+    from datetime import date, datetime, time, timedelta
+
+    sembrar(api)
+    assert len(_turnos(api)) == 11
+    capsys.readouterr()
+
+    lejos = date.today() + timedelta(days=28)
+    while lejos.weekday() >= 5:
+        lejos += timedelta(days=1)
+    movidos = 0
+    for turno in _turnos(api):
+        if movidos == 2 or turno["status"] != "pending":
+            continue
+        api.post(f"/appointments/{turno['id']}/reschedule", {
+            "starts_at": datetime.combine(lejos, time(9 + movidos)),
+            "reason": "Movido a mano, como haría alguien sobre la demo",
+        })
+        movidos += 1
+    assert movidos == 2, f"no se pudieron mover dos turnos: {movidos}"
+    assert len(_turnos(api)) == 9, "los turnos movidos siguen dentro de la ventana"
+
+    sembrar(api)
+
+    salida = capsys.readouterr().out
+    assert "PARCIAL" in salida, salida
+    # 🔴 El mensaje es lo de menos: lo que este test protege es que NO haya
+    # sembrado encima. Si lo hiciera, acá habría 9 + 11.
+    assert len(_turnos(api)) == 9, "sembró sobre una demo a medias y duplicó"
 
 
 def test_la_segunda_corrida_no_agrega_evoluciones(api):
