@@ -2,6 +2,51 @@
 
 ## [Unreleased]
 
+- **Se va el motor de facturación local** (ver ADR-036). MedLibra ya no emite
+  comprobantes: los emite Contalibra. Se borran `app/services/billing.py`,
+  `app/routers/billing.py`, `frontend/src/pages/Facturacion.tsx` y
+  `tests/test_billing.py`; **`/config/arca` devuelve 404, no 403**.
+  - De `billing.py` sobrevive `configure()`, movida a
+    `app/services/libracore_setup.py`: configura la base de LibraCore donde
+    viven **los usuarios**, crea el schema y la caja por defecto. Es
+    load-bearing y no factura nada — `billing` era el nombre que mentía.
+  - 🔴 **Una instancia sin `CONTALIBRA_URL` completa el turno igual, pero la
+    consulta NO queda en silencio**: se registra con estado `sin_destino` y
+    aparece en `GET /facturacion-externa` junto a los envíos que fallaron.
+    Configurar el destino y reintentar la factura. Con el módulo `facturacion`
+    apagado no se registra nada, que es otra cosa: esa instancia no cobra.
+  - **La alícuota por prestación se queda y ahora viaja** con la consulta
+    (`iva_rate`). Cuál corresponde es configuración *de la prestación*, y en
+    salud la mayoría están exentas; sin mandarla, Contalibra las declararía al
+    21% **en silencio**. Requiere el cambio del lado de Contalibra que la
+    guarda con la venta.
+  - La respuesta de completar deja de traer `factura`: es
+    `{id, status, contalibra}`. El diálogo de "Factura emitida" de la agenda se
+    reemplaza por uno que aparece **sólo cuando la consulta no se facturó**.
+  - **Sin migración**: no se borra ninguna tabla. Las facturas ya emitidas
+    siguen donde están; se va el código que emite nuevas.
+
+- **Arreglado: `configure()` creaba una carpeta con la contraseña en el nombre**
+  con la base en `postgresql+psycopg://`. La guarda existía desde el defecto de
+  VentaLibra, pero comparaba contra una lista escrita a mano
+  (`"postgres://", "postgresql://"`) que **no reconoce el prefijo con driver** —
+  el único que este producto usa de verdad. Ahora el criterio sale de
+  `libracore.db.core.es_url_postgres`. Con `tests/test_libracore_setup.py`.
+
+- **Rescatados de `test_billing.py`** los cinco tests que no eran de
+  facturación: el medio de pago obligatorio, la seña que cubre el precio, la
+  seña parcial y completar dos veces. Todo eso sigue vivo en
+  `complete_appointment`; ahora vive en `tests/test_completar_turno.py`.
+
+- ⚠️ **Conocido, sin arreglar**: un turno con seña manda a Contalibra una sola
+  venta por el precio entero **con el medio de pago del saldo**, así que la
+  caja de allá queda mal repartida entre medios. El motor local sí repartía.
+  Necesita que `POST /api/integraciones/consultas` acepte varios pagos.
+  Asertado tal cual es en `test_completar_turno.py` para que se ponga rojo el
+  día que se toque.
+
+  - Suite: 406 tests, verde en SQLite y contra `postgres:16` real.
+
 - **Las consultas se mandan a Contalibra** (ver ADR-035). Cierra el pedido que
   ADR-034 dejó a medias: al completar un turno con precio, la consulta viaja a
   Contalibra —que es donde vive la contabilidad— y se factura allá.
