@@ -130,3 +130,86 @@ def test_feriado_sin_nombre_se_rechaza(admin_client: TestClient):
     un nombre en blanco pasa el schema y lo frena el motor."""
     client = _seeded_client(admin_client)
     assert _feriado(client, nombre="   ").status_code == 422
+
+
+# -- la importación del catálogo nacional -----------------------------------
+#
+# El catálogo lo empaqueta LibraCore (`libracore.feriados`), así que estos tests
+# no salen a internet: leen el mismo archivo que va a leer producción.
+
+def _importar(client, anio=2026, sucursal="branch-1"):
+    return client.post(f"/branches/{sucursal}/holidays/importar", json={"anio": anio})
+
+
+def test_importar_trae_los_feriados_nacionales_del_anio(admin_client: TestClient):
+    from libracore.feriados import feriados_de
+
+    client = _seeded_client(admin_client)
+    respuesta = _importar(client)
+    assert respuesta.status_code == 200
+    esperados = len(feriados_de(2026))
+    assert respuesta.json() == {"anio": 2026, "importados": esperados, "ya_estaban": 0}
+    assert len(client.get("/branches/branch-1/holidays").json()) == esperados
+
+
+def test_importar_dos_veces_no_duplica(admin_client: TestClient):
+    """🔑 La idempotencia es lo que hace usable esto **sin** la baja que le
+    falta al catálogo de feriados de LibraGenda. Si duplicara, reimportar un
+    año —que hay que hacer, porque los puentes se decretan tarde— dejaría la
+    sucursal con cada feriado dos veces y sin forma de borrarlos."""
+    from libracore.feriados import feriados_de
+
+    client = _seeded_client(admin_client)
+    _importar(client)
+    segunda = _importar(client)
+    assert segunda.status_code == 200
+    assert segunda.json()["importados"] == 0
+    assert segunda.json()["ya_estaban"] == len(feriados_de(2026))
+    assert len(client.get("/branches/branch-1/holidays").json()) == len(feriados_de(2026))
+
+
+def test_importar_no_pisa_lo_cargado_a_mano(admin_client: TestClient):
+    """Un feriado que ya estaba ese día conserva **su** nombre. El feed propone,
+    no dispone: si el operador escribió 'Cerrado por inventario' el 25/12, la
+    importación no se lo reemplaza por 'Navidad'."""
+    client = _seeded_client(admin_client)
+    _feriado(client, dia="2026-12-25", nombre="Cerrado por inventario")
+    _importar(client)
+    del_dia = [
+        f for f in client.get("/branches/branch-1/holidays").json()
+        if f["day"] == "2026-12-25"
+    ]
+    assert len(del_dia) == 1
+    assert del_dia[0]["name"] == "Cerrado por inventario"
+
+
+def test_importar_un_anio_fuera_de_cobertura_da_422(admin_client: TestClient):
+    """Y no una importación vacía: un `importados: 0` se lee exactamente igual
+    que un año ya importado, y el año que falta es el problema."""
+    from libracore.feriados import anios_cubiertos
+
+    client = _seeded_client(admin_client)
+    respuesta = _importar(client, anio=max(anios_cubiertos()) + 50)
+    assert respuesta.status_code == 422
+    assert "generar_feriados" in respuesta.json()["detail"]
+
+
+def test_importar_en_una_sucursal_inexistente_da_404(admin_client: TestClient):
+    client = _seeded_client(admin_client)
+    assert _importar(client, sucursal="no-existe").status_code == 404
+
+
+def test_el_feriado_importado_cierra_la_agenda(admin_client: TestClient):
+    """🔑 El extremo a extremo: del archivo de LibraCore a un turno rechazado.
+
+    Es el único test que recorre la cadena entera —catálogo empaquetado →
+    importación → tabla `holidays` → regla del motor → alta rechazada—, y por
+    eso es el que se rompe si cualquiera de los eslabones se desconecta.
+    """
+    client = _seeded_client(admin_client)
+    # Antes de importar, Navidad es un día común para la agenda.
+    assert _book(client, dia="2026-12-25").status_code == 201
+    _importar(client)
+    # El 26 sigue abierto: la importación cerró los feriados, no diciembre.
+    assert _book(client, dia="2026-12-26", hour=11).status_code == 201
+    assert _book(client, dia="2026-12-25", hour=15).status_code == 409
