@@ -8,7 +8,6 @@ import { Agenda } from './pages/Agenda'
 import { Pacientes } from './pages/Pacientes'
 import { PacienteFicha } from './pages/PacienteFicha'
 import { Dashboard } from './pages/Dashboard'
-import { Facturacion } from './pages/Facturacion'
 import { Usuarios } from './pages/Usuarios'
 import { Logs } from './pages/Logs'
 import { Configuracion } from './pages/Configuracion'
@@ -65,14 +64,10 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/facturacion"
-        element={
-          <ProtectedRoute>
-            <Facturacion />
-          </ProtectedRoute>
-        }
-      />
+      {/* 🔴 No hay ruta `/facturacion`. Sacar sólo el ítem del sidebar la
+          habría dejado viva y accesible escribiendo la URL — una pantalla que
+          el producto ya no ofrece pero que sigue funcionando es peor que
+          cualquiera de las dos cosas por separado. Ver ADR-034. */}
       <Route
         path="/usuarios"
         element={

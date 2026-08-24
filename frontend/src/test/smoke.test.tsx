@@ -108,6 +108,19 @@ describe('guard de rutas', () => {
     expect(await screen.findAllByText('Ana')).not.toHaveLength(0)
     expect(screen.queryByLabelText('Usuario')).not.toBeInTheDocument()
   })
+
+  it('🔴 `/facturacion` ya no existe: cae en el catch-all y va a la agenda', async () => {
+    // Sacar sólo el ítem del sidebar habría dejado la pantalla viva y accesible
+    // escribiendo la URL. Y **el servidor no puede desmentirlo**: el catch-all
+    // del SPA devuelve `index.html` con 200 para cualquier ruta, así que pedirle
+    // `/facturacion` al backend seguiría dando 200 aunque la ruta no exista. La
+    // única forma de medirlo es acá, del lado del router de React.
+    conSesion()
+    montar('/facturacion')
+    expect(await screen.findAllByText(PRODUCTO)).not.toHaveLength(0)
+    // El catch-all manda a /agenda, y la agenda se identifica por su bajada.
+    expect(await screen.findByText(/Qué tiene cada profesional/)).toBeInTheDocument()
+  })
 })
 
 describe('las pantallas de recuperacion son publicas', () => {
