@@ -140,6 +140,17 @@ export type PrecioDeServicio = {
   price: string
 }
 
+/** El honorario: lo que sale una prestación con **un profesional concreto**.
+ *
+ *  **Pisa** al precio de la sede cuando existe, y sacarlo devuelve la prestación
+ *  a ese precio de lista en vez de dejarla sin precio. */
+export type Honorario = {
+  id: string
+  service_id: string
+  resource_id: string
+  price: string
+}
+
 export type Patient = {
   id: string
   name: string

@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- **Honorarios: el valor de la consulta por profesional** (ver ADR-033). El
+  precio era por **(prestación × sede)** y no podía decir que la consulta con la
+  Dra. Vidal salga más cara que con el Dr. Molina **en la misma sede** — que es
+  justamente lo que distingue a un honorario de un precio de lista. Ahora cada
+  profesional puede tener el suyo (`PUT/GET/DELETE /resources/{id}/prices`), y
+  **pisa** al de la sede cuando existe.
+  - **Sacar el honorario no deja la prestación sin precio**: vuelve a cobrarse
+    la de la sede. Si dejara un hueco, el turno se completaría sin facturar y el
+    consultorio perdería la consulta sin que nada avise.
+  - **El honorario alcanza solo**: no hace falta que exista un precio de lista.
+  - En Configuración › Profesionales, la card de **Honorarios** lista todas las
+    prestaciones con el precio de la sede al lado — y cuando no hay ninguno de
+    los dos, avisa que ese turno **se completa sin facturar**.
+  - 🔴 **Un solo resolvedor** decide qué se cobra. Copiar la resolución en la
+    seña o en el envío a facturar dejaría el honorario aplicando en un camino y
+    no en el otro, y la diferencia saldría como un descuadre de caja.
+  - **La tabla nace vacía**: sin honorario propio se factura exactamente como
+    hasta ahora, y hay un test que lo fija. 9 tests de backend (381) y 5 de
+    frontend (41), verificados por mutación; el que manda **completa un turno de
+    verdad y mira el total de la factura emitida**. Migración `0017` probada
+    contra `postgres:16` real, ida y vuelta.
+
 - **Configuración: Sedes, Consultorios, Prestaciones y Profesionales** (ver
   ADR-032). Todo lo que ADR-030 y ADR-031 construyeron en el backend **no tenía
   pantalla**: los endpoints existían y sólo se llegaba a ellos por API o por el
