@@ -68,12 +68,31 @@ def test_la_cadena_de_libragenda_va_primero():
 
 
 def test_el_pin_de_libragenda_trae_el_comando_instalable():
-    """`libragenda-migrar` es un `[project.scripts]` que aparecio en la v0.10.0.
+    """`libragenda-migrar` es un `[project.scripts]` que aparecio en la v0.9.1.
     Con un pin anterior, el comando no existe en la imagen y el deploy se cae en
     el primer paso --- verificado en los contenedores vivos el 2026-08-24, donde
     con el pin v0.9.0 no estaba."""
     pins = _pins()
-    assert _version(pins["libragenda"]) >= (0, 10, 0), pins["libragenda"]
+    assert _version(pins["libragenda"]) >= (0, 9, 1), pins["libragenda"]
+
+
+def test_el_pin_de_libragenda_no_salta_a_la_v0_10():
+    """🔴 El motor cambia de interfaz en la `v0.10.0`.
+
+    Entre `v0.9.1` y `v0.10.0` entra la **reserva atomica** (ADR-013): el
+    scheduler pasa a llamar `repository.reserve(...)`, y el adaptador de este
+    producto ---`_TurnosEnHoraLocal`--- no lo implementa. El CI lo mostro el
+    2026-08-24 con mas de 20 tests de agenda en rojo por
+    `AttributeError: '_TurnosEnHoraLocal' object has no attribute 'reserve'`.
+
+    Este test no dice "nunca subas": dice **"el salto no entra de contrabando
+    en un bump de rutina"**. Cuando se adapte el repositorio, se cambia aca y se
+    borra este docstring.
+    """
+    pins = _pins()
+    assert _version(pins["libragenda"]) < (0, 10, 0), (
+        "subir a v0.10.0 necesita implementar `reserve()` en el adaptador de "
+        "turnos; ver el comentario de `migraciones` en scripts/panel_admin.py")
 
 
 def test_el_pin_de_libracore_acepta_una_secuencia_de_comandos():

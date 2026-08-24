@@ -43,8 +43,17 @@ configure(
     # Las dos cadenas de Alembic de este producto, corridas por
     # `panel_admin.py actualizar` antes de mover la instancia a la imagen nueva,
     # y por el alta antes del primer arranque. Requiere libracore >= v1.51.0
-    # (que es la que acepta una SECUENCIA de comandos) y libragenda >= v0.10.0
+    # (que es la que acepta una SECUENCIA de comandos) y libragenda >= v0.9.1
     # (que es la que trae `libragenda-migrar` como comando instalable).
+    #
+    # 🔴 **`v0.9.1` y no `v0.10.0`, a proposito.** Entre esos dos tags del motor
+    # entraron recursos secundarios, historial de estados y **reserva atomica**
+    # (ADR-009 a ADR-013), y ese ultimo le cambia la interfaz al repositorio de
+    # turnos: `_TurnosEnHoraLocal` no implementa `reserve()`, asi que subir a
+    # `v0.10.0` rompe mas de 20 tests de agenda de este producto. Lo verifico el
+    # CI el 2026-08-24, no una lectura del changelog. Ese salto es un trabajo
+    # aparte; la `v0.9.1` es un backport que trae SOLO el empaquetado de las
+    # migraciones, con `application.py` identico a la `v0.9.0`.
     #
     # 🔑 **El orden no es estetico.** Las revisiones de este producto tienen FK
     # contra tablas de LibraGenda (`branches`), asi que la cadena del motor va
