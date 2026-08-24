@@ -23,6 +23,7 @@ from .services.iva_rates import IvaRateRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from .services.users import UserRepository
+from .services.walkins import WalkinRepository
 
 
 def get_catalog_repository(request: Request) -> SqlAlchemyCatalogRepository:
@@ -43,6 +44,10 @@ def get_agenda_block_repository(request: Request) -> AgendaBlockRepository:
 
 def get_appointment_room_repository(request: Request) -> AppointmentRoomRepository:
     return request.app.state.appointment_rooms
+
+
+def get_walkin_repository(request: Request) -> WalkinRepository:
+    return request.app.state.walkins
 
 
 def get_appointment_service(request: Request) -> AppointmentService:

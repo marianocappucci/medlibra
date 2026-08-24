@@ -1337,3 +1337,71 @@ nadie.
   los dos turnos de "ayer hábil" caen el viernes, tres días atrás, y quedaban
   afuera. El margen del `>= 7` se comía justo ese agujero, así que el test decía
   verde mirando 9 de 11 turnos. La ventana pasa a `hoy - 7` … `hoy + 10`.
+
+## ADR-031 — La demanda espontánea es una fila, no un turno sin hora
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-030 dejó los bloques de agenda con dos modalidades y **una a medias**: un
+bloque `espontanea` se podía crear y, deliberadamente, no generaba ventana de
+disponibilidad — así que no se le podía dar ningún turno y tampoco había otra
+forma de anotar a nadie. Faltaba el mecanismo.
+
+Al preguntarle al humano qué significaba operativamente *"por demanda
+espontánea"*, eligió **sin horario, por orden de llegada**.
+
+### Decisión
+
+**No es un `Appointment` de LibraGenda, ni siquiera uno con horario inventado.**
+
+Un `Appointment` **es** un horario: tiene `starts_at` y una duración, y todas
+sus reglas —choques, ventanas, bloqueos, ocupación de sala— se calculan sobre
+ese rato. Una demanda espontánea no tiene rato: tiene una **posición en una
+fila**. Darle un `starts_at` de mentira —el inicio del bloque, digamos— haría
+que ese horario falso choque contra los turnos de verdad, ocupe el consultorio y
+aparezca en la grilla horaria como si alguien tuviera reservada esa media hora.
+El dato inventado no se queda quieto: se propaga a todas las reglas que miran
+horarios.
+
+Entonces: tabla propia (`walkins`), sin pasar por el `InMemoryScheduler`. Lo que
+sí comparte con un turno es **de dónde cuelga**: un bloque de agenda, con su
+profesional, su consultorio y su vigencia.
+
+- **El orden de llegada es histórico y no se renumera nunca.** Cancelar al
+  segundo de la fila no convierte al tercero en segundo: el número dice en qué
+  momento llegó cada uno, y reescribirlo borraría el único dato que la cola
+  tiene — además de dejar a dos personas distintas habiendo sido "la segunda"
+  del mismo día. Quién sigue se calcula filtrando por estado (`solo_activos`),
+  no por el número.
+- **El máximo para el número siguiente incluye a los cancelados**, por lo mismo.
+- **Un único por `(block_id, day, arrival_order)`.** El número se asigna con un
+  `max + 1`, que entre dos llegadas simultáneas es una condición de carrera.
+  Sin la restricción, dos pacientes quedan en la misma posición y la fila se ve
+  perfectamente bien.
+- **Registrar una llegada valida el bloque, no sólo su existencia**: tiene que
+  ser `espontanea` (sobre uno de `turnos` habría dos maneras simultáneas de
+  ocupar la misma franja, cada una ciega a la otra) y el día tiene que caer en su
+  día de la semana y su vigencia (si no, es una fila que nadie va a llamar).
+- **Estados más chicos que los de un turno**: `waiting → in_progress →
+  completed`, más `cancelled`. No hay `pending` ni `confirmed` —quien está en la
+  fila ya llegó, no hay nada que confirmar— ni `no_show`, que es exactamente lo
+  que la demanda espontánea no puede tener.
+- **Va con los turnos y no con la configuración** (`staff_or_admin`): armar el
+  bloque lo hace quien parametriza, pero anotar a quien acaba de entrar por la
+  puerta lo hace la secretaria todas las mañanas. Con `admin_only` la función
+  existiría y no la podría usar nadie del mostrador.
+
+### Consecuencias
+
+- 14 tests nuevos (372 en la suite), **verificados por mutación**: apagando la
+  validación de modalidad, la de día y la tabla de transiciones se ponen en rojo
+  exactamente cuatro, y los controles siguen verdes.
+- Migración `0016_walkins`, probada contra `postgres:16` real: `upgrade` → filas
+  cargadas → `downgrade -1` (la tabla se va, `agenda_blocks` queda) → `upgrade`.
+  El único se verificó **en la base**, no en el modelo: un segundo `INSERT` con
+  el mismo `(bloque, día, orden)` es rechazado por PostgreSQL.
+- **Todavía no tiene pantalla.** Como el resto de la parametrización de agenda,
+  hoy se opera por API. La pantalla llega con Configuración.
