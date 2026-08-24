@@ -23,23 +23,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { fechaHora } from '@/lib/fechas'
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.detail
   return 'Error de conexión.'
 }
 
-// dd-mm-aaaa HH:MM (regla del 2026-08-12). Se arma por partes en vez de
-// devolver el string de `toLocaleString`, que usa barra y mete una coma entre
-// la fecha y la hora.
+// El formato vive en `lib/fechas`: esta funcion estaba escrita identica en
+// Agenda, con otro nombre. 🔴 Ademas de dejar de duplicarse, gana el `timeZone`
+// explicito: la version de aca usaba la zona del NAVEGADOR, que en Argentina da
+// lo mismo hasta que alguien abre la ficha desde otro huso.
 function formatDateTime(iso: string): string {
-  const partes = new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(iso))
-  const p: Record<string, string> = {}
-  for (const parte of partes) p[parte.type] = parte.value
-  return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`
+  return fechaHora(iso)
 }
 
 function formatBytes(bytes: number): string {
