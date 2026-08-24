@@ -6,14 +6,11 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LayoutDashboard } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { hoyISO } from 'libra-ui/fechas'
 
 export function Dashboard() {
-  const [dateFrom, setDateFrom] = useState(todayIso())
-  const [dateTo, setDateTo] = useState(todayIso())
+  const [dateFrom, setDateFrom] = useState(hoyISO())
+  const [dateTo, setDateTo] = useState(hoyISO())
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
