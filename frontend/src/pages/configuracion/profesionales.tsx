@@ -12,6 +12,9 @@
  *     **gana sobre la jornada**. Es lo que permite abrir un sábado puntual o
  *     cerrar un feriado sin tocar los bloques.
  *
+ *  Y una cuarta que no decide si el turno entra, sino cuánto sale: sus
+ *  **honorarios**, el valor de cada prestación con este profesional.
+ *
  *  🔴 **Un profesional sin ningún bloque vigente no recibe turnos, nunca.** El
  *  motor no tiene con qué decir que sí, y toda alta vuelve con *"el profesional
  *  no atiende en ese horario"*. Es distinto del horario de la sede, que es
@@ -21,7 +24,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import {
   api, type Bloqueo, type Branch, type Consultorio,
-  type ExcepcionDeAgenda, type Resource,
+  type ExcepcionDeAgenda, type Honorario, type PrecioDeServicio,
+  type Resource, type Service,
 } from '../../api'
 import { Button } from '@/components/ui/button'
 import {
@@ -40,10 +44,16 @@ import {
 const SIN_SEDE = '__ninguna__'
 const VACIO = { id: '', name: '', branch_id: SIN_SEDE, active: true }
 
+function pesos(valor: string | number): string {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
+    .format(Number(valor))
+}
+
 export function ProfesionalesCard() {
   const [profesionales, setProfesionales] = useState<Resource[]>([])
   const [sedes, setSedes] = useState<Branch[]>([])
   const [consultorios, setConsultorios] = useState<Consultorio[]>([])
+  const [prestaciones, setPrestaciones] = useState<Service[]>([])
   const [elegido, setElegido] = useState<string | null>(null)
   const [form, setForm] = useState({ ...VACIO })
   const [editando, setEditando] = useState(false)
@@ -54,14 +64,16 @@ export function ProfesionalesCard() {
   const cargar = useCallback(async () => {
     setCargando(true)
     try {
-      const [r, b, c] = await Promise.all([
+      const [r, b, c, s] = await Promise.all([
         api.get<Resource[]>('/resources'),
         api.get<Branch[]>('/branches'),
         api.get<Consultorio[]>('/consultorios'),
+        api.get<Service[]>('/services'),
       ])
       setProfesionales(Array.isArray(r) ? r : [])
       setSedes(Array.isArray(b) ? b : [])
       setConsultorios(Array.isArray(c) ? c : [])
+      setPrestaciones(Array.isArray(s) ? s : [])
     } catch (err) {
       setError(describirError(err))
     } finally {
@@ -208,11 +220,157 @@ export function ProfesionalesCard() {
             resourceId={elegido}
             consultorios={consultorios.filter((c) => c.active)}
           />
+          <Honorarios
+            key={`hon-${elegido}`}
+            resourceId={elegido}
+            branchId={profesionales.find((r) => r.id === elegido)?.branch_id ?? null}
+            prestaciones={prestaciones.filter((s) => s.active)}
+          />
           <Bloqueos key={`blo-${elegido}`} resourceId={elegido} />
           <Excepciones key={`exc-${elegido}`} resourceId={elegido} />
         </>
       )}
     </div>
+  )
+}
+
+/** Los honorarios: cuánto sale cada prestación con ESTE profesional.
+ *
+ *  🔴 **Se listan todas las prestaciones activas, con el precio de la sede al
+ *  lado como referencia**, y no sólo las que ya tienen honorario propio. Un
+ *  honorario es una **excepción** al precio de lista; mostrar sólo las
+ *  excepciones deja invisible lo que se cobra en todo lo demás, que es la mitad
+ *  de la respuesta a "¿cuánto sale atenderse con esta persona?".
+ *
+ *  Sacar el honorario no deja la prestación sin precio: vuelve a cobrarse la de
+ *  la sede. Por eso el botón dice "Quitar" y no "Borrar el precio".
+ */
+function Honorarios({ resourceId, branchId, prestaciones }: {
+  resourceId: string
+  /** La sede del profesional, para buscar el precio de lista de referencia. */
+  branchId: string | null
+  prestaciones: Service[]
+}) {
+  const [propios, setPropios] = useState<Record<string, string>>({})
+  const [deLaSede, setDeLaSede] = useState<Record<string, string>>({})
+  const [borrador, setBorrador] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState('')
+
+  const idsDeLasPrestaciones = prestaciones.map((s) => s.id).join(',')
+
+  const cargar = useCallback(async () => {
+    try {
+      const items = await api.get<Honorario[]>(`/resources/${resourceId}/prices`)
+      const mapa = Object.fromEntries(
+        (Array.isArray(items) ? items : []).map((h) => [h.service_id, String(h.price)]),
+      )
+      setPropios(mapa)
+      setBorrador(mapa)
+
+      // El precio de lista, sólo como referencia. Es por prestación, así que se
+      // pide uno por uno: son pocas y se piden en paralelo. Sin sede no hay
+      // precio de lista que buscar.
+      if (!branchId) {
+        setDeLaSede({})
+        return
+      }
+      const ids = idsDeLasPrestaciones ? idsDeLasPrestaciones.split(',') : []
+      const listas = await Promise.all(ids.map((id) =>
+        api.get<PrecioDeServicio[]>(`/services/${id}/prices`).then((ps) => [
+          id, (Array.isArray(ps) ? ps : []).find((p) => p.branch_id === branchId),
+        ] as const)))
+      setDeLaSede(Object.fromEntries(
+        listas.filter(([, p]) => p).map(([id, p]) => [id, String(p!.price)]),
+      ))
+    } catch (err) {
+      setError(describirError(err))
+    }
+  }, [resourceId, branchId, idsDeLasPrestaciones])
+
+  useEffect(() => { void cargar() }, [cargar])
+
+  async function guardar(serviceId: string) {
+    setGuardando(serviceId)
+    setError(null)
+    try {
+      await api.put(`/resources/${resourceId}/prices`, {
+        service_id: serviceId, price: borrador[serviceId] ?? '0',
+      })
+      await cargar()
+    } catch (err) {
+      setError(describirError(err))
+    } finally {
+      setGuardando('')
+    }
+  }
+
+  async function quitar(serviceId: string) {
+    setError(null)
+    try {
+      await api.del(`/resources/${resourceId}/prices/${serviceId}`)
+      await cargar()
+    } catch (err) {
+      setError(describirError(err))
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Honorarios</CardTitle>
+        <CardDescription>
+          Cuánto sale cada prestación con este profesional. Pisa al precio de la
+          sede; sin honorario propio se cobra el de la sede.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {prestaciones.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No hay prestaciones cargadas: cargalas en la sección Prestaciones.
+          </p>
+        ) : (
+          prestaciones.map((s) => (
+            <div key={s.id} className="flex flex-wrap items-end gap-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor={`hon-${resourceId}-${s.id}`}>{s.name}</Label>
+                <Input
+                  id={`hon-${resourceId}-${s.id}`} type="number" min={0} step="0.01"
+                  className="w-40"
+                  placeholder="sin honorario propio"
+                  value={borrador[s.id] ?? ''}
+                  onChange={(e) => setBorrador({ ...borrador, [s.id]: e.target.value })}
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={guardando === s.id || !borrador[s.id]}
+                onClick={() => guardar(s.id)}
+              >
+                {guardando === s.id ? 'Guardando…' : 'Guardar'}
+              </Button>
+              {propios[s.id] !== undefined && (
+                <Button
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => quitar(s.id)}
+                >
+                  Quitar
+                </Button>
+              )}
+              <span className="pb-2 text-xs text-muted-foreground">
+                {propios[s.id] !== undefined
+                  ? `Propio: ${pesos(propios[s.id])}`
+                  : deLaSede[s.id] !== undefined
+                    ? `Cobra el de la sede: ${pesos(deLaSede[s.id])}`
+                    : 'Sin precio: el turno se completa sin facturar'}
+              </span>
+            </div>
+          ))
+        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
   )
 }
 
