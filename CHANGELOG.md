@@ -12,9 +12,12 @@
     completar y reintentar. En un solo lugar, porque escrita en uno el otro
     seguiría mandando un pago único.
   - **El medio del saldo se guarda** (`envios_a_contalibra.medio_del_saldo`,
-    migración `0019`): es el único dato del cobro que no se recalcula desde el
+    migración `0020`): es el único dato del cobro que no se recalcula desde el
     turno, y sin él el reintento asumía `efectivo` — reintroduciendo el mismo
     defecto en el reintento.
+  - La migración **chequea que la tabla exista** antes del `ALTER`: una
+    instancia estampada en `0018` sin haberlo ejecutado no la tiene, y desde
+    LibraCore v1.48.0 una migración fallida **aborta el deploy**.
   - Requiere `POST /api/integraciones/consultas` con `pagos`, del lado de
     Contalibra.
 

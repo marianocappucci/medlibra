@@ -28,7 +28,27 @@ branch_labels = None
 depends_on = None
 
 
+def _existe_la_tabla() -> bool:
+    """🔴 **Los dos mundos, igual que `0019_sin_users`.**
+
+    Una instancia viva puede estar **estampada en `0018` sin tener la tabla**:
+    el esquema de las instancias lo arma `Base.metadata.create_all()` desde los
+    modelos, no las migraciones, y `alembic stamp` no ejecuta nada. Un
+    `add_column` pelado revienta ahi con *relation "envios_a_contalibra" does
+    not exist*, y desde LibraCore v1.48.0 **una migracion fallida aborta el
+    deploy**: el arreglo convertiria un deploy que funciona en uno que no.
+
+    No es hipotetico. Lo puso en rojo `tests/test_migracion_sin_users.py`, que
+    la sesion paralela escribio para exactamente este escenario -- y lo puso en
+    rojo **contra PostgreSQL**, no en SQLite.
+    """
+    bind = op.get_bind()
+    return sa.inspect(bind).has_table("envios_a_contalibra")
+
+
 def upgrade():
+    if not _existe_la_tabla():
+        return
     op.add_column(
         "envios_a_contalibra",
         # `server_default=""` y no NULL: el codigo hace
@@ -41,4 +61,6 @@ def upgrade():
 
 
 def downgrade():
+    if not _existe_la_tabla():
+        return
     op.drop_column("envios_a_contalibra", "medio_del_saldo")

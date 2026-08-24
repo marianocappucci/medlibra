@@ -1905,9 +1905,25 @@ inventaron el mismo medio por separado. Tirando de ahí, la lista estaba declara
 
 ### Consecuencias
 
-- Migración `0019`, probada ida y vuelta contra `postgres:16` real: el
+- Migración `0020`, probada ida y vuelta contra `postgres:16` real: el
   `downgrade` saca la columna y **deja las filas**, y el `upgrade` de vuelta las
   encuentra con el campo vacío. Sin backfill posible — el dato nunca existió.
+- 🔴 **La migración nació como `0019` y tuvo que correrse a `0020`.** Otra
+  sesión mergeó `0019_sin_users` en `develop` mientras esta rama estaba abierta,
+  y las dos colgaban de `0018`: Alembic quedaba con **dos cabezas** y
+  `upgrade head` falla con *"Multiple head revisions are present"*. **La suite
+  local no lo vio** —este worktree tenía una sola de las dos— sino el CI, que
+  corre sobre el *merge* con `develop`.
+- 🔴 **Y tuvo que hacerse defensiva.** El test que la sesión paralela escribió
+  ejercita una instancia **estampada en `0018` sin haber ejecutado `0018`**, que
+  es lo que se le hace a las instancias vivas. Ahí `envios_a_contalibra` no
+  existe y un `add_column` pelado revienta — y desde LibraCore v1.48.0 **una
+  migración fallida aborta el deploy**. Ahora chequea con `inspect().has_table`,
+  igual que `0019_sin_users` usa `DROP TABLE IF EXISTS`.
+- De paso, ese test comparaba la revisión aplicada contra **su propia
+  revisión** escrita a mano, así que se ponía en rojo con cualquier migración
+  nueva. Ahora pregunta la cabeza real al `ScriptDirectory`, y de paso afirma
+  que hay **una sola** — el trinquete que habría atajado lo de arriba.
 - 🔴 **Dos tests medían lo que creían y no lo que pasaba**, y los encontró la
   mutación:
   - El del cuerpo HTTP **nunca serializaba nada**: el doble reemplaza
