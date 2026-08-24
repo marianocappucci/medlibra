@@ -16,6 +16,7 @@ from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.consents import ConsentRepository
 from .services.consultorios import ConsultorioRepository
+from .services.contalibra import EnvioRepository
 from .services.dashboard import DashboardService
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
@@ -49,6 +50,10 @@ def get_appointment_room_repository(request: Request) -> AppointmentRoomReposito
 
 def get_walkin_repository(request: Request) -> WalkinRepository:
     return request.app.state.walkins
+
+
+def get_envio_contalibra_repository(request: Request) -> EnvioRepository:
+    return request.app.state.envios_contalibra
 
 
 def get_appointment_service(request: Request) -> AppointmentService:

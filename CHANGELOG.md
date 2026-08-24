@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+- **Las consultas se mandan a Contalibra** (ver ADR-035). Cierra el pedido que
+  ADR-034 dejó a medias: al completar un turno con precio, la consulta viaja a
+  Contalibra —que es donde vive la contabilidad— y se factura allá.
+  - 🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.** Con
+    `CONTALIBRA_URL` configurada este producto **deja de emitir**; vacía,
+    factura como siempre. Si hiciera las dos cosas saldrían **dos comprobantes
+    por una consulta**, y un CAE no se borra: se anula con nota de crédito.
+  - El importe pasa por **el mismo resolvedor que la factura local**, así que el
+    honorario del profesional (ADR-033) aplica igual mandando que facturando.
+  - **Un fallo del otro lado no rompe el completar del turno** —la atención ya
+    ocurrió— **pero tampoco es invisible**: queda en `envios_a_contalibra`, se
+    lista en `GET /facturacion-externa` y se reintenta con
+    `POST /facturacion-externa/{id}/reintentar`. Una consulta sin facturar de la
+    que nadie se entera es plata que se pierde en silencio.
+  - El reintento **recalcula el precio de hoy** en vez de reenviar un JSON
+    congelado, y es seguro repetirlo: Contalibra es idempotente por
+    `(sistema, referencia)`, y la referencia es el id del turno.
+  - Dos variables nuevas de entorno: `CONTALIBRA_URL` y
+    `CONTALIBRA_SERVICE_TOKEN` — **propia**, no la `LIBRA_SERVICE_TOKEN` que
+    este producto ya lee para su guard de entrada.
+  - 14 tests nuevos (412 en la suite), verificados por mutación. **Tres miden el
+    pedido HTTP de verdad**, y escribiéndolos apareció un defecto: el header se
+    había puesto como `X-Service-Token` y el que libraauth valida es
+    `x-internal-auth`. Migración `0018` probada contra `postgres:16`, ida y
+    vuelta.
+  > Todavía **sin pantalla**: `GET /facturacion-externa` se opera por API.
+
 - **La facturación sale de la vista** (ver ADR-034): se van el ítem
   **Facturación** del sidebar, la sección **ARCA** de Configuración **y la ruta
   `/facturacion`**. La facturación de este producto pasa a Contalibra.
