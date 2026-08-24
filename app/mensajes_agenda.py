@@ -53,6 +53,13 @@ POR_NOMBRE = {
         409,
         "El profesional no atiende en esa sede.",
     ),
+    # No sale del motor: LibraGenda asocia un turno a un solo recurso y no sabe
+    # de salas. Lo levanta `AppointmentService` (ver ese archivo).
+    "ConsultorioOcupado": (
+        409,
+        "El consultorio ya está ocupado a esa hora por otro profesional. "
+        "Elegí otro horario o revisá los bloques de agenda.",
+    ),
 }
 
 #: Nombres internos de estado del motor → cómo se dicen en la pantalla.

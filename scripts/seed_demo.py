@@ -166,15 +166,20 @@ HORARIOS = [(dia, time(8, 0), time(18, 0)) for dia in range(0, 5)]
 #: `appointment unavailable`.
 DISPONIBILIDAD = [(dia, time(8, 0), time(18, 0)) for dia in range(0, 5)]
 
-# ⚠️ **Los turnos de ejemplo van entre las 9 y las 13, no más tarde.**
+# Los turnos de ejemplo cubren **la jornada entera, de 9 a 17**, y no sólo la
+# mañana.
 #
-# `AppointmentService._resolve_utc` interpreta la hora naive como hora local de
-# la sucursal y la convierte a **UTC**; después `is_within_hours` compara esa
-# hora UTC contra las ventanas de `branch_hours`, que se cargan como hora
-# local. Con `America/Argentina/Buenos_Aires` (UTC-3) eso corre la comparación
-# tres horas. Es el mismo defecto que se encontró en Gestiolibra el 2026-08-06
-# —los dos productos comparten `AppointmentService`— y tampoco se arregla acá:
-# tocar la conversión de husos es un cambio con su propia verificación.
+# Hasta el 2026-08-22 esta nota decía lo contrario —*"entre las 9 y las 13, no
+# más tarde"*— y culpaba a `AppointmentService._resolve_utc`, **una función que
+# nunca existió en MedLibra**: era el nombre del código de Gestiolibra, copiado
+# junto con la advertencia. Lo que MedLibra sí tenía era el otro lado del mismo
+# problema (la hora de pared se guardaba como si fuera UTC, ver ADR-028), que la
+# franja de la mañana tampoco esquivaba: la escondía.
+#
+# Con la validación corriendo en hora de pared, la restricción no existe más. Y
+# que los turnos ocupen el día completo es parte de lo que la demo tiene que
+# mostrar: con todo amontonado antes del mediodía, una grilla horaria rota se ve
+# igual que una sana.
 
 #: Motivos de consulta genéricos. **Nada que se parezca a la historia clínica
 #: de alguien**: esto se publica.
@@ -284,17 +289,6 @@ def _sembrar_turnos(api: Api, contar) -> None:
     rango. Pedir la ruta que uno se imagina devuelve el HTML de la SPA —el
     catch-all—, no un 404: el 200 engaña.
     """
-    desde, hasta = HOY - timedelta(days=2), HOY + timedelta(days=5)
-    ya_cargados = sum(
-        len(api.get(f"/resources/{r['id']}/agenda"
-                    f"?date_from={desde}&date_to={hasta}") or [])
-        for r in PROFESIONALES
-    )
-    if ya_cargados >= 8:
-        contar("turnos", False)
-        print(f"  (ya hay {ya_cargados} turnos cargados)")
-        return
-
     #: Los días de la semana que la sucursal atiende, tomados de HORARIOS: si
     #: mañana se suma el sábado, esto lo sigue solo.
     DIAS_HABILES = {dia for dia, _, _ in HORARIOS}
@@ -335,15 +329,68 @@ def _sembrar_turnos(api: Api, contar) -> None:
     # Las acciones son las rutas del router, **en inglés**.
     PLAN = [
         (-1, 9, "dr-molina", "consulta", "p-001", ["confirm", "complete"]),
-        (-1, 10, "dra-vidal", "control", "p-003", ["confirm", "complete"]),
+        (-1, 15, "dra-vidal", "control", "p-003", ["confirm", "complete"]),
         (0, 9, "dr-molina", "electro", "p-002", ["confirm"]),
         (0, 11, "dra-vidal", "consulta", "p-004", ["confirm"]),
-        (0, 12, "dr-arce", "laboratorio", "p-005", []),
+        # 🔴 Las 11 de dos profesionales distintos, a propósito: en la vista de
+        # semana los turnos de todos van mezclados en la columna del día, y dos
+        # que se pisan son el único caso que ejercita el reparto de ancho de la
+        # rejilla. Sin un solapamiento, uno se dibuja encima del otro y no se
+        # nota.
+        (0, 11, "dr-arce", "laboratorio", "p-005", []),
+        (0, 16, "dr-molina", "consulta", "p-001", []),
         (1, 9, "dr-molina", "consulta", "p-003", ["confirm"]),
-        (1, 11, "dra-vidal", "ecografia", "p-001", []),
+        (1, 14, "dra-vidal", "ecografia", "p-001", []),
         (2, 10, "dr-arce", "consulta", "p-002", ["cancel"]),
+        (2, 17, "dr-molina", "control", "p-004", ["confirm"]),
         (3, 9, "dra-vidal", "control", "p-005", []),
     ]
+
+    # 🔴 **La ventana sale del PLAN, no de un ±N escrito a mano.** Es la misma
+    # trampa que ya arreglaron `cuando()` y la ventana del test: el plan avanza
+    # en días HÁBILES y cualquier margen fijo se mide en días de CALENDARIO, así
+    # que los dos se desincronizan según el día de la semana en que corra el
+    # reset. Con `HOY - 2`, un lunes esta cuenta dejaba afuera los dos turnos de
+    # "ayer hábil" —que caen el viernes, tres días de calendario atrás— y el
+    # seed informaba "ya hay 9 turnos cargados" cuando había 11.
+    #
+    # No llegó a duplicar nada porque el corte de entonces era 8 y 9 lo pasa
+    # igual: otra vez el margen tapando el agujero, que es justo lo que este
+    # archivo ya aprendió dos veces. Derivada del plan, la ventana no puede
+    # quedar corta por más que el plan cambie.
+    fechas = [cuando(dias, hora).date() for dias, hora, *_ in PLAN]
+    desde, hasta = min(fechas), max(fechas)
+    ya_cargados = sum(
+        len(api.get(f"/resources/{r['id']}/agenda"
+                    f"?date_from={desde}&date_to={hasta}") or [])
+        for r in PROFESIONALES
+    )
+
+    # 🔴 **El corte es `len(PLAN)`, no un número escrito a mano.** Era `>= 8`,
+    # heredado de cuando el plan tenía 9; con 11 ya no describía nada. Atado al
+    # plan no puede volver a quedarse viejo cuando se agregue o se saque un
+    # turno, que es la única forma de que un umbral así no rote.
+    if ya_cargados >= len(PLAN):
+        contar("turnos", False)
+        print(f"  (ya hay {ya_cargados} turnos cargados)")
+        return
+
+    # 🔴 **Y la franja de en medio existe para no duplicar.** Un turno **no
+    # tiene clave natural**: no hay `obtener_o_crear` que lo salve, así que
+    # sembrar sobre una demo a medias agrega los 11 **encima** de los que ya
+    # estaban. Con el corte en 8 esa franja —8, 9 o 10 turnos— se salteaba en
+    # silencio y la demo se quedaba incompleta para siempre; subir el corte a
+    # `len(PLAN)` sin esta rama la haría duplicar, que es peor.
+    #
+    # Ninguna de las dos se puede elegir sola sin mentir, así que el estado
+    # ambiguo se deja **a la vista**. Se sale reseteando la demo, que es
+    # exactamente lo que hace el cron antes de sembrar.
+    if ya_cargados:
+        contar("turnos", False)
+        print(f"  🔴 PARCIAL: hay {ya_cargados} turnos de los {len(PLAN)} del "
+              f"plan. No se siembra, para no duplicar los que ya están: "
+              f"resetear la demo y volver a correr el seed.")
+        return
 
     CUERPOS = {
         "confirm": {},

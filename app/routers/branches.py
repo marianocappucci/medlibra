@@ -5,6 +5,20 @@ from sqlalchemy.exc import IntegrityError
 from ..dependencies import get_branch_repository
 from ..services.branches import BranchRepository
 
+#: El huso con el que nace una sucursal si el alta no dice otro.
+#:
+#: Argentina y no UTC: es la regla de arranque de la familia (CLAUDE.md, "Huso
+#: horario y formato de fecha", 2026-08-12) y ademas UTC esconde el problema
+#: que se arreglo el 2026-08-22 -- con offset cero, validar el turno en el
+#: terreno equivocado da el mismo resultado que validarlo en el correcto, asi
+#: que un consultorio en UTC nunca muestra el defecto y uno real si.
+#:
+#: Vale igual para el alta y para la edicion. Las dos son PUT/POST que declaran
+#: la sucursal entera, asi que un pedido sin `timezone` esta pidiendo el
+#: default; que el default de editar fuera otro que el de crear seria una forma
+#: silenciosa de reescribir el huso de una sucursal ya configurada.
+HUSO_POR_DEFECTO = "America/Argentina/Buenos_Aires"
+
 router = APIRouter(prefix="/branches", tags=["branches"])
 
 
@@ -12,7 +26,7 @@ class BranchCreate(BaseModel):
     id: str
     name: str
     active: bool = True
-    timezone: str = "UTC"
+    timezone: str = HUSO_POR_DEFECTO
     phone: str | None = None
     address: str | None = None
 
@@ -20,7 +34,7 @@ class BranchCreate(BaseModel):
 class BranchUpdate(BaseModel):
     name: str
     active: bool = True
-    timezone: str = "UTC"
+    timezone: str = HUSO_POR_DEFECTO
     phone: str | None = None
     address: str | None = None
 

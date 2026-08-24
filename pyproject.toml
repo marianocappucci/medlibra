@@ -56,7 +56,7 @@ dependencies = [
     # cuenta en cuenta corriente" terminaba en 202,2 mm en una hoja de 210.
     #
     # Es anterior a v1.37.0 y aquel arreglo no lo cubria.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.39.2",
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.47.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
@@ -66,7 +66,7 @@ dependencies = [
     # v0.11.0, si las unicas columnas que cambiaban estaban ocultas, la edicion
     # no se registraba en absoluto. Como aca TODO el contenido clinico esta
     # oculto, corregir una nota o una receta no iba a dejar ningun rastro.
-    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.26.1",
+    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.33.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",
@@ -85,6 +85,9 @@ dev = [
 packages = ["app"]
 
 [tool.pytest.ini_options]
+markers = [
+    "sin_aceptar_terminos: deja al test afuera de la excepcion autouse del conftest, para medir el gate de Terminos con el corte puesto de verdad",
+]
 testpaths = ["tests"]
 
 [tool.hatch.metadata]

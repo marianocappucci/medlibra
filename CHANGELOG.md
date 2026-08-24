@@ -2,6 +2,238 @@
 
 ## [Unreleased]
 
+- **Se va el motor de facturación local** (ver ADR-036). MedLibra ya no emite
+  comprobantes: los emite Contalibra. Se borran `app/services/billing.py`,
+  `app/routers/billing.py`, `frontend/src/pages/Facturacion.tsx` y
+  `tests/test_billing.py`; **`/config/arca` devuelve 404, no 403**.
+  - De `billing.py` sobrevive `configure()`, movida a
+    `app/services/libracore_setup.py`: configura la base de LibraCore donde
+    viven **los usuarios**, crea el schema y la caja por defecto. Es
+    load-bearing y no factura nada — `billing` era el nombre que mentía.
+  - 🔴 **Una instancia sin `CONTALIBRA_URL` completa el turno igual, pero la
+    consulta NO queda en silencio**: se registra con estado `sin_destino` y
+    aparece en `GET /facturacion-externa` junto a los envíos que fallaron.
+    Configurar el destino y reintentar la factura. Con el módulo `facturacion`
+    apagado no se registra nada, que es otra cosa: esa instancia no cobra.
+  - **La alícuota por prestación se queda y ahora viaja** con la consulta
+    (`iva_rate`). Cuál corresponde es configuración *de la prestación*, y en
+    salud la mayoría están exentas; sin mandarla, Contalibra las declararía al
+    21% **en silencio**. Requiere el cambio del lado de Contalibra que la
+    guarda con la venta.
+  - La respuesta de completar deja de traer `factura`: es
+    `{id, status, contalibra}`. El diálogo de "Factura emitida" de la agenda se
+    reemplaza por uno que aparece **sólo cuando la consulta no se facturó**.
+  - **Sin migración**: no se borra ninguna tabla. Las facturas ya emitidas
+    siguen donde están; se va el código que emite nuevas.
+
+- **Arreglado: `configure()` creaba una carpeta con la contraseña en el nombre**
+  con la base en `postgresql+psycopg://`. La guarda existía desde el defecto de
+  VentaLibra, pero comparaba contra una lista escrita a mano
+  (`"postgres://", "postgresql://"`) que **no reconoce el prefijo con driver** —
+  el único que este producto usa de verdad. Ahora el criterio sale de
+  `libracore.db.core.es_url_postgres`. Con `tests/test_libracore_setup.py`.
+
+- **Rescatados de `test_billing.py`** los cinco tests que no eran de
+  facturación: el medio de pago obligatorio, la seña que cubre el precio, la
+  seña parcial y completar dos veces. Todo eso sigue vivo en
+  `complete_appointment`; ahora vive en `tests/test_completar_turno.py`.
+
+- ⚠️ **Conocido, sin arreglar**: un turno con seña manda a Contalibra una sola
+  venta por el precio entero **con el medio de pago del saldo**, así que la
+  caja de allá queda mal repartida entre medios. El motor local sí repartía.
+  Necesita que `POST /api/integraciones/consultas` acepte varios pagos.
+  Asertado tal cual es en `test_completar_turno.py` para que se ponga rojo el
+  día que se toque.
+
+  - Suite: 406 tests, verde en SQLite y contra `postgres:16` real.
+
+- **Las consultas se mandan a Contalibra** (ver ADR-035). Cierra el pedido que
+  ADR-034 dejó a medias: al completar un turno con precio, la consulta viaja a
+  Contalibra —que es donde vive la contabilidad— y se factura allá.
+  - 🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.** Con
+    `CONTALIBRA_URL` configurada este producto **deja de emitir**; vacía,
+    factura como siempre. Si hiciera las dos cosas saldrían **dos comprobantes
+    por una consulta**, y un CAE no se borra: se anula con nota de crédito.
+  - El importe pasa por **el mismo resolvedor que la factura local**, así que el
+    honorario del profesional (ADR-033) aplica igual mandando que facturando.
+  - **Un fallo del otro lado no rompe el completar del turno** —la atención ya
+    ocurrió— **pero tampoco es invisible**: queda en `envios_a_contalibra`, se
+    lista en `GET /facturacion-externa` y se reintenta con
+    `POST /facturacion-externa/{id}/reintentar`. Una consulta sin facturar de la
+    que nadie se entera es plata que se pierde en silencio.
+  - El reintento **recalcula el precio de hoy** en vez de reenviar un JSON
+    congelado, y es seguro repetirlo: Contalibra es idempotente por
+    `(sistema, referencia)`, y la referencia es el id del turno.
+  - Dos variables nuevas de entorno: `CONTALIBRA_URL` y
+    `CONTALIBRA_SERVICE_TOKEN` — **propia**, no la `LIBRA_SERVICE_TOKEN` que
+    este producto ya lee para su guard de entrada.
+  - 14 tests nuevos (412 en la suite), verificados por mutación. **Tres miden el
+    pedido HTTP de verdad**, y escribiéndolos apareció un defecto: el header se
+    había puesto como `X-Service-Token` y el que libraauth valida es
+    `x-internal-auth`. Migración `0018` probada contra `postgres:16`, ida y
+    vuelta.
+  > Todavía **sin pantalla**: `GET /facturacion-externa` se opera por API.
+
+- **La facturación sale de la vista** (ver ADR-034): se van el ítem
+  **Facturación** del sidebar, la sección **ARCA** de Configuración **y la ruta
+  `/facturacion`**. La facturación de este producto pasa a Contalibra.
+  - 🔴 La ruta también, no sólo el ítem: sacar el menú y dejar la ruta habría
+    dejado la pantalla viva y accesible escribiendo la URL.
+  - **El motor sigue facturando.** Se saca la pantalla, no la emisión: el turno
+    completado sigue emitiendo su factura hasta que Contalibra la reciba, así
+    ninguna instancia queda sin poder facturar en el medio. Los endpoints
+    `/config/arca` y `/billing` no se tocan.
+  - ⚠️ **Una instancia nueva ya no puede configurar ARCA desde la interfaz.**
+    Las que ya la tienen cargada siguen facturando igual; las nuevas dependen de
+    que la integración con Contalibra esté lista.
+  - El guard de títulos exigía **7 ítems de menú** y se puso en rojo con 6 — no
+    encontró nada raro, encontró un ítem menos. Baja a 5: era un número calcado
+    de la foto del día en que se escribió, y con él toda baja legítima es un
+    rojo que no dice nada.
+  - 1 test nuevo (37 en la suite del frontend), que mide la ruta **del lado del
+    router de React**: el catch-all del SPA devuelve 200 para cualquier ruta, así
+    que preguntárselo al backend no distinguiría nada.
+
+- **Honorarios: el valor de la consulta por profesional** (ver ADR-033). El
+  precio era por **(prestación × sede)** y no podía decir que la consulta con la
+  Dra. Vidal salga más cara que con el Dr. Molina **en la misma sede** — que es
+  justamente lo que distingue a un honorario de un precio de lista. Ahora cada
+  profesional puede tener el suyo (`PUT/GET/DELETE /resources/{id}/prices`), y
+  **pisa** al de la sede cuando existe.
+  - **Sacar el honorario no deja la prestación sin precio**: vuelve a cobrarse
+    la de la sede. Si dejara un hueco, el turno se completaría sin facturar y el
+    consultorio perdería la consulta sin que nada avise.
+  - **El honorario alcanza solo**: no hace falta que exista un precio de lista.
+  - En Configuración › Profesionales, la card de **Honorarios** lista todas las
+    prestaciones con el precio de la sede al lado — y cuando no hay ninguno de
+    los dos, avisa que ese turno **se completa sin facturar**.
+  - 🔴 **Un solo resolvedor** decide qué se cobra. Copiar la resolución en la
+    seña o en el envío a facturar dejaría el honorario aplicando en un camino y
+    no en el otro, y la diferencia saldría como un descuadre de caja.
+  - **La tabla nace vacía**: sin honorario propio se factura exactamente como
+    hasta ahora, y hay un test que lo fija. 9 tests de backend (381) y 5 de
+    frontend (41), verificados por mutación; el que manda **completa un turno de
+    verdad y mira el total de la factura emitida**. Migración `0017` probada
+    contra `postgres:16` real, ida y vuelta.
+
+- **Configuración: Sedes, Consultorios, Prestaciones y Profesionales** (ver
+  ADR-032). Todo lo que ADR-030 y ADR-031 construyeron en el backend **no tenía
+  pantalla**: los endpoints existían y sólo se llegaba a ellos por API o por el
+  seed, así que un consultorio nuevo no podía parametrizar nada de lo suyo.
+  Ahora se carga desde Configuración, **en el orden del arranque**: dónde se
+  atiende → en qué sala → qué se hace → quién lo hace.
+  - **El armador de la agenda del profesional** es el corazón: días de la
+    semana, rango horario, consultorio, duración del turno, modalidad y
+    *"repetir hasta"*. Deja elegir **varios días de una vez** y crea un bloque
+    por día — cargar "lunes a viernes" a mano, por cada profesional, es el gesto
+    que más se repite.
+  - Cuelgan del profesional también los **bloqueos** (un rato puntual) y las
+    **excepciones por fecha** (un feriado que cierra, un sábado que abre).
+  - 🔴 Si el profesional no tiene ningún bloque, **la pantalla lo dice**: sin
+    bloques no recibe ningún turno, y antes eso se descubría recién cuando toda
+    alta se rechazaba.
+  - En demanda espontánea **no se ofrece duración**: no hay turnos que durar.
+  - La jornada ya no se carga como ventana semanal suelta. El endpoint viejo
+    sigue existiendo y sumando, pero la pantalla no lo ofrece: dos maneras de
+    cargar lo mismo terminan con la mitad de los profesionales configurados de
+    un modo y la otra mitad del otro.
+  - 16 tests nuevos (36 en la suite del frontend). Dos arreglos que aparecieron
+    escribiéndolos: faltaba el **polyfill de captura de puntero** en el setup
+    (sin él, abrir un `Select` desde un test tira un `TypeError` que se lee como
+    un defecto de la pantalla) y `waitFor` corría con **1 segundo**, que bajo
+    carga se cae — medido, dos tests del calendario en falso rojo tras un
+    `npm ci`. Ahora son 5 s.
+  > La **fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
+  > parametrización, no la operación diaria del llamador.
+
+- **Demanda espontánea: la fila por orden de llegada** (ver ADR-031). ADR-030
+  dejó la modalidad `espontanea` a medias — el bloque se podía crear pero no se
+  le podía anotar a nadie. Ahora un bloque de demanda espontánea tiene su
+  **fila**: se registra la llegada (`POST /agenda-blocks/{id}/walkins`), se ve la
+  cola del día, y se llama / completa / cancela.
+  - 🔴 **No es un turno sin hora.** Un `Appointment` de LibraGenda *es* un
+    horario, y darle uno inventado haría que ese horario falso choque contra los
+    turnos de verdad, ocupe el consultorio y aparezca en la grilla como si
+    alguien tuviera esa media hora reservada.
+  - **El número de llegada es histórico y no se renumera**: cancelar al segundo
+    no convierte al tercero en segundo. Quién sigue se calcula filtrando por
+    estado, no por el número.
+  - Registrar una llegada **valida el bloque**: tiene que ser de demanda
+    espontánea, y el día tiene que caer en su día de la semana y su vigencia.
+  - Va con los turnos y no con la configuración: **la secretaria** anota a quien
+    entra por la puerta, no hace falta ser admin.
+  - 14 tests nuevos (372 en la suite), verificados por mutación. Migración
+    `0016_walkins` probada contra `postgres:16` real, ida y vuelta; el único por
+    `(bloque, día, orden)` verificado **en la base**, no sólo en el modelo.
+  > Todavía **sin pantalla**: como el resto de la parametrización de agenda, hoy
+  > se opera por API.
+
+- **Consultorios y bloques de agenda** (ver ADR-030): el consultorio pasa a ser
+  una **entidad propia** (`/consultorios`) y la agenda de un profesional se arma
+  con **bloques** (`/agenda-blocks`): *"la Dra. Vidal atiende los lunes de 9 a 13
+  en el Consultorio 2, turnos de 20 minutos, hasta el 31 de diciembre"*. Sobre la
+  `Availability` de LibraGenda, el bloque agrega las tres cosas que le faltaban —
+  **dónde** se atiende, **hasta cuándo** (vigencia por rango de fechas) y
+  **cuánto dura** un turno (10/15/20/25/30 min, lista cerrada que sirve
+  `GET /agenda-blocks/opciones`) — más la modalidad **por turnos o por demanda
+  espontánea**.
+  - 🔴 **Dos profesionales ya no entran en el mismo consultorio a la misma
+    hora.** Es un choque que el motor no puede ver: LibraGenda asocia el turno a
+    un solo recurso —el profesional— así que dos agendas impecables por separado
+    se pisaban en la puerta de la sala sin que nada protestara.
+  - **La duración la manda el bloque**, no la prestación: la prestación dice qué
+    se hace, el bloque cuánto dura un turno de esa agenda.
+  - Un bloque **por demanda espontánea no genera horarios**: si los generara, se
+    le podrían dar turnos con hora encima de una franja que no trabaja con
+    horarios. La cola por orden de llegada llega en el cambio siguiente.
+  - **Nada de lo que ya andaba cambia.** Los bloques se **suman** a la
+    disponibilidad semanal cargada por `/resources/{id}/availability`; sin bloque
+    que cubra el horario, la duración sigue siendo la de la prestación y no hay
+    sala que declarar. La migración `0015` sólo crea tablas vacías.
+  - El log de actividad **llamaba "consultorio" al profesional** — con
+    consultorios de verdad al lado eso pasó de confuso a incorrecto. La etiqueta
+    ahora dice `profesional`.
+  - 23 tests nuevos (348 en la suite), verificados por mutación. Migración
+    probada contra `postgres:16` real con datos, ida y vuelta.
+
+- **La agenda, como calendario** (ver ADR-029): `/agenda` deja de ser un
+  formulario arriba y una tabla abajo con dos `<input type="date">` de rango, y
+  pasa a ser el calendario compartido de la familia — **día / semana / mes**,
+  con rejilla horaria, color por profesional, referencia y filtro. Decía *qué*
+  turnos hay; ahora dice **cuánto ocupa cada uno y dónde está el hueco**, que es
+  la pregunta de quien atiende el teléfono. Todo el estado va en la URL
+  (`?vista=&dia=&profesional=&turno=`): se puede mandar "mirá el jueves" por
+  mensaje y el botón atrás vuelve del turno al día y del día a la semana.
+  `libra-ui` sube de `v0.37.0` a **`v0.38.0`** — bump puramente aditivo, sólo
+  agrega `src/agenda/*`. El alta, el diálogo de medio de pago y el de factura
+  emitida no se tocaron. 11 tests nuevos (20 en la suite del frontend).
+  > 🔴 **El día de un turno es el de la sede, no el del navegador.** Un turno de
+  > las 21:30 del lunes en Buenos Aires viaja como `2026-07-21T00:30:00Z`;
+  > agrupado por el string crudo aparecería el martes. Es ADR-028 del otro lado
+  > del cable, y hay dos tests que se ponen en rojo si esa conversión se saca.
+
+- **La agenda corre en hora de pared, no en UTC** (ver ADR-028): la
+  disponibilidad del profesional, el horario de atención y las excepciones se
+  cargan en hora del reloj del consultorio, pero el turno se guardaba
+  interpretando ese mismo número como UTC. Un turno dado para las **17:00**
+  quedaba guardado como `17:00Z`, o sea las **14:00** del consultorio — tres
+  horas de corrimiento, que es lo que leen después los recordatorios. Y un
+  `starts_at` con offset explícito (una integración, no la pantalla) se
+  rechazaba con *"fuera del horario de atención"* aunque cayera adentro.
+  Ahora la validación entera —ventanas, excepciones, bloqueos y choques— corre
+  en hora de pared y la conversión a instante ocurre en el repositorio
+  (`app/services/husos.py`, `_TurnosEnHoraLocal`). Los bloqueos también se
+  convierten: uno cargado de 10 a 11 tapaba de 7 a 8.
+  **El huso por defecto de una sede nueva pasa de `UTC` a
+  `America/Argentina/Buenos_Aires`** — con offset cero el defecto es invisible,
+  porque validar en el terreno equivocado da el mismo resultado que validar en
+  el correcto. 6 tests nuevos (325 en la suite); 5 existentes cambiaron su valor
+  esperado. Sin migración: no cambia el schema.
+  > ⚠️ **Los turnos ya guardados no se tocan.** Una instancia que venía
+  > operando con la sede en UTC tiene sus instantes escritos con el criterio
+  > viejo; el arreglo cambia cómo se interpreta lo que entra de acá en más, no
+  > reescribe el pasado.
+
 - **Alícuota de IVA configurable por servicio** (ver ADR-027): hasta ahora
   `billing._split_iva` asumía **21% fijo** para todo, que en un producto de
   salud es el caso equivocado — la mayoría de las prestaciones médicas están

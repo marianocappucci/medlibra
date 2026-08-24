@@ -44,11 +44,111 @@ export type Resource = {
   active: boolean
 }
 
+/** Una sede. **El `timezone` no es decorativo**: es el huso en el que el
+ *  backend valida y guarda los turnos (ADR-028), y por lo tanto el único con el
+ *  que la agenda puede decir a qué día y a qué hora pertenece cada turno. Un
+ *  turno de las 21:30 del lunes en Buenos Aires viaja como `2026-07-21T00:30Z`;
+ *  leído con el huso del navegador, cada usuario lo pondría en un día distinto. */
+export type Branch = {
+  id: string
+  name: string
+  active: boolean
+  timezone: string
+  phone: string | null
+  address: string | null
+}
+
 export type Service = {
   id: string
   name: string
   duration_minutes: number
   active: boolean
+}
+
+/** La sala física donde se atiende. **No es un `Resource`**: el motor asocia el
+ *  turno a un solo recurso —el profesional— y la ocupación de la sala la valida
+ *  MedLibra aparte (ADR-030). */
+export type Consultorio = {
+  id: string
+  name: string
+  branch_id: string | null
+  active: boolean
+}
+
+export const DIAS_SEMANA = [
+  'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+] as const
+
+/** Una franja semanal: día + rango horario, en hora de pared de la sede. Es la
+ *  forma del horario de atención (`/branches/{id}/hours`). */
+export type VentanaSemanal = {
+  id: number
+  weekday: number
+  starts_at: string
+  ends_at: string
+}
+
+/** Un bloque de agenda: *"los lunes de 9 a 13 en el Consultorio 2, turnos de 20
+ *  minutos, hasta el 31 de diciembre"*. Ver ADR-030. */
+export type BloqueDeAgenda = {
+  id: string
+  resource_id: string
+  consultorio_id: string
+  weekday: number
+  starts_at: string
+  ends_at: string
+  valid_from: string
+  /** `null` = se repite indefinidamente. */
+  valid_to: string | null
+  slot_minutes: number
+  modality: 'turnos' | 'espontanea'
+}
+
+/** Lo que el backend ofrece elegir. **Sale de la API y no de una constante acá**:
+ *  la lista de duraciones es la que el alta valida, y dos copias divergen — la
+ *  pantalla terminaría ofreciendo un valor que el alta rechaza con 422. */
+export type OpcionesDeBloque = {
+  duraciones: number[]
+  modalidades: string[]
+}
+
+/** Un rato puntual en el que el profesional no atiende. Se carga en hora de
+ *  pared de la sede y **se guarda como instante**; vuelve en UTC. */
+export type Bloqueo = {
+  id: number
+  resource_id: string
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+/** Un día concreto que se cierra o se abre. **Le gana a la jornada**, en las dos
+ *  direcciones. */
+export type ExcepcionDeAgenda = {
+  id: number
+  resource_id: string
+  day: string
+  starts_at: string
+  ends_at: string
+  available: boolean
+}
+
+export type PrecioDeServicio = {
+  id: string
+  service_id: string
+  branch_id: string
+  price: string
+}
+
+/** El honorario: lo que sale una prestación con **un profesional concreto**.
+ *
+ *  **Pisa** al precio de la sede cuando existe, y sacarlo devuelve la prestación
+ *  a ese precio de lista en vez de dejarla sin precio. */
+export type Honorario = {
+  id: string
+  service_id: string
+  resource_id: string
+  price: string
 }
 
 export type Patient = {
@@ -114,42 +214,30 @@ export type Appointment = {
   status: AppointmentStatus
 }
 
-// Facturación: instancia única por cliente (una sola "empresa" ARCA fija,
-// ver app/services/billing.py), sin lista de empresas para elegir a
-// diferencia de Contalibra/Restolibra.
-export type ArcaConfig = {
-  empresa: string
-  cuit: string
-  punto_venta: number
-  ambiente: string
-  certificado_path: string
-  clave_path: string
-}
+// 🔴 Acá vivían `ArcaConfig`, `Factura` y `TIPO_COMPROBANTE_LABELS`. Se fueron
+// con el motor de facturación local (ADR-036): **este producto ya no factura**,
+// la contabilidad vive en Contalibra. No queda ningún tipo de comprobante
+// porque no hay comprobante que MedLibra emita.
 
-export type Factura = {
-  id: number
-  tipo: number
-  punto_venta: number
-  numero: number
-  fecha: string
-  cliente_cuit: string
-  cliente_razon: string
-  total: number
-  cae: string
-  cae_vto: string
-}
-
-// Solo A/B: MedLibra emite tipo A si el paciente es Responsable
-// Inscripto, B en cualquier otro caso (ver app/services/billing.py).
-export const TIPO_COMPROBANTE_LABELS: Record<number, string> = {
-  1: 'Factura A',
-  6: 'Factura B',
+/** Cómo le fue a la consulta camino a Contalibra.
+ *
+ *  `sin_destino` **no es un fallo del otro lado**: es que no hay otro lado
+ *  configurado (falta `CONTALIBRA_URL`). Se distingue de `error` porque el
+ *  arreglo es distinto — configurar, no reintentar contra algo que falló. */
+export type EnvioAContalibra = {
+  appointment_id: string
+  estado: 'pendiente' | 'enviado' | 'error' | 'sin_destino'
+  venta_id: number | null
+  error: string
+  intentos: number
+  actualizado: string
 }
 
 export type CompleteAppointmentResponse = {
   id: string
   status: AppointmentStatus
-  factura: Factura | null
+  /** `null` cuando el turno no tenía precio, o el módulo está apagado. */
+  contalibra: EnvioAContalibra | null
 }
 
 // Dominio clínico: todo append-only -- crear/listar/borrar (admin-only),

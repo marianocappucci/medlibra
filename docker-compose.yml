@@ -15,6 +15,7 @@ services:
   # Sin `ports:` a propósito: sólo se llega desde la red interna.
   medlibra-postgres:
     image: postgres:16
+    command: postgres -c timezone=America/Argentina/Buenos_Aires
     container_name: medlibra-postgres
     restart: unless-stopped
     environment:
@@ -23,6 +24,7 @@ services:
       # Sin default a propósito: `:?` aborta el `up` si falta, en vez de
       # levantar la base con una clave escrita en git.
       POSTGRES_PASSWORD: ${MEDLIBRA_POSTGRES_PASSWORD:?hay que definirla en el .env del VPS}
+      TZ: America/Argentina/Buenos_Aires
     volumes:
       - medlibra-postgres-data:/var/lib/postgresql/data
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
@@ -77,6 +79,7 @@ services:
     command: uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - SECRET_KEY=${SECRET_KEY:-medlibra-dev-secret}
+      - TZ=America/Argentina/Buenos_Aires
       - MEDLIBRA_ADMIN_USERNAME=${MEDLIBRA_ADMIN_USERNAME:-admin}
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
       # 🔴 El corte a PostgreSQL. Son DOS bases y no dos schemas de la misma:
@@ -106,6 +109,15 @@ services:
       - LIBRAAUTH_SMTP_FROM_EMAIL=${LIBRAAUTH_SMTP_FROM_EMAIL:-}
       - LIBRAAUTH_SMTP_FROM_NAME=${LIBRAAUTH_SMTP_FROM_NAME:-MedLibra}
       - DOCS_AUTH_SECRET=${DOCS_AUTH_SECRET:-}
+      # 🔴 Con CONTALIBRA_URL puesta, MedLibra manda las consultas a Contalibra
+      # y DEJA DE FACTURAR por su cuenta. Vacía = factura acá, como siempre.
+      # No hay estado en el que hagan las dos cosas (ver ADR-035).
+      - CONTALIBRA_URL=${CONTALIBRA_URL:-}
+      # Variable propia y NO la LIBRA_SERVICE_TOKEN que este producto lee para
+      # su propio guard de entrada: son dos permisos distintos —el que nos
+      # dejan usar y el que nosotros aceptamos— y compartir el nombre haría que
+      # rotar uno rote el otro sin que nadie lo pida.
+      - CONTALIBRA_SERVICE_TOKEN=${CONTALIBRA_SERVICE_TOKEN:-}
     networks:
       - stack-net
       - datos

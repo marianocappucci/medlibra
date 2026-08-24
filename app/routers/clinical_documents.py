@@ -9,6 +9,7 @@ from ..auth import require_admin
 from ..dependencies import get_clinical_document_repository, get_patient_repository
 from ..services.clinical_documents import ClinicalDocumentRepository
 from ..services.patients import PatientRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/documents", tags=["clinical-documents"])
 
@@ -22,7 +23,7 @@ MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
 class ClinicalDocumentOut(BaseModel):
     id: str
     patient_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     title: str
     description: str | None

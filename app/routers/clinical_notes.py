@@ -7,6 +7,7 @@ from ..auth import require_admin
 from ..dependencies import get_clinical_note_repository, get_patient_repository
 from ..services.clinical_notes import ClinicalNoteRepository
 from ..services.patients import PatientRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/notes", tags=["clinical-notes"])
 
@@ -19,7 +20,7 @@ class NoteCreate(BaseModel):
 class NoteOut(BaseModel):
     id: str
     patient_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     text: str
 

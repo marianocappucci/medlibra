@@ -7,6 +7,7 @@ from ..auth import require_admin
 from ..dependencies import get_consent_repository, get_patient_repository
 from ..services.consents import ConsentRepository
 from ..services.patients import PatientRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/consents", tags=["consents"])
 
@@ -21,7 +22,7 @@ class ConsentCreate(BaseModel):
 class ConsentOut(BaseModel):
     id: str
     patient_id: str
-    created_at: datetime
+    created_at: InstanteUTC
     author: str
     procedure: str
     granted_by: str
