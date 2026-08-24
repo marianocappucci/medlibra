@@ -289,17 +289,6 @@ def _sembrar_turnos(api: Api, contar) -> None:
     rango. Pedir la ruta que uno se imagina devuelve el HTML de la SPA —el
     catch-all—, no un 404: el 200 engaña.
     """
-    desde, hasta = HOY - timedelta(days=2), HOY + timedelta(days=5)
-    ya_cargados = sum(
-        len(api.get(f"/resources/{r['id']}/agenda"
-                    f"?date_from={desde}&date_to={hasta}") or [])
-        for r in PROFESIONALES
-    )
-    if ya_cargados >= 8:
-        contar("turnos", False)
-        print(f"  (ya hay {ya_cargados} turnos cargados)")
-        return
-
     #: Los días de la semana que la sucursal atiende, tomados de HORARIOS: si
     #: mañana se suma el sábado, esto lo sigue solo.
     DIAS_HABILES = {dia for dia, _, _ in HORARIOS}
@@ -356,6 +345,30 @@ def _sembrar_turnos(api: Api, contar) -> None:
         (2, 17, "dr-molina", "control", "p-004", ["confirm"]),
         (3, 9, "dra-vidal", "control", "p-005", []),
     ]
+
+    # 🔴 **La ventana sale del PLAN, no de un ±N escrito a mano.** Es la misma
+    # trampa que ya arreglaron `cuando()` y la ventana del test: el plan avanza
+    # en días HÁBILES y cualquier margen fijo se mide en días de CALENDARIO, así
+    # que los dos se desincronizan según el día de la semana en que corra el
+    # reset. Con `HOY - 2`, un lunes esta cuenta dejaba afuera los dos turnos de
+    # "ayer hábil" —que caen el viernes, tres días de calendario atrás— y el
+    # seed informaba "ya hay 9 turnos cargados" cuando había 11.
+    #
+    # No llegó a duplicar nada porque el corte de abajo es 8 y 9 lo pasa igual:
+    # otra vez el margen tapando el agujero, que es justo lo que este archivo
+    # ya aprendió dos veces. Derivada del plan, la ventana no puede quedar corta
+    # por más que el plan cambie.
+    fechas = [cuando(dias, hora).date() for dias, hora, *_ in PLAN]
+    desde, hasta = min(fechas), max(fechas)
+    ya_cargados = sum(
+        len(api.get(f"/resources/{r['id']}/agenda"
+                    f"?date_from={desde}&date_to={hasta}") or [])
+        for r in PROFESIONALES
+    )
+    if ya_cargados >= 8:
+        contar("turnos", False)
+        print(f"  (ya hay {ya_cargados} turnos cargados)")
+        return
 
     CUERPOS = {
         "confirm": {},
