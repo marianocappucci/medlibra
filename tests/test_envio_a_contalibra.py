@@ -15,6 +15,8 @@ Contalibra de verdad: lo que este archivo mide es la decisión de MedLibra, no e
 contrato del otro lado — eso lo prueba la suite de Contalibra, contra su propia
 base.
 """
+from decimal import Decimal
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -76,28 +78,80 @@ def con_contalibra(monkeypatch):
 
 # ── El interruptor ─────────────────────────────────────────────────────────
 
-def test_sin_contalibra_configurada_MedLibra_factura_como_siempre(
+def test_sin_contalibra_configurada_la_consulta_queda_SIN_FACTURAR(
     consultorio: TestClient, monkeypatch,
 ):
-    """🔴 El control del test de abajo, y el compromiso con las instancias que
-    ya están andando: sin `CONTALIBRA_URL` nada cambia."""
+    """🔴 **Cambió de significado el 2026-08-24.** Hasta ADR-036 este test
+    verificaba que sin `CONTALIBRA_URL` MedLibra facturara por su cuenta; ahora
+    no queda motor local que lo haga.
+
+    Lo que se exige es que **no sea silencioso**: el turno se completa —la
+    atención ocurrió— pero la consulta queda registrada como no facturada, con
+    su motivo, en vez de desaparecer. Un turno cobrado sin comprobante y sin
+    rastro es plata que se pierde sin que nadie se entere."""
     monkeypatch.delenv("CONTALIBRA_URL", raising=False)
     _, respuesta = _completar(consultorio)
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["factura"]["total"] == 2500.0
-    assert respuesta.json()["contalibra"] is None
+    assert respuesta.json()["status"] == "completed"
+    envio = respuesta.json()["contalibra"]
+    assert envio["estado"] == "sin_destino"
+    assert "CONTALIBRA_URL" in envio["error"]
 
 
-def test_con_contalibra_configurada_MedLibra_NO_factura(
+def test_no_queda_ningun_camino_de_facturacion_local(consultorio: TestClient):
+    """🔴 **El test que manda.** Si quedara un camino de emisión acá, saldrían
+    dos comprobantes por una consulta — y un CAE no se borra, se anula con una
+    nota de crédito.
+
+    Se mide sobre **el schema de OpenAPI** y no leyendo el código ni la lista
+    de rutas: lo que importa no es que el archivo se haya borrado, sino que no
+    quede ruta publicada que emita. (Y no todas las entradas de `app.routes`
+    tienen `.path` — los routers incluidos no —, así que recorrerlas a mano
+    mide de menos sin avisar.)"""
+    rutas = consultorio.app.openapi()["paths"]
+    # 🔴 Control positivo: un cero esperado no vale nada si la lista vino vacía
+    # porque el schema no se armó.
+    assert len(rutas) > 20, f"el schema trajo {len(rutas)} rutas: no se midió nada"
+    assert not [r for r in rutas if "arca" in r or "billing" in r], sorted(rutas)
+    assert consultorio.get("/config/arca").status_code == 404
+
+
+def test_con_contalibra_configurada_se_manda(
     consultorio: TestClient, con_contalibra,
 ):
-    """🔴 **El test que manda.** Si además de mandar emitiera acá, saldrían dos
-    comprobantes por una consulta — y un CAE no se borra."""
     _, respuesta = _completar(consultorio)
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["factura"] is None
     assert respuesta.json()["contalibra"]["estado"] == "enviado"
     assert len(con_contalibra) == 1
+
+
+def test_la_alicuota_de_la_prestacion_viaja_con_la_consulta(
+    consultorio: TestClient, con_contalibra,
+):
+    """🔴 En salud el caso normal es el **exento**, y esa configuración es de la
+    prestación (ADR-027) — vive acá, no en el negocio que factura. Sin mandarla,
+    Contalibra usa su default del 21% y la feature entera queda configurable y
+    sin efecto, en silencio.
+
+    ⚠️ Este test llega hasta `enviar_consulta`, no hasta el pedido: mide que
+    `complete_appointment` **resuelva** la alícuota y la pase. Que además llegue
+    al cuerpo HTTP con el nombre correcto lo cubre
+    `test_el_pedido_lleva_el_vocabulario_de_contalibra`, y hace falta — con el
+    doble puesto acá, `"iva_rate": None` en el cuerpo pasa en verde."""
+    assert consultorio.put(
+        "/services/consulta/iva", json={"rate": "0"},
+    ).status_code == 200
+    _completar(consultorio)
+    assert float(con_contalibra[0]["iva_rate"]) == 0.0
+
+
+def test_sin_alicuota_propia_viaja_la_de_la_instancia(
+    consultorio: TestClient, con_contalibra,
+):
+    """🔴 El control: si viajara siempre `None`, el test de arriba pasaría con
+    la alícuota puesta en 0 por casualidad."""
+    _completar(consultorio)
+    assert float(con_contalibra[0]["iva_rate"]) == 0.21
 
 
 def test_lo_que_viaja_es_el_turno_y_su_precio(
@@ -282,6 +336,7 @@ async def test_el_pedido_lleva_el_vocabulario_de_contalibra(monkeypatch):
         importe=2500, medio_pago="efectivo",
         paciente={"name": "Ana", "cuit": "20111222333",
                   "condicion_iva": "Responsable Inscripto"},
+        iva_rate=Decimal("0"),
     )
 
     # La barra final de la URL configurada no se duplica.
@@ -294,11 +349,49 @@ async def test_el_pedido_lleva_el_vocabulario_de_contalibra(monkeypatch):
     assert cuerpo["referencia"] == "turno-1"
     assert cuerpo["importe"] == 2500.0
     assert cuerpo["facturar"] is True
+    # 🔴 **La alícuota, en el cuerpo y con el nombre que espera el otro lado.**
+    # Los dos tests que la miran arriba interceptan `enviar_consulta`, o sea que
+    # miden que `complete_appointment` la resuelva y la pase — no que llegue al
+    # pedido. Con ese doble, escribir mal la clave acá (o mandar `None` siempre)
+    # los deja en verde y la consulta exenta se declara al 21% del otro lado.
+    # Verificado por mutación: forzando `"iva_rate": None` en el cuerpo, este
+    # test es el único que se pone rojo.
+    assert cuerpo["iva_rate"] == 0.0
     # El paciente traducido: `name` de acá es `nombre` allá.
     assert cuerpo["paciente"] == {
         "nombre": "Ana", "cuit": "20111222333",
         "condicion_iva": "Responsable Inscripto",
     }
+
+
+@pytest.mark.anyio
+async def test_sin_alicuota_el_cuerpo_la_manda_nula_y_no_la_omite(monkeypatch):
+    """🔴 El control del de arriba, por el otro lado.
+
+    Si `iva_rate` viajara siempre `0.0` —o el `float()` reventara con `None`—,
+    aquel test pasaría igual. Y la diferencia importa: `None` significa *no
+    declaro nada, usá tu default*, que del lado de Contalibra es el 21%.
+    Mandar `0.0` en su lugar declararía **exento** todo lo que no tiene alícuota
+    propia, que es el error inverso y peor: IVA no declarado.
+    """
+    import httpx
+
+    monkeypatch.setenv("CONTALIBRA_URL", "https://contalibra.example")
+    capturado = {}
+
+    async def post_falso(self, url, **kwargs):
+        capturado["json"] = kwargs.get("json")
+        return httpx.Response(200, json={"venta": {"id": 1}})
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", post_falso)
+
+    await contalibra.enviar_consulta(
+        appointment_id="turno-2", fecha="2026-08-24", descripcion="consulta",
+        importe=2500, medio_pago="efectivo", paciente={"name": "Ana"},
+    )
+
+    assert "iva_rate" in capturado["json"], "la clave tiene que estar, aunque sea nula"
+    assert capturado["json"]["iva_rate"] is None
 
 
 @pytest.mark.anyio

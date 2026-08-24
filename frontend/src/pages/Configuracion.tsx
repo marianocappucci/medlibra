@@ -6,8 +6,9 @@
  *  exclusivamente por CLI.
  *
  *  El armado y las secciones vienen de `libra-ui/Configuracion`; acá se declara
- *  **lo que corresponde a este producto**. MedLibra factura (ARCA) pero no
- *  imprime tickets de comanda ni usa balanza.
+ *  **lo que corresponde a este producto**. MedLibra no imprime tickets de
+ *  comanda ni usa balanza — y desde el 2026-08-24 tampoco factura: la
+ *  facturación es de Contalibra (ADR-036).
  *
  *  > 🔴 **El backup de este producto se lleva también los documentos
  *  > clínicos**, que son archivos en disco. Un backup "de la base" los dejaría
@@ -37,10 +38,14 @@ export const Configuracion = createConfiguracion({
   icono: Settings,
   // empresa (+logo), correo (SMTP) y Datos / Backup, más la agenda.
   //
-  // 🔴 **ARCA NO está**, por pedido del humano (2026-08-22): la facturación de
-  // este producto pasa a Contalibra, que es donde vive la contabilidad. Ver
-  // ADR-034 — y en particular la consecuencia de que una instancia NUEVA ya no
-  // pueda configurar ARCA desde acá.
+  // 🔴 **ARCA NO está, y ya no hay nada que agregar acá**: el 2026-08-24 se fue
+  // también el motor de facturación local (ADR-036), así que `/config/arca` no
+  // existe más en el backend — devuelve 404, no 403. Este producto no emite
+  // comprobantes: los emite Contalibra, que es donde vive la contabilidad.
+  //
+  // Hasta el 2026-08-22 esta nota decía que la sección se sacaba "por pedido del
+  // humano" y que una instancia nueva no la podía configurar desde acá. Se leía
+  // como una sección escondida que en algún momento vuelve, y no lo es.
   //
   // 🔴 El ORDEN es el del arranque de un consultorio nuevo: dónde se atiende,
   // en qué sala, qué se hace y quién lo hace. Al revés, un consultorio se carga

@@ -214,42 +214,30 @@ export type Appointment = {
   status: AppointmentStatus
 }
 
-// Facturación: instancia única por cliente (una sola "empresa" ARCA fija,
-// ver app/services/billing.py), sin lista de empresas para elegir a
-// diferencia de Contalibra/Restolibra.
-export type ArcaConfig = {
-  empresa: string
-  cuit: string
-  punto_venta: number
-  ambiente: string
-  certificado_path: string
-  clave_path: string
-}
+// 🔴 Acá vivían `ArcaConfig`, `Factura` y `TIPO_COMPROBANTE_LABELS`. Se fueron
+// con el motor de facturación local (ADR-036): **este producto ya no factura**,
+// la contabilidad vive en Contalibra. No queda ningún tipo de comprobante
+// porque no hay comprobante que MedLibra emita.
 
-export type Factura = {
-  id: number
-  tipo: number
-  punto_venta: number
-  numero: number
-  fecha: string
-  cliente_cuit: string
-  cliente_razon: string
-  total: number
-  cae: string
-  cae_vto: string
-}
-
-// Solo A/B: MedLibra emite tipo A si el paciente es Responsable
-// Inscripto, B en cualquier otro caso (ver app/services/billing.py).
-export const TIPO_COMPROBANTE_LABELS: Record<number, string> = {
-  1: 'Factura A',
-  6: 'Factura B',
+/** Cómo le fue a la consulta camino a Contalibra.
+ *
+ *  `sin_destino` **no es un fallo del otro lado**: es que no hay otro lado
+ *  configurado (falta `CONTALIBRA_URL`). Se distingue de `error` porque el
+ *  arreglo es distinto — configurar, no reintentar contra algo que falló. */
+export type EnvioAContalibra = {
+  appointment_id: string
+  estado: 'pendiente' | 'enviado' | 'error' | 'sin_destino'
+  venta_id: number | null
+  error: string
+  intentos: number
+  actualizado: string
 }
 
 export type CompleteAppointmentResponse = {
   id: string
   status: AppointmentStatus
-  factura: Factura | null
+  /** `null` cuando el turno no tenía precio, o el módulo está apagado. */
+  contalibra: EnvioAContalibra | null
 }
 
 // Dominio clínico: todo append-only -- crear/listar/borrar (admin-only),

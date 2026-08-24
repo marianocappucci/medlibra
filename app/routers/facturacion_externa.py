@@ -18,13 +18,17 @@ from ._instantes import InstanteUTC
 from ..dependencies import (
     get_appointment_service,
     get_catalog_repository,
+    get_business_settings_repository,
     get_envio_contalibra_repository,
+    get_iva_rate_repository,
     get_patient_repository,
     get_resource_price_repository,
     get_service_price_repository,
 )
 from ..services import contalibra
 from ..services.appointments import AppointmentService
+from ..services.business_settings import BusinessSettingsRepository
+from ..services.iva_rates import IvaRateRepository
 from ..services.patients import PatientRepository
 from ..services.resource_prices import ResourcePriceRepository, precio_del_turno
 from ..services.service_prices import ServicePriceRepository
@@ -70,6 +74,8 @@ async def reintentar(
     service_prices: ServicePriceRepository = Depends(get_service_price_repository),
     resource_prices: ResourcePriceRepository = Depends(get_resource_price_repository),
     catalog=Depends(get_catalog_repository),
+    iva_rates: IvaRateRepository = Depends(get_iva_rate_repository),
+    business: BusinessSettingsRepository = Depends(get_business_settings_repository),
 ):
     """Vuelve a mandar una consulta que no llegó.
 
@@ -109,6 +115,9 @@ async def reintentar(
             importe=precio["price"],
             medio_pago="efectivo",
             paciente=paciente,
+            iva_rate=iva_rates.resolve(
+                turno.service_id, business.get()["default_iva_rate"],
+            ),
         )
     except Exception as exc:  # noqa: BLE001 — el fallo se registra, no se propaga
         return envios.registrar(appointment_id, contalibra.ERROR, error=str(exc))

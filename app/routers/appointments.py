@@ -34,7 +34,6 @@ from ..services.appointments import (
     ServiceNotFound,
 )
 from ..services import contalibra
-from ..services.billing import invoice_appointment
 from ..services.business_settings import BusinessSettingsRepository
 from ..services.iva_rates import IvaRateRepository
 from ..services.modules import ModuleRepository
@@ -160,23 +159,22 @@ async def complete_appointment(
     envios: contalibra.EnvioRepository = Depends(get_envio_contalibra_repository),
 ):
     """Completa el turno y, si hay precio configurado Y el plan incluye el
-    módulo "facturacion" (ver plans.py), cobra.
+    módulo "facturacion" (ver plans.py), manda la consulta a Contalibra.
 
-    🔴 **Dónde se factura lo decide `CONTALIBRA_URL`.** Configurada, la consulta
-    se manda a Contalibra y este producto NO emite; vacía, se factura acá con
-    LibraCore como siempre. Nunca las dos — serían dos comprobantes por una
-    consulta. Ver `app/services/contalibra.py`.
+    🔴 **Este producto ya no factura** (ADR-036): no queda ningún camino de
+    emisión local, así que no hay forma de que salgan dos comprobantes por una
+    consulta. Sin precio configurado, o sin el módulo habilitado, no se manda
+    nada — completar el turno nunca se bloquea por el plan.
 
-    Cuando factura acá: una sola factura,
-    reconciliando la sena ya cobrada -- si existe -- y el saldo restante
-    como movimientos de caja separados). Sin precio configurado, o sin el
-    módulo habilitado, no factura nada -- completar el turno nunca se
-    bloquea por el plan, solo se salta la parte de facturación.
+    ⚠️ **Sin `CONTALIBRA_URL` la consulta queda registrada como NO facturada**
+    (`estado="sin_destino"`), visible en `GET /facturacion-externa`. El turno se
+    completa igual: la atención ya ocurrió, y `COMPLETED` no admite otra
+    transición, así que un turno que no se puede completar queda trabado para
+    siempre.
 
-    La validacion de facturacion (medio_pago requerido si hay saldo) corre
-    ANTES de completar el turno en LibraGenda -- si faltara, el turno no
-    queda completado sin factura y sin forma de reintentar (COMPLETED no
-    admite otra transicion)."""
+    La validacion del medio de pago (requerido si hay saldo) corre ANTES de
+    completar el turno -- si faltara, el turno quedaría completado, sin cobrar y
+    sin forma de reintentar."""
     current = service.appointments.get(appointment_id)
     if current is None:
         raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
@@ -212,40 +210,43 @@ async def complete_appointment(
     except InvalidTransition as exc:
         raise HTTPException(*mensajes.describir(exc))
 
-    factura = None
     enviado_a_contalibra = None
     if price_row is not None:
-        paid = deposit is not None and deposit.status is DepositStatus.PAID
-        # 🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.**
-        # Con `CONTALIBRA_URL` configurada la contabilidad vive allá, y emitir
-        # además acá daría DOS comprobantes por una consulta — y un CAE emitido
-        # no se borra, se anula con una nota de crédito. El destino es un
-        # interruptor, no un agregado (ver `app/services/contalibra.py`).
+        # 🔴 **Este producto ya no factura.** La facturación vive en Contalibra
+        # desde ADR-036: acá no queda ningún camino de emisión local, así que no
+        # hay forma de que salgan dos comprobantes por una consulta.
         if contalibra.destino():
             enviado_a_contalibra = await _mandar(
                 envios, appointment_id, current, patient,
                 price_row["price"], data.medio_pago or "efectivo",
-            )
-        else:
-            factura = await invoice_appointment(
-                patient, price_row["price"], appointment_id,
-                deposit_amount=deposit.amount if paid else None,
-                deposit_medio_pago=deposit.medio_pago if paid else None,
-                balance_medio_pago=data.medio_pago,
+                # La alícuota de ESTA prestación (ADR-027). Viaja con la
+                # consulta: en salud el caso normal es el exento, y sin mandarla
+                # Contalibra usaría su default del 21%.
                 iva_rate=iva_rates.resolve(
                     current.service_id, business.get()["default_iva_rate"],
                 ),
             )
+        else:
+            # 🔴 **Sin destino, la consulta queda registrada como NO facturada.**
+            # El turno se completa igual —la atención ocurrió— pero una consulta
+            # con precio que no se facturó y de la que nadie se entera es plata
+            # que se pierde en silencio. Queda en `/facturacion-externa` con
+            # `estado="sin_destino"`, y se manda configurando `CONTALIBRA_URL` y
+            # reintentando **a mano** — no hay reintento automático de nada.
+            enviado_a_contalibra = envios.registrar(
+                appointment_id, contalibra.SIN_DESTINO,
+                error="CONTALIBRA_URL no está configurada: la consulta no se facturó.",
+            )
 
     return {
         "id": appointment.id, "status": appointment.status.value,
-        "factura": factura, "contalibra": enviado_a_contalibra,
+        "contalibra": enviado_a_contalibra,
     }
 
 
 async def _mandar(
     envios: contalibra.EnvioRepository, appointment_id: str, turno,
-    patient: dict, importe, medio_pago: str,
+    patient: dict, importe, medio_pago: str, iva_rate=None,
 ) -> dict:
     """Manda la consulta a Contalibra y **deja registro pase lo que pase**.
 
@@ -264,6 +265,7 @@ async def _mandar(
             importe=importe,
             medio_pago=medio_pago,
             paciente=patient,
+            iva_rate=iva_rate,
         )
     except Exception as exc:  # noqa: BLE001 — cualquier fallo se registra igual
         logger.exception("No se pudo mandar la consulta %s a Contalibra", appointment_id)

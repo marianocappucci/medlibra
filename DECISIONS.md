@@ -1681,3 +1681,139 @@ idempotente por `(sistema, referencia)`, y la referencia es el id del turno.
   nace vacía y sólo se escribe si la instancia tiene `CONTALIBRA_URL`.
 - **Todavía sin pantalla.** `GET /facturacion-externa` se opera por API, como el
   resto de lo que se construyó esta semana.
+
+## ADR-036 — Se va el motor de facturación local: Contalibra es el único camino
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+**Reemplaza el interruptor de**: ADR-035
+
+### Contexto
+
+Pedido del humano: *"borrar Facturacion.tsx y limpiar /config/arca"*.
+
+ADR-034 sacó la facturación de la vista y ADR-035 la mandó a Contalibra, pero
+los dos dejaron el motor local vivo: `Facturacion.tsx` seguía en el repo aunque
+nada la ruteara, `/config/arca` seguía respondiendo, y `complete_appointment`
+tenía un `else` que emitía el comprobante acá cuando `CONTALIBRA_URL` estaba
+vacía.
+
+### Decisión
+
+**Se borra el motor, no sólo la pantalla.** Se van `app/services/billing.py`,
+`app/routers/billing.py`, `frontend/src/pages/Facturacion.tsx` y
+`tests/test_billing.py`. `/config/arca` deja de existir: **404, no 403**.
+
+De `billing.py` sobrevive una sola función, `configure()`, en un archivo con el
+nombre que le corresponde: `app/services/libracore_setup.py`. No factura nada —
+configura la base de LibraCore donde viven **los usuarios**, crea el schema y la
+caja por defecto. Es load-bearing y no tiene nada que ver con facturar; el
+nombre `billing` era el que mentía.
+
+### 🔴 Lo que reemplaza al `else`: `sin_destino`, no silencio
+
+Borrar el motor deja una pregunta que no se puede contestar borrando: **qué pasa
+cuando una instancia no tiene `CONTALIBRA_URL`**. La respuesta obvia —completar
+el turno y no hacer nada— es la peor: la consulta se atendió, se cobró, y no hay
+ningún rastro de que faltó facturarla.
+
+Así que el turno se completa igual —la atención ocurrió— y el envío se registra
+con estado **`sin_destino`**, que entra en `envios_a_contalibra` como cualquier
+otro y **aparece en `GET /facturacion-externa`** junto a los que fallaron.
+Configurar el destino y reintentar las factura; no hacerlo las deja a la vista.
+Es la misma regla de ADR-035 llevada a su último caso: *una consulta sin
+facturar de la que nadie se entera es plata que se pierde en silencio*.
+
+Con el módulo `facturacion` **apagado** el envío es `None`, y ahí sí no se
+registra nada: no es que falte a dónde mandarlo, es que **esta instancia no
+cobra**. Registrarlo llenaría la pantalla de consultas que nunca hay que
+facturar.
+
+### La alícuota se queda, y ahora viaja
+
+`app/services/iva_rates.py` **no se va con el motor**. Qué alícuota le
+corresponde a una prestación es configuración *de la prestación*, y las
+prestaciones viven acá; en salud la mayoría están **exentas**. Lo que cambia es
+a dónde va el dato: en vez de alimentar el `_split_iva` propio, viaja con la
+consulta en `iva_rate` y Contalibra la guarda con la venta
+([contalibra PR de `ventas_origen_externo.iva_rate`]).
+
+Sin eso, del otro lado no hay forma de saber que una consulta era exenta: se
+declararía al **21% en silencio**, que es un error fiscal que nadie ve hasta la
+inspección.
+
+### Consecuencias
+
+- **Una instancia sin `CONTALIBRA_URL` ya no puede emitir comprobantes.** Es el
+  punto de la decisión, no un efecto colateral: este producto no factura. Pero
+  no pierde el dato — queda en `/facturacion-externa`.
+- Los tests que medían el motor local se fueron con él (`test_billing.py`), y
+  los que medían el XML de ARCA salieron de `test_iva_rates.py`: ese contrato
+  ahora es de Contalibra. Lo que se agregó en su lugar:
+  - `test_no_queda_ningun_camino_de_facturacion_local`, que mide **el schema de
+    OpenAPI** —no el árbol de routers, que no expone `path`— con control
+    positivo (`len(rutas) > 20`), para que un `paths` vacío no lo pase.
+  - `test_sin_contalibra_configurada_la_consulta_queda_SIN_FACTURAR`, el caso
+    que reemplaza al `else`.
+  - `test_la_alicuota_de_la_prestacion_viaja_con_la_consulta` y su control
+    `test_sin_alicuota_propia_viaja_la_de_la_instancia`.
+  - 🔴 Esos dos **interceptan `enviar_consulta`**, así que miden que
+    `complete_appointment` resuelva la alícuota y la pase — no que llegue al
+    pedido. Con ese doble puesto, escribir mal la clave del cuerpo (o mandar
+    `None` siempre) los deja en verde y la consulta exenta se declara al 21%
+    del otro lado. **Lo encontró la mutación, no la lectura**: forzando
+    `"iva_rate": None` en el cuerpo, los 17 tests pasaban. Lo cubre ahora
+    `test_el_pedido_lleva_el_vocabulario_de_contalibra`, que mide el pedido
+    HTTP real, más su control
+    `test_sin_alicuota_el_cuerpo_la_manda_nula_y_no_la_omite` — porque `None`
+    (usá tu default, 21%) y `0.0` (exento) no son lo mismo, y confundirlos es
+    IVA no declarado.
+- `test_ya_no_hay_configuracion_de_arca_que_gatear` reemplaza al test que
+  verificaba el 403 de `/config/arca` sin módulo. El módulo `facturacion` sigue
+  existiendo y ahora gatea **el envío**, no la emisión.
+- La respuesta de completar deja de traer `factura`: es `{id, status,
+  contalibra}`. El frontend perdió `ArcaConfig`, `Factura` y
+  `TIPO_COMPROBANTE_LABELS`.
+- El diálogo de "Factura emitida" de la agenda se reemplaza por uno que aparece
+  **sólo cuando la consulta NO se facturó**. El caso bueno no necesita
+  interrumpir a nadie; el malo sí.
+- **Sin migración.** No se borra ninguna tabla: las facturas que una instancia
+  ya emitió siguen donde están. Se va el código que emite nuevas, no el
+  histórico.
+
+### Dos cosas que aparecieron al vaciar el archivo
+
+**1. `tests/test_billing.py` no medía sólo facturación.** Cinco de sus once
+tests cubrían la validación del medio de pago, la seña que descuenta del saldo y
+que un turno no se pueda completar dos veces — todo eso sigue vivo en
+`complete_appointment`. Borrar el archivo entero los habría dejado sin una sola
+aserción encima. Se rescataron en `tests/test_completar_turno.py`, que es donde
+tenían que estar desde el principio. Los que sí se fueron son los del
+comprobante (tipo A contra tipo B, el CAE): ese contrato ahora es de Contalibra.
+
+**2. La guarda de `configure()` no cubría la URL que este producto usa.** El
+`billing.configure()` que se renombró traía escrito a mano
+`startswith(("postgres://", "postgresql://"))` para no crear una carpeta cuando
+el destino es PostgreSQL — el defecto de VentaLibra del 2026-08-10, donde
+`os.makedirs()` terminaba creando **un directorio con la contraseña en el
+nombre**. Pero `"postgresql+psycopg://".startswith("postgresql://")` es `False`,
+y ésa es exactamente la forma que este arranque usa: `app/main.py` la nombra
+unas líneas más abajo, al armar el engine de libraauth. **La guarda existía y el
+defecto pasaba igual.** Ahora el criterio sale de
+`libracore.db.core.es_url_postgres`, que existe para ser el mismo criterio en un
+solo lugar, con `tests/test_libracore_setup.py` encima — verificado por mutación:
+con la lista a mano de vuelta, el caso `postgresql+psycopg://` se pone en rojo.
+
+### Lo que queda abierto
+
+⚠️ **La seña no se reparte por medio de pago.** Un turno señado manda a
+Contalibra **una sola venta por el precio entero, con el medio de pago del
+saldo**: con 400 de seña por MercadoPago y 600 en efectivo, allá entran 1000 en
+efectivo. La venta cierra por el total correcto, pero la caja queda mal
+repartida entre medios. El motor local sí repartía —seña y saldo como dos
+movimientos— y eso se perdió al mudarse. Arreglarlo necesita que
+`POST /api/integraciones/consultas` acepte una lista de pagos, como ya hace
+`POST /api/ventas`; o sea, un PR en Contalibra primero. Queda **asertado tal cual
+es hoy** en `test_con_sena_parcial_viaja_el_precio_ENTERO_con_el_medio_del_saldo`,
+para que el día que se toque se ponga rojo y obligue a decidir en vez de cambiar
+en silencio.

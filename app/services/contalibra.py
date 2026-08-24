@@ -4,16 +4,20 @@ Pedido del humano (2026-08-22): *"permitir enviar a facturar consultas con
 enlace a contalibra"*. La pantalla de Facturación ya salió de MedLibra
 (ADR-034); esto es la otra mitad.
 
-## 🔴 O factura Contalibra, o factura MedLibra. Nunca las dos.
+## 🔴 Éste es el único camino. MedLibra ya no factura.
 
-`complete_appointment` emite la factura con LibraCore/ARCA desde ADR-016. Si
-además mandara la consulta a Contalibra —que también factura— saldrían **dos
-comprobantes por una consulta**, y un CAE emitido no se borra: se anula con una
+Hasta el 2026-08-24 esto era **un interruptor**: con `CONTALIBRA_URL` configurada
+se mandaba, y sin ella `complete_appointment` emitía la factura acá mismo con
+LibraCore/ARCA (ADR-016). El interruptor existía para que no salieran **dos
+comprobantes por una consulta** — un CAE emitido no se borra, se anula con una
 nota de crédito.
 
-Por eso el destino es un interruptor, no un agregado: **con `CONTALIBRA_URL`
-configurada, MedLibra deja de facturar y manda**; sin ella, sigue facturando
-como hasta ahora. No hay estado en el que hagan las dos cosas.
+Con ADR-036 se fue el otro lado del interruptor: no hay motor local que emita, y
+`/config/arca` no existe más. Lo que quedó en su lugar **no es silencio**: una
+instancia sin `CONTALIBRA_URL` completa el turno igual —la atención ocurrió— y la
+consulta queda registrada como `SIN_DESTINO`, visible en `/facturacion-externa`
+junto a los envíos que fallaron. Facturarla es después configurar el destino y
+reintentar, no descubrir a fin de mes que faltaba.
 
 ## Lo que se manda nunca se pierde de vista
 
@@ -52,6 +56,11 @@ SISTEMA = "medlibra"
 PENDIENTE = "pendiente"
 ENVIADO = "enviado"
 ERROR = "error"
+#: La consulta tenia precio pero la instancia no tiene , asi
+#: que no se facturo en ningun lado. No es un fallo del otro lado: es que no
+#: hay otro lado configurado. Se distingue de  porque el arreglo es
+#: distinto -- configurar, no reintentar contra algo que fallo.
+SIN_DESTINO = "sin_destino"
 
 #: Cuánto se espera a Contalibra. Corto a propósito: del otro lado hay un
 #: pedido de CAE a ARCA, pero **este** proceso está completando un turno con
@@ -134,7 +143,7 @@ class EnvioRepository:
             consulta = select(EnvioAContalibraRow)
             if solo_pendientes:
                 consulta = consulta.where(
-                    EnvioAContalibraRow.estado.in_((PENDIENTE, ERROR))
+                    EnvioAContalibraRow.estado.in_((PENDIENTE, ERROR, SIN_DESTINO))
                 )
             rows = session.scalars(
                 consulta.order_by(EnvioAContalibraRow.actualizado.desc())
@@ -144,7 +153,7 @@ class EnvioRepository:
 
 async def enviar_consulta(
     *, appointment_id: str, fecha: str, descripcion: str, importe: Decimal,
-    medio_pago: str, paciente: dict,
+    medio_pago: str, paciente: dict, iva_rate: Decimal | None = None,
 ) -> dict:
     """Manda la consulta y devuelve lo que contestó Contalibra.
 
@@ -171,6 +180,13 @@ async def enviar_consulta(
             "cuit": paciente.get("cuit") or "",
             "condicion_iva": paciente.get("condicion_iva") or "",
         },
+        # 🔴 **La alícuota viaja con la consulta.** En salud el caso normal es el
+        # EXENTO, y esa configuración es de la prestación —vive acá, por servicio
+        # (ADR-027)—, no del negocio que factura. Sin mandarla, Contalibra usa su
+        # default y una prestación exenta se declara al 21%: la feature entera
+        # quedaría configurable y sin efecto, en silencio. `None` deja que decida
+        # el otro lado, que es lo correcto cuando acá no hay nada configurado.
+        "iva_rate": float(iva_rate) if iva_rate is not None else None,
         "facturar": True,
     }
     async with httpx.AsyncClient(timeout=TIMEOUT_SEGUNDOS) as cliente:

@@ -5,13 +5,15 @@ permitiendo setear valor de la consulta por profesional"*.
 
 🔴 **Lo que hay que probar no es el CRUD, es qué se termina cobrando.** Guardar
 un número y releerlo es lo barato; lo que importa es que el honorario del
-profesional **pise** al precio de lista de la sede en la factura de verdad, y
-que sacarlo lo devuelva al precio de lista en vez de dejar la prestación sin
-precio. Por eso el test que manda completa un turno y **mira el total de la
-factura emitida**, no la fila de la tabla.
+profesional **pise** al precio de lista de la sede en lo que se cobra de verdad,
+y que sacarlo lo devuelva al precio de lista en vez de dejar la prestación sin
+precio. Por eso el test que manda completa un turno y **mira el importe que
+viaja a la contabilidad**, no la fila de la tabla.
 """
 import pytest
 from fastapi.testclient import TestClient
+
+from app.services import contalibra
 
 
 @pytest.fixture
@@ -48,8 +50,7 @@ def _honorario(client: TestClient, profesional: str, precio: str):
 
 
 def _completar(client: TestClient, profesional: str, hora="10:00"):
-    """Da un turno, lo confirma y lo completa. Devuelve la respuesta de
-    completar, que es donde viene la factura."""
+    """Da un turno, lo confirma y lo completa."""
     creado = client.post("/appointments", json={
         "resource_id": profesional, "service_id": "consulta",
         "client_id": "p-1", "starts_at": f"2099-01-01T{hora}:00",
@@ -58,6 +59,34 @@ def _completar(client: TestClient, profesional: str, hora="10:00"):
     turno = creado.json()["id"]
     assert client.post(f"/appointments/{turno}/confirm").status_code == 200
     return client.post(f"/appointments/{turno}/complete", json={"medio_pago": "efectivo"})
+
+
+@pytest.fixture
+def enviados(monkeypatch):
+    """Lo que sale hacia Contalibra, interceptado.
+
+    🔴 **Estos tests asertaban sobre el total de la factura local hasta el
+    2026-08-24**, cuando este producto dejó de facturar (ADR-036). La propiedad
+    que miden no cambió —qué importe se termina cobrando— pero el lugar donde se
+    mide sí: ahora es el **importe que viaja a la contabilidad**, que es el único
+    número que existe. Medirlo en la respuesta de completar sería medir un dato
+    de tránsito; esto es lo que llega.
+    """
+    monkeypatch.setenv("CONTALIBRA_URL", "https://contalibra.example")
+    capturados = []
+
+    async def falso(**kwargs):
+        capturados.append(kwargs)
+        return {"venta": {"id": 1}}
+
+    monkeypatch.setattr(contalibra, "enviar_consulta", falso)
+    return capturados
+
+
+def _cobrado(capturados) -> float:
+    """El importe del último envío."""
+    assert capturados, "no salió ninguna consulta hacia Contalibra"
+    return float(capturados[-1]["importe"])
 
 
 # ── El CRUD ────────────────────────────────────────────────────────────────
@@ -94,27 +123,27 @@ def test_un_honorario_negativo_se_rechaza(consultorio: TestClient):
 
 # ── Lo que se termina cobrando ─────────────────────────────────────────────
 
-def test_sin_honorario_se_cobra_el_precio_de_la_sede(consultorio: TestClient):
+def test_sin_honorario_se_cobra_el_precio_de_la_sede(consultorio: TestClient, enviados):
     """🔴 El control de todo lo que sigue, y el compromiso de compatibilidad:
     una instancia que no cargue ningún honorario tiene que facturar exactamente
     como antes."""
     respuesta = _completar(consultorio, "dra-vidal")
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["factura"]["total"] == 1000.0
+    assert _cobrado(enviados) == 1000.0
 
 
 def test_el_honorario_del_profesional_pisa_al_precio_de_la_sede(
-    consultorio: TestClient,
+    consultorio: TestClient, enviados,
 ):
     """El caso del pedido: la consulta con la Dra. Vidal sale 2500 aunque el
     precio de lista de la sede sea 1000."""
     _honorario(consultorio, "dra-vidal", "2500.00")
     respuesta = _completar(consultorio, "dra-vidal")
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["factura"]["total"] == 2500.0
+    assert _cobrado(enviados) == 2500.0
 
 
-def test_el_honorario_es_de_UN_profesional_y_no_de_todos(consultorio: TestClient):
+def test_el_honorario_es_de_UN_profesional_y_no_de_todos(consultorio: TestClient, enviados):
     """🔴 El control que distingue "pisa el precio" de "cambió el precio".
 
     Con las dos filas cargadas y distintas: el turno de la Dra. Vidal sale 2500
@@ -122,32 +151,38 @@ def test_el_honorario_es_de_UN_profesional_y_no_de_todos(consultorio: TestClient
     sede. Con una sola fila, un bug que aplicara el honorario a todo el mundo
     pasaría el test de arriba sin problema."""
     _honorario(consultorio, "dra-vidal", "2500.00")
-    assert _completar(consultorio, "dra-vidal", "10:00").json()["factura"]["total"] == 2500.0
-    assert _completar(consultorio, "dr-molina", "11:00").json()["factura"]["total"] == 1000.0
+    _completar(consultorio, "dra-vidal", "10:00")
+    assert _cobrado(enviados) == 2500.0
+    _completar(consultorio, "dr-molina", "11:00")
+    assert _cobrado(enviados) == 1000.0
 
 
-def test_dos_profesionales_con_honorarios_distintos(consultorio: TestClient):
+def test_dos_profesionales_con_honorarios_distintos(consultorio: TestClient, enviados):
     """Y cada uno el suyo, que es de lo que se trata todo esto."""
     _honorario(consultorio, "dra-vidal", "2500.00")
     _honorario(consultorio, "dr-molina", "1800.00")
-    assert _completar(consultorio, "dra-vidal", "10:00").json()["factura"]["total"] == 2500.0
-    assert _completar(consultorio, "dr-molina", "11:00").json()["factura"]["total"] == 1800.0
+    _completar(consultorio, "dra-vidal", "10:00")
+    assert _cobrado(enviados) == 2500.0
+    _completar(consultorio, "dr-molina", "11:00")
+    assert _cobrado(enviados) == 1800.0
 
 
-def test_sacar_el_honorario_devuelve_al_precio_de_la_sede(consultorio: TestClient):
+def test_sacar_el_honorario_devuelve_al_precio_de_la_sede(consultorio: TestClient, enviados):
     """🔴 Borrar el honorario **no deja la prestación sin precio**: vuelve a
     cobrarse la de lista. Si dejara un hueco, el turno se completaría sin
     facturar y el consultorio perdería la consulta sin que nada avise."""
     client = consultorio
     _honorario(client, "dra-vidal", "2500.00")
-    assert _completar(client, "dra-vidal", "10:00").json()["factura"]["total"] == 2500.0
+    _completar(client, "dra-vidal", "10:00")
+    assert _cobrado(enviados) == 2500.0
 
     client.delete("/resources/dra-vidal/prices/consulta")
-    assert _completar(client, "dra-vidal", "11:00").json()["factura"]["total"] == 1000.0
+    _completar(client, "dra-vidal", "11:00")
+    assert _cobrado(enviados) == 1000.0
 
 
 def test_con_honorario_pero_sin_precio_de_sede_igual_se_factura(
-    admin_client: TestClient,
+    admin_client: TestClient, enviados,
 ):
     """El honorario **alcanza solo**: no es un descuento sobre un precio de
     lista que tenga que existir. Un consultorio que cobra distinto por
@@ -170,4 +205,4 @@ def test_con_honorario_pero_sin_precio_de_sede_igual_se_factura(
 
     respuesta = _completar(client, "dra-vidal")
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["factura"]["total"] == 2500.0
+    assert _cobrado(enviados) == 2500.0

@@ -42,7 +42,7 @@ from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
     agenda, agenda_blocks as agenda_blocks_router, appointments, availability,
-    billing as billing_router, branch_hours, branches,
+    branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
     deposits, facturacion_externa, health, holidays, prescriptions, reminders,
@@ -74,7 +74,7 @@ from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from libraauth.bootstrap import ensure_demo_user
 from .services.users import UserRepository, ensure_default_admin
-from .services import billing
+from .services import libracore_setup
 
 
 def _carpeta_de_backups(libracore_db_path: str) -> str:
@@ -85,8 +85,9 @@ def _carpeta_de_backups(libracore_db_path: str) -> str:
     `postgresql://usuario:clave@host:5432/base` devuelve
     `postgresql://usuario:clave@host:5432`, y ahi se creaba `backups/`: una
     carpeta **con la contrasena en el nombre**, colgando del directorio de
-    trabajo. Es el mismo defecto que `billing.configure()` tenia en los tres
-    productos, en otro lugar del mismo arranque.
+    trabajo. Es el mismo defecto que `libracore_setup.configure()` —entonces
+    llamado `billing.configure()`— tenia en los tres productos, en otro lugar
+    del mismo arranque.
 
     Con la base en PostgreSQL no hay "al lado de la base": se usa `DATA_DIR`,
     que es donde viven los logos y los documentos de esta instancia.
@@ -154,7 +155,7 @@ def create_app(database_url: str) -> FastAPI:
     libracore_db_path = url_de_instancia(
         "medlibra", core=True, default="./data/medlibra_libracore.db"
     )
-    billing.configure(libracore_db_path)
+    libracore_setup.configure(libracore_db_path)
     # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
     # fuera una URL PostgreSQL: la interpolacion la convertia en una ruta
     # relativa sin sentido (`sqlite:///postgresql://...`) y el engine moria con
@@ -346,9 +347,9 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(
         deposits.admin_router, dependencies=admin_only + [Depends(require_module("senas"))],
     )
-    app.include_router(
-        billing_router.router, dependencies=admin_only + [Depends(require_module("facturacion"))],
-    )
+    # 🔴 No hay router de `/config/arca`. Este producto ya no factura: la
+    # facturación vive en Contalibra (ADR-036). El módulo "facturacion" del plan
+    # sigue existiendo y ahora gatea **el envío**, no la emisión local.
     app.include_router(
         dashboard_router.router, dependencies=admin_only + [Depends(require_module("dashboard"))],
     )
