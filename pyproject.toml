@@ -56,6 +56,17 @@ dependencies = [
     # cuenta en cuenta corriente" terminaba en 202,2 mm en una hoja de 210.
     #
     # Es anterior a v1.37.0 y aquel arreglo no lo cubria.
+    #
+    # v1.50.0 sube al motor el vocabulario de medios de pago
+    # (`libracore.medios_pago`), que estaba declarado 28 veces en 11 repos. Es
+    # de donde sale ahora `GET /medios-pago` de este producto, y con el la
+    # tarjeta partida en debito y credito -- el `tarjeta` que este frontend
+    # ofrecia no existia en ninguna lista de la familia. Ver
+    # wiki/concepts/medios-de-pago-familia-libra.md.
+    #
+    # v1.51.0 la trajo `develop` en paralelo (las varias cadenas de migraciones).
+    # Se queda la mas alta: contiene a v1.50.0 -- verificado con
+    # `git merge-base --is-ancestor`, y que `medios_pago.py` este en el tag.
     "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.51.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
