@@ -45,7 +45,8 @@ from .routers import (
     billing as billing_router, branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, health, prescriptions, reminders, resources, service_iva_rates, service_prices,
+    deposits, health, prescriptions, reminders, resource_prices as resource_prices_router,
+    resources, service_iva_rates, service_prices,
     services, study_orders, walkins as walkins_router,
 )
 from .routers import auth as auth_router
@@ -66,6 +67,7 @@ from .services.modules import ModuleRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.iva_rates import IvaRateRepository
+from .services.resource_prices import ResourcePriceRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from libraauth.bootstrap import ensure_demo_user
@@ -216,6 +218,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.branches = BranchRepository(catalog, sessions)
     app.state.branch_hours = branch_hours_repository
     app.state.service_prices = ServicePriceRepository(sessions)
+    app.state.resource_prices = ResourcePriceRepository(sessions)
     app.state.iva_rates = IvaRateRepository(sessions)
     app.state.business_settings = BusinessSettingsRepository(sessions)
     app.state.consultorios = ConsultorioRepository(sessions)
@@ -312,6 +315,7 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(resources.router, dependencies=admin_only)
     app.include_router(services.router, dependencies=admin_only)
     app.include_router(service_prices.router, dependencies=admin_only)
+    app.include_router(resource_prices_router.router, dependencies=admin_only)
     app.include_router(service_iva_rates.router, dependencies=admin_only)
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(consultorios_router.router, dependencies=admin_only)
