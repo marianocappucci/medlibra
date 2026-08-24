@@ -15,6 +15,7 @@ Contalibra de verdad: lo que este archivo mide es la decisión de MedLibra, no e
 contrato del otro lado — eso lo prueba la suite de Contalibra, contra su propia
 base.
 """
+import json
 from decimal import Decimal
 
 import pytest
@@ -163,7 +164,9 @@ def test_lo_que_viaja_es_el_turno_y_su_precio(
     # del otro lado. Dos consultas del mismo paciente el mismo día son dos.
     assert enviado["appointment_id"] == turno_id
     assert float(enviado["importe"]) == 2500.0
-    assert enviado["medio_pago"] == "efectivo"
+    # Un solo pago, porque este turno no tiene seña. El reparto seña/saldo tiene
+    # sus propios tests en `test_completar_turno.py`.
+    assert enviado["pagos"] == [{"medio": "efectivo", "monto": 2500}]
     # ⚠️ Acá el paciente todavía es el dict CRUDO de MedLibra (`name`): el mapeo
     # al vocabulario de Contalibra (`nombre`) lo hace `enviar_consulta`, que en
     # estos tests está reemplazada por el doble. Ese mapeo tiene su propio test
@@ -287,6 +290,86 @@ def test_reintentar_recalcula_el_precio_de_hoy(consultorio: TestClient, monkeypa
     assert float(enviados[1]["importe"]) == 4000.0
 
 
+def test_reintentar_conserva_el_medio_con_el_que_se_cobro(
+    consultorio: TestClient, monkeypatch,
+):
+    """🔴 **Con qué se cobró no se recalcula: pasó, y ya.**
+
+    El reintento recalcula el precio desde el turno, pero el medio del saldo no
+    está en el turno — llega en el pedido de completar. Hasta el 2026-08-24 acá
+    iba `"efectivo"` fijo, y eso **reintroducía en el reintento el mismo defecto
+    que este cambio arregla**: un saldo cobrado por transferencia entraba a la
+    caja de Contalibra como efectivo.
+
+    Por eso se guarda en `envios_a_contalibra.medio_del_saldo` (migración 0019).
+    """
+    monkeypatch.setenv("CONTALIBRA_URL", "https://contalibra.example")
+    enviados = []
+
+    async def explota_primero(**kwargs):
+        enviados.append(kwargs)
+        if len(enviados) == 1:
+            raise RuntimeError("503")
+        return {"venta": {"id": 77}}
+
+    monkeypatch.setattr(contalibra, "enviar_consulta", explota_primero)
+
+    creado = consultorio.post("/appointments", json={
+        "resource_id": "dra-vidal", "service_id": "consulta",
+        "client_id": "p-1", "starts_at": "2099-01-01T11:00:00",
+    })
+    turno_id = creado.json()["id"]
+    consultorio.post(f"/appointments/{turno_id}/confirm")
+    consultorio.post(
+        f"/appointments/{turno_id}/complete", json={"medio_pago": "transferencia"},
+    )
+    assert enviados[0]["pagos"] == [{"medio": "transferencia", "monto": 2500}]
+
+    consultorio.post(f"/facturacion-externa/{turno_id}/reintentar")
+    assert enviados[1]["pagos"] == [{"medio": "transferencia", "monto": 2500}], (
+        "el reintento volvió a asumir efectivo"
+    )
+
+
+def test_reintentar_de_un_turno_senado_reparte_igual_que_el_original(
+    consultorio: TestClient, monkeypatch,
+):
+    """🔴 El reparto no puede vivir en un solo camino. La seña sale de
+    `deposits` —que sí es estado del turno— y el saldo del medio guardado; si
+    esto lo armara un router y no una función compartida, el reintento mandaría
+    un pago único y el defecto seguiría vivo por la mitad."""
+    monkeypatch.setenv("CONTALIBRA_URL", "https://contalibra.example")
+    enviados = []
+
+    async def explota_primero(**kwargs):
+        enviados.append(kwargs)
+        if len(enviados) == 1:
+            raise RuntimeError("503")
+        return {"venta": {"id": 77}}
+
+    monkeypatch.setattr(contalibra, "enviar_consulta", explota_primero)
+
+    creado = consultorio.post("/appointments", json={
+        "resource_id": "dra-vidal", "service_id": "consulta",
+        "client_id": "p-1", "starts_at": "2099-01-01T12:00:00",
+    })
+    turno_id = creado.json()["id"]
+    consultorio.post(f"/appointments/{turno_id}/confirm")
+    sena = consultorio.post(
+        f"/appointments/{turno_id}/deposit", json={"amount": "500.00"},
+    )
+    consultorio.post(
+        f"/deposits/{sena.json()['id']}/mark-paid", json={"medio_pago": "mercadopago"},
+    )
+    consultorio.post(
+        f"/appointments/{turno_id}/complete", json={"medio_pago": "efectivo"},
+    )
+
+    consultorio.post(f"/facturacion-externa/{turno_id}/reintentar")
+    assert enviados[1]["pagos"] == enviados[0]["pagos"]
+    assert {p["medio"] for p in enviados[1]["pagos"]} == {"mercadopago", "efectivo"}
+
+
 def test_reintentar_sin_contalibra_configurada_se_rechaza(
     consultorio: TestClient, monkeypatch,
 ):
@@ -333,7 +416,11 @@ async def test_el_pedido_lleva_el_vocabulario_de_contalibra(monkeypatch):
 
     await contalibra.enviar_consulta(
         appointment_id="turno-1", fecha="2026-08-24", descripcion="consulta",
-        importe=2500, medio_pago="efectivo",
+        importe=2500,
+        pagos=[
+            {"medio": "mercadopago", "monto": Decimal("500"), "referencia": "Seña"},
+            {"medio": "efectivo", "monto": Decimal("2000")},
+        ],
         paciente={"name": "Ana", "cuit": "20111222333",
                   "condicion_iva": "Responsable Inscripto"},
         iva_rate=Decimal("0"),
@@ -345,10 +432,34 @@ async def test_el_pedido_lleva_el_vocabulario_de_contalibra(monkeypatch):
     assert capturado["headers"]["x-internal-auth"] == "un-token"
 
     cuerpo = capturado["json"]
+
+    # 🔴 **El cuerpo tiene que poder salir a la red**, y este test no lo probaba.
+    # El doble reemplaza `httpx.AsyncClient.post`, así que **la serialización
+    # nunca ocurre**: un `Decimal` en `monto` quedaba capturado tal cual, y
+    # `Decimal("500") == 500.0` es `True` en Python — o sea que las aserciones de
+    # abajo pasaban en verde con un cuerpo que en producción revienta con
+    # *"Object of type Decimal is not JSON serializable"*.
+    #
+    # Y los montos vienen de `deposits`, que los guarda como `Decimal`. O sea que
+    # **todos los envíos de un turno señado fallaban** y ningún test lo veía.
+    # Lo encontró la mutación (sacar el `float()` de `enviar_consulta`), no la
+    # lectura.
+    json.dumps(cuerpo)
+
     assert cuerpo["sistema"] == "medlibra"
     assert cuerpo["referencia"] == "turno-1"
     assert cuerpo["importe"] == 2500.0
     assert cuerpo["facturar"] is True
+    # 🔴 **Los pagos, con el nombre que espera el otro lado y en `float`.**
+    # `Decimal` no es serializable a JSON: httpx revienta con "Object of type
+    # Decimal is not JSON serializable" — y los montos vienen de `deposits`, que
+    # los guarda como Decimal. Mandar la lista sin convertir tumbaría todos los
+    # envíos de un turno señado, y el doble de `enviar_consulta` que usan los
+    # otros tests **no puede verlo**: nunca serializa nada.
+    assert cuerpo["pagos"] == [
+        {"medio": "mercadopago", "monto": 500.0, "referencia": "Seña"},
+        {"medio": "efectivo", "monto": 2000.0, "referencia": ""},
+    ]
     # 🔴 **La alícuota, en el cuerpo y con el nombre que espera el otro lado.**
     # Los dos tests que la miran arriba interceptan `enviar_consulta`, o sea que
     # miden que `complete_appointment` la resuelva y la pase — no que llegue al
@@ -387,7 +498,8 @@ async def test_sin_alicuota_el_cuerpo_la_manda_nula_y_no_la_omite(monkeypatch):
 
     await contalibra.enviar_consulta(
         appointment_id="turno-2", fecha="2026-08-24", descripcion="consulta",
-        importe=2500, medio_pago="efectivo", paciente={"name": "Ana"},
+        importe=2500, pagos=[{"medio": "efectivo", "monto": 2500}],
+        paciente={"name": "Ana"},
     )
 
     assert "iva_rate" in capturado["json"], "la clave tiene que estar, aunque sea nula"
@@ -411,7 +523,8 @@ async def test_un_error_del_otro_lado_conserva_lo_que_dijo(monkeypatch):
     with pytest.raises(RuntimeError) as error:
         await contalibra.enviar_consulta(
             appointment_id="t", fecha="2026-08-24", descripcion="c",
-            importe=1, medio_pago="efectivo", paciente={"name": "Ana"},
+            importe=1, pagos=[{"medio": "efectivo", "monto": 1}],
+            paciente={"name": "Ana"},
         )
     assert "409" in str(error.value)
     assert "no tiene configurado el usuario" in str(error.value)
@@ -423,5 +536,6 @@ async def test_sin_url_configurada_no_sale_ningun_pedido(monkeypatch):
     with pytest.raises(RuntimeError, match="CONTALIBRA_URL"):
         await contalibra.enviar_consulta(
             appointment_id="t", fecha="2026-08-24", descripcion="c",
-            importe=1, medio_pago="efectivo", paciente={"name": "Ana"},
+            importe=1, pagos=[{"medio": "efectivo", "monto": 1}],
+            paciente={"name": "Ana"},
         )

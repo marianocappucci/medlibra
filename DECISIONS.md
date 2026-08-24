@@ -1804,7 +1804,11 @@ defecto pasaba igual.** Ahora el criterio sale de
 solo lugar, con `tests/test_libracore_setup.py` encima — verificado por mutación:
 con la lista a mano de vuelta, el caso `postgresql+psycopg://` se pone en rojo.
 
-### Lo que queda abierto
+### Lo que quedaba abierto
+
+> ✅ **Cerrado el mismo día, en ADR-037.** El test que asertaba el defecto se
+> puso en rojo, que era exactamente para lo que estaba escrito. Lo de abajo es
+> el planteo original.
 
 ⚠️ **La seña no se reparte por medio de pago.** Un turno señado manda a
 Contalibra **una sola venta por el precio entero, con el medio de pago del
@@ -1817,3 +1821,103 @@ movimientos— y eso se perdió al mudarse. Arreglarlo necesita que
 es hoy** en `test_con_sena_parcial_viaja_el_precio_ENTERO_con_el_medio_del_saldo`,
 para que el día que se toque se ponga rojo y obligue a decidir en vez de cambiar
 en silencio.
+
+## ADR-037 — La seña y el saldo viajan como dos pagos, cada uno con su medio
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+**Cierra el pendiente de**: ADR-036
+
+### Contexto
+
+ADR-036 dejó esto anotado como *"lo que queda abierto"*, con un test que
+asertaba el defecto tal cual era para que el día que se tocara se pusiera rojo.
+Se tocó, y se puso rojo.
+
+Un turno señado se cobra en dos momentos: la seña al reservar y el saldo al
+atender, y pueden ser medios distintos. Lo que viajaba a [[contalibra]] era **el
+precio entero con un solo medio, el del saldo**.
+
+Con 400 de seña por MercadoPago y 600 en efectivo, allá entraban **1000 en
+efectivo**. La venta cerraba por el total correcto —la plata bien contada— y el
+reparto de la caja quedaba mal: el cierre no cuadra contra el arqueo y la
+diferencia no tiene de dónde salir. El motor de facturación local que se borró
+sí repartía, con un movimiento de caja por medio; eso se perdió al mudarse.
+
+### Decisión
+
+`enviar_consulta` manda **`pagos`, una lista**, y del otro lado
+`POST /api/integraciones/consultas` la acepta (contalibra#146).
+
+`contalibra.pagos_del_turno()` la arma, y **vive en el servicio y no en un
+router** porque la usan los dos caminos: completar el turno y reintentar el
+envío. Escrita en uno solo, el otro seguiría mandando un pago único y el defecto
+quedaría vivo por la mitad — hay un test para cada camino.
+
+Los montos **cierran contra el importe por construcción**: el saldo es
+`importe - seña`, no un número aparte. Contalibra igual lo verifica y rebota con
+422 si no suman, porque una venta que se marca cobrada tiene que estar cobrada
+entera.
+
+Cuando la seña cubre todo el precio el saldo es cero y **no viaja**: un pago de 0
+crearía un movimiento de caja vacío allá, y además Contalibra lo rechaza
+(`monto: float = Field(gt=0)`), o sea que tumbaría el envío entero.
+
+### 🔴 El medio del saldo se guarda, porque no se puede recalcular
+
+El reintento **recalcula todo desde el turno** —si cambió el honorario, viaja el
+precio de hoy—, pero con qué se cobró no es algo que se recalcule: pasó, y ya. La
+seña queda en `deposits` con su medio; el del saldo llega en el pedido de
+completar y no se guardaba en ningún lado.
+
+Hasta acá el reintento asumía `"efectivo"`, y eso **reintroducía en el reintento
+el mismo defecto que esta decisión arregla**. Ahora va en
+`envios_a_contalibra.medio_del_saldo` (migración `0019`), y se guarda **también
+cuando el envío falla y cuando no hay destino** — que es justamente cuando más
+falta hace: una consulta puede quedar meses esperando a que alguien configure
+`CONTALIBRA_URL`.
+
+`registrar(medio_del_saldo=None)` **conserva el que ya estaba** en vez de pisarlo
+con vacío: el reintento no lo sabe, y borrarlo ahí dejaría al siguiente reintento
+sin el dato que este campo existe para guardar.
+
+### El vocabulario de medios de pago
+
+Arreglando esto apareció que **`tarjeta`, uno de los cuatro medios que ofrecía
+`Agenda.tsx`, no existía en el vocabulario de la familia**. Llegaba igual a
+Contalibra, creaba su movimiento de caja y aparecía en el cierre como un bucket
+suelto con el nombre crudo — la plata bien contada y el reparto mal, por segunda
+vez y por otra razón.
+
+Peor: era la misma copia byte a byte que tiene Gestiolibra, así que dos productos
+inventaron el mismo medio por separado. Tirando de ahí, la lista estaba declarada
+**28 veces en 11 repos** y ya divergía en seis formas
+(`wiki/concepts/medios-de-pago-familia-libra.md`).
+
+- La lista canónica subió a `libracore.medios_pago` (libracore#123, v1.50.0), con
+  la **tarjeta partida en débito y crédito** — que es como la declara ARCA.
+- Este producto la sirve en `GET /medios-pago`, **sin gatear por admin**: la
+  consume el selector del mostrador al completar un turno, y ahí no hay un admin.
+  Es una lista de constantes del motor; no expone nada de la instancia.
+- `Agenda.tsx` la pide en vez de declararla.
+- La cuenta corriente **no se ofrece**: no es un medio de cobro, es la marca de
+  que la operación se hizo a crédito.
+
+### Consecuencias
+
+- Migración `0019`, probada ida y vuelta contra `postgres:16` real: el
+  `downgrade` saca la columna y **deja las filas**, y el `upgrade` de vuelta las
+  encuentra con el campo vacío. Sin backfill posible — el dato nunca existió.
+- 🔴 **Dos tests medían lo que creían y no lo que pasaba**, y los encontró la
+  mutación:
+  - El del cuerpo HTTP **nunca serializaba nada**: el doble reemplaza
+    `httpx.AsyncClient.post`, así que un `Decimal` en `monto` quedaba capturado
+    tal cual — y `Decimal("500") == 500.0` es `True`. Los montos vienen de
+    `deposits`, que los guarda como `Decimal`: **todos los envíos de un turno
+    señado fallaban** con *"Object of type Decimal is not JSON serializable"* y
+    ningún test lo veía. Ahora el test hace `json.dumps(cuerpo)`.
+  - El de la agenda no abría el `Select` de Radix, que no rendea sus opciones
+    hasta que se clickea el trigger: un `queryByRole('option')` pasaba por no
+    encontrar nada, no por el filtro.
+- El `EnvioOut` suma `medio_del_saldo`: quien dispara un reintento tiene derecho
+  a ver con qué se va a mandar antes de mandarlo.

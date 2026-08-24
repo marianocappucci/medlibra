@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+- **La seña y el saldo viajan como dos pagos** (ver ADR-037). Cierra el pendiente
+  que ADR-036 dejó anotado.
+  - 🔴 Un turno señado mandaba a Contalibra **el precio entero con un solo medio,
+    el del saldo**: con 400 de seña por MercadoPago y 600 en efectivo, allá
+    entraban 1000 en efectivo. La venta cerraba por el total correcto y **el
+    reparto de la caja quedaba mal**. Ahora viaja `pagos`, una lista.
+  - `contalibra.pagos_del_turno()` la arma, y la usan **los dos caminos** —
+    completar y reintentar. En un solo lugar, porque escrita en uno el otro
+    seguiría mandando un pago único.
+  - **El medio del saldo se guarda** (`envios_a_contalibra.medio_del_saldo`,
+    migración `0019`): es el único dato del cobro que no se recalcula desde el
+    turno, y sin él el reintento asumía `efectivo` — reintroduciendo el mismo
+    defecto en el reintento.
+  - Requiere `POST /api/integraciones/consultas` con `pagos`, del lado de
+    Contalibra.
+
+- **Los medios de pago salen del motor** (`GET /medios-pago`, LibraCore v1.50.0).
+  `Agenda.tsx` declaraba cuatro a mano y uno —**`tarjeta`**— no existía en el
+  vocabulario de la familia: llegaba igual a Contalibra y salía en el cierre como
+  un bucket suelto con el nombre crudo. Era la misma copia byte a byte que tiene
+  Gestiolibra. La tarjeta viene ahora **partida en débito y crédito**, que es
+  como la declara ARCA. Ver `wiki/concepts/medios-de-pago-familia-libra.md`.
+
 - **Se va el motor de facturación local** (ver ADR-036). MedLibra ya no emite
   comprobantes: los emite Contalibra. Se borran `app/services/billing.py`,
   `app/routers/billing.py`, `frontend/src/pages/Facturacion.tsx` y
