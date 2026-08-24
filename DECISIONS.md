@@ -1544,3 +1544,62 @@ por una para configurar a alguien.
   dice — *"se completa sin facturar"* es un estado válido pero silencioso.
 - Migración probada contra `postgres:16` real, ida y vuelta; el único por
   `(prestación, profesional)` verificado **en la base**.
+
+## ADR-034 — La facturación sale de la vista de MedLibra
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"sacar la opción de facturación en el sidebar, y
+sacar la opción de facturación dentro de configuración, permitir enviar a
+facturar consultas con enlace a contalibra"*.
+
+La facturación de este producto pasa a **Contalibra**, que es donde vive la
+contabilidad del ecosistema. Este cambio hace la primera mitad —sacarla de la
+vista— y deja la segunda para su propio trabajo, que además toca otro repo con
+clientes reales.
+
+### Decisión
+
+**Se saca de la vista, no del producto.** Al preguntarlo, el humano eligió sacar
+la pantalla y **dejar el motor**: el turno completado sigue emitiendo su factura
+hasta que Contalibra la reciba, para que ninguna instancia quede sin poder
+facturar en el medio.
+
+Sale entonces:
+
+- El ítem **Facturación** del sidebar (`components/Layout.tsx`).
+- La sección **ARCA** de Configuración (`pages/Configuracion.tsx`).
+- 🔴 **Y la ruta `/facturacion` del router.** Sacar sólo el ítem del sidebar
+  habría dejado la pantalla viva y accesible escribiendo la URL. Una pantalla
+  que el producto ya no ofrece pero que sigue funcionando es peor que cualquiera
+  de las dos cosas por separado: nadie la mantiene y sigue escribiendo en la
+  base.
+
+**No se borra `pages/Facturacion.tsx`.** Es la única forma de configurar ARCA, y
+el backend **sigue facturando**: si a un cliente se le vencen los certificados
+antes de que Contalibra esté recibiendo, borrar el componente sacaría el único
+camino de recuperación mientras el motor está vivo. Queda sin referenciar y con
+fecha de vencimiento: se va con el cambio que conecte Contalibra.
+
+### Consecuencias
+
+- ⚠️ **Una instancia NUEVA ya no puede configurar ARCA desde la interfaz.** Las
+  que ya tienen su configuración cargada siguen facturando igual; las nuevas
+  dependen de que la integración con Contalibra esté lista. Es una consecuencia
+  buscada —el destino es Contalibra— pero conviene tenerla escrita, porque es
+  exactamente lo que vuelve urgente al cambio siguiente.
+- Los endpoints `/config/arca` y `/billing` **no se tocan**: siguen ahí y siguen
+  siendo `admin_only`. Lo que se saca es la interfaz.
+- 1 test nuevo (37 en la suite del frontend). 🔴 **La ruta se mide del lado del
+  router de React y no pidiéndosela al backend**: el catch-all del SPA devuelve
+  `index.html` con 200 para cualquier ruta, así que un `GET /facturacion` daría
+  200 aunque la ruta no exista. Verificado por control: volviendo a poner la
+  ruta, el test se pone rojo.
+- El guard de títulos (`titulos-con-icono.test.ts`) exigía **7 ítems de menú** y
+  se puso en rojo con 6 — no encontró nada raro, encontró un ítem menos. Era un
+  número calcado de la foto del día que se escribió, y con él **toda baja
+  legítima es un rojo que no dice nada**. Baja a 5, que sigue siendo un piso de
+  "midió algo" con margen para otra baja.

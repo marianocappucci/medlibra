@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+- **La facturación sale de la vista** (ver ADR-034): se van el ítem
+  **Facturación** del sidebar, la sección **ARCA** de Configuración **y la ruta
+  `/facturacion`**. La facturación de este producto pasa a Contalibra.
+  - 🔴 La ruta también, no sólo el ítem: sacar el menú y dejar la ruta habría
+    dejado la pantalla viva y accesible escribiendo la URL.
+  - **El motor sigue facturando.** Se saca la pantalla, no la emisión: el turno
+    completado sigue emitiendo su factura hasta que Contalibra la reciba, así
+    ninguna instancia queda sin poder facturar en el medio. Los endpoints
+    `/config/arca` y `/billing` no se tocan.
+  - ⚠️ **Una instancia nueva ya no puede configurar ARCA desde la interfaz.**
+    Las que ya la tienen cargada siguen facturando igual; las nuevas dependen de
+    que la integración con Contalibra esté lista.
+  - El guard de títulos exigía **7 ítems de menú** y se puso en rojo con 6 — no
+    encontró nada raro, encontró un ítem menos. Baja a 5: era un número calcado
+    de la foto del día en que se escribió, y con él toda baja legítima es un
+    rojo que no dice nada.
+  - 1 test nuevo (37 en la suite del frontend), que mide la ruta **del lado del
+    router de React**: el catch-all del SPA devuelve 200 para cualquier ruta, así
+    que preguntárselo al backend no distinguiría nada.
+
 - **Honorarios: el valor de la consulta por profesional** (ver ADR-033). El
   precio era por **(prestación × sede)** y no podía decir que la consulta con la
   Dra. Vidal salga más cara que con el Dr. Molina **en la misma sede** — que es

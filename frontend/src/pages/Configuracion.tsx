@@ -25,9 +25,7 @@
  *  consultorio nuevo no podía parametrizar nada: ni sus salas, ni sus
  *  prestaciones, ni la jornada de quien atiende.
  */
-import {
-  SECCIONES_BASE, SECCION_ARCA, createConfiguracion,
-} from 'libra-ui/Configuracion'
+import { SECCIONES_BASE, createConfiguracion } from 'libra-ui/Configuracion'
 import { CalendarClock, DoorClosed, MapPin, Settings, Stethoscope } from 'lucide-react'
 import { SedesCard } from './configuracion/sedes'
 import { ConsultoriosCard } from './configuracion/consultorios'
@@ -37,7 +35,12 @@ import { ProfesionalesCard } from './configuracion/profesionales'
 export const Configuracion = createConfiguracion({
   // El icono que el sidebar de este producto le da a /configuracion.
   icono: Settings,
-  // empresa (+logo), correo (SMTP) y Datos / Backup, más la agenda y ARCA.
+  // empresa (+logo), correo (SMTP) y Datos / Backup, más la agenda.
+  //
+  // 🔴 **ARCA NO está**, por pedido del humano (2026-08-22): la facturación de
+  // este producto pasa a Contalibra, que es donde vive la contabilidad. Ver
+  // ADR-034 — y en particular la consecuencia de que una instancia NUEVA ya no
+  // pueda configurar ARCA desde acá.
   //
   // 🔴 El ORDEN es el del arranque de un consultorio nuevo: dónde se atiende,
   // en qué sala, qué se hace y quién lo hace. Al revés, un consultorio se carga
@@ -59,6 +62,5 @@ export const Configuracion = createConfiguracion({
       clave: 'profesionales', label: 'Profesionales', icono: CalendarClock,
       contenido: <ProfesionalesCard />,
     },
-    SECCION_ARCA,
   ],
 })
