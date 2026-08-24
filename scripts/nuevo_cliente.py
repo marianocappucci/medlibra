@@ -25,6 +25,23 @@ configure(
     image_name="medlibra:latest",
     container_prefix="medlibra",
     db_filename="medlibra.db",
+    # Las dos cadenas de Alembic de este producto, corridas por
+    # `panel_admin.py actualizar` antes de mover la instancia a la imagen nueva,
+    # y por el alta antes del primer arranque. Requiere libracore >= v1.51.0
+    # (que es la que acepta una SECUENCIA de comandos) y libragenda >= v0.10.0
+    # (que es la que trae `libragenda-migrar` como comando instalable).
+    #
+    # 🔑 **El orden no es estetico.** Las revisiones de este producto tienen FK
+    # contra tablas de LibraGenda (`branches`), asi que la cadena del motor va
+    # primero. Al reves, la primera revision que las toque muere con
+    # `relation "branches" does not exist`.
+    #
+    # Son dos tablas de version distintas en la misma base: `alembic_version`
+    # para LibraGenda y `alembic_version_medlibra` para esta cadena.
+    migraciones=(
+        ("libragenda-migrar", "upgrade"),
+        ("alembic", "upgrade", "head"),
+    ),
     repo_root=REPO_ROOT,
     base_port=8078,
 )
