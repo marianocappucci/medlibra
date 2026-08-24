@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+- **Configuración: Sedes, Consultorios, Prestaciones y Profesionales** (ver
+  ADR-032). Todo lo que ADR-030 y ADR-031 construyeron en el backend **no tenía
+  pantalla**: los endpoints existían y sólo se llegaba a ellos por API o por el
+  seed, así que un consultorio nuevo no podía parametrizar nada de lo suyo.
+  Ahora se carga desde Configuración, **en el orden del arranque**: dónde se
+  atiende → en qué sala → qué se hace → quién lo hace.
+  - **El armador de la agenda del profesional** es el corazón: días de la
+    semana, rango horario, consultorio, duración del turno, modalidad y
+    *"repetir hasta"*. Deja elegir **varios días de una vez** y crea un bloque
+    por día — cargar "lunes a viernes" a mano, por cada profesional, es el gesto
+    que más se repite.
+  - Cuelgan del profesional también los **bloqueos** (un rato puntual) y las
+    **excepciones por fecha** (un feriado que cierra, un sábado que abre).
+  - 🔴 Si el profesional no tiene ningún bloque, **la pantalla lo dice**: sin
+    bloques no recibe ningún turno, y antes eso se descubría recién cuando toda
+    alta se rechazaba.
+  - En demanda espontánea **no se ofrece duración**: no hay turnos que durar.
+  - La jornada ya no se carga como ventana semanal suelta. El endpoint viejo
+    sigue existiendo y sumando, pero la pantalla no lo ofrece: dos maneras de
+    cargar lo mismo terminan con la mitad de los profesionales configurados de
+    un modo y la otra mitad del otro.
+  - 16 tests nuevos (36 en la suite del frontend). Dos arreglos que aparecieron
+    escribiéndolos: faltaba el **polyfill de captura de puntero** en el setup
+    (sin él, abrir un `Select` desde un test tira un `TypeError` que se lee como
+    un defecto de la pantalla) y `waitFor` corría con **1 segundo**, que bajo
+    carga se cae — medido, dos tests del calendario en falso rojo tras un
+    `npm ci`. Ahora son 5 s.
+  > La **fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
+  > parametrización, no la operación diaria del llamador.
+
 - **Demanda espontánea: la fila por orden de llegada** (ver ADR-031). ADR-030
   dejó la modalidad `espontanea` a medias — el bloque se podía crear pero no se
   le podía anotar a nadie. Ahora un bloque de demanda espontánea tiene su

@@ -1405,3 +1405,74 @@ profesional, su consultorio y su vigencia.
   el mismo `(bloque, día, orden)` es rechazado por PostgreSQL.
 - **Todavía no tiene pantalla.** Como el resto de la parametrización de agenda,
   hoy se opera por API. La pantalla llega con Configuración.
+
+## ADR-032 — La parametrización de la agenda, adentro de Configuración
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-030 y ADR-031 dejaron el backend entero —consultorios, bloques de agenda,
+bloqueos, excepciones, fila de llegada— y **ninguna pantalla**. Los endpoints
+existían y sólo se llegaba a ellos por API o por `scripts/seed_demo.py`: un
+consultorio nuevo no podía parametrizar nada de lo suyo, que es exactamente el
+estado en el que Gestiolibra estaba antes de su ADR-031.
+
+### Decisión
+
+Cuatro secciones nuevas **adentro de Configuración**, no como ítems propios del
+sidebar: lo que se configura vive en un solo lugar, y estas cuatro son
+exactamente eso — se cargan al arrancar y se tocan poco, a diferencia de la
+agenda y los pacientes, que se usan todos los días.
+
+🔴 **El orden es el del arranque de un consultorio nuevo**: Sedes →
+Consultorios → Prestaciones → Profesionales. Al revés, un consultorio se carga
+sin sede a la cual pertenecer, una prestación sin poder ponerle precio (el
+precio es por sede) y un bloque de agenda sin consultorio donde ubicarlo — que
+es el único campo del bloque que no se puede dejar vacío.
+
+- **El armador de bloques deja elegir varios días de una vez y crea un bloque
+  por día.** El backend modela un bloque por día de la semana a propósito —así
+  el miércoles puede estar en otra sala—, pero cargar "lunes a viernes de 9 a
+  13" como cinco altas idénticas a mano, por cada profesional, es el gesto que
+  más se repite en la pantalla. **La multiplicación va en la UI**: el modelo de
+  datos no tiene por qué cargar con una comodidad de la pantalla.
+- **Las altas van secuenciales y no en `Promise.all`.** Si una falla —una
+  duración que el backend no acepta— hay que cortar ahí; en paralelo se crearían
+  las otras cuatro igual y el error diría una sola cosa con la agenda a medio
+  cargar. Y se recarga la lista **también en el error**, para que los días que
+  sí entraron se vean: si no, el usuario los vuelve a cargar y se duplican.
+- **En demanda espontánea no se ofrece el campo de duración.** No hay turnos que
+  durar; ofrecerlo igual haría creer que hace algo.
+- **La jornada del profesional ya no se carga como ventana semanal.** El
+  endpoint viejo (`/resources/{id}/availability`) sigue existiendo y sigue
+  sumando —ADR-030 lo conserva a propósito—, pero la pantalla no lo ofrece: dos
+  maneras de cargar lo mismo, una más pobre que la otra, es cómo se termina con
+  la mitad de los profesionales configurados de un modo y la otra mitad del
+  otro. `ventanas.tsx` queda sólo para el horario de atención de la sede.
+
+### Consecuencias
+
+- 16 tests nuevos (36 en la suite del frontend), **con su control al lado**: el
+  atajo de "lunes a viernes" tiene el test de que no pisa un día ya cargado, y
+  el de los cinco bloques tiene el de que deseleccionar días cambia cuántos se
+  crean — sin ese, "mandar siempre los cinco hábiles" pasaría igual.
+- **Dos cosas que este producto no tenía y aparecieron al escribir los tests:**
+  - `src/test/setup.ts` no tenía el polyfill de **captura de puntero**. Sin él,
+    abrir un `Select` de Radix desde un test tira `hasPointerCapture is not a
+    function` y no despliega ninguna opción — que se lee como un defecto de la
+    pantalla y no lo es. No se notaba porque ningún test de acá abría un
+    `Select`. Gestiolibra ya lo tenía.
+  - `waitFor`/`findBy*` corrían con el **default de 1 segundo**. Medido: en la
+    corrida inmediatamente posterior a un `npm ci` —con el transform tardando
+    9 s en vez de 2,6— se cayeron dos tests del calendario que en las tres
+    corridas siguientes pasaron sin tocar una línea. Se sube a 5 s en vez de
+    convivir con el flake: un rojo intermitente enseña a re-correr el CI hasta
+    que salga verde, que es el hábito que vuelve inútil al CI. No hace más lenta
+    ninguna corrida sana — `waitFor` corta apenas la condición se cumple.
+- Cobertura del frontend: **55,29 % de líneas**, muy por encima del trinquete de
+  22.
+- **La fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
+  parametrización (dónde, cuándo, quién, cuánto), no la operación diaria del
+  llamador.
