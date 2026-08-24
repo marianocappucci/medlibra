@@ -29,6 +29,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { describirError } from './catalogo'
+import { hoyISO } from 'libra-ui/fechas'
 
 const MODALIDAD_LABEL: Record<string, string> = {
   turnos: 'Por turnos',
@@ -85,7 +86,7 @@ export function BloquesDeAgenda({ resourceId, consultorios }: {
   // hoy empieza a valer hoy, y pedirle la fecha a quien la carga es fricción
   // sobre el caso normal.
   useEffect(() => {
-    if (!vigenteDesde) setVigenteDesde(new Date().toISOString().slice(0, 10))
+    if (!vigenteDesde) setVigenteDesde(hoyISO())
   }, [vigenteDesde])
 
   useEffect(() => {
