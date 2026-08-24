@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- **Demanda espontánea: la fila por orden de llegada** (ver ADR-031). ADR-030
+  dejó la modalidad `espontanea` a medias — el bloque se podía crear pero no se
+  le podía anotar a nadie. Ahora un bloque de demanda espontánea tiene su
+  **fila**: se registra la llegada (`POST /agenda-blocks/{id}/walkins`), se ve la
+  cola del día, y se llama / completa / cancela.
+  - 🔴 **No es un turno sin hora.** Un `Appointment` de LibraGenda *es* un
+    horario, y darle uno inventado haría que ese horario falso choque contra los
+    turnos de verdad, ocupe el consultorio y aparezca en la grilla como si
+    alguien tuviera esa media hora reservada.
+  - **El número de llegada es histórico y no se renumera**: cancelar al segundo
+    no convierte al tercero en segundo. Quién sigue se calcula filtrando por
+    estado, no por el número.
+  - Registrar una llegada **valida el bloque**: tiene que ser de demanda
+    espontánea, y el día tiene que caer en su día de la semana y su vigencia.
+  - Va con los turnos y no con la configuración: **la secretaria** anota a quien
+    entra por la puerta, no hace falta ser admin.
+  - 14 tests nuevos (372 en la suite), verificados por mutación. Migración
+    `0016_walkins` probada contra `postgres:16` real, ida y vuelta; el único por
+    `(bloque, día, orden)` verificado **en la base**, no sólo en el modelo.
+  > Todavía **sin pantalla**: como el resto de la parametrización de agenda, hoy
+  > se opera por API.
+
 - **Consultorios y bloques de agenda** (ver ADR-030): el consultorio pasa a ser
   una **entidad propia** (`/consultorios`) y la agenda de un profesional se arma
   con **bloques** (`/agenda-blocks`): *"la Dra. Vidal atiende los lunes de 9 a 13
