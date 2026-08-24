@@ -203,6 +203,25 @@ class AppointmentService:
         (ver `agenda_blocks.py`). Y se derivan **para el día que se valida**,
         que es lo que hace valer el "se repite hasta determinada fecha" sin
         enseñarle vigencias al motor.
+
+        🔴 **`holidays` y `resources` faltaban, y la regla de feriados del
+        motor no podía dispararse** (arreglado el 2026-08-24). Hasta acá este
+        constructor recibía sólo ventanas, bloqueos y excepciones, así que los
+        dos parámetros quedaban en lista vacía — y `_is_branch_holiday()` de
+        `libragenda/scheduling.py` necesita **los dos**: busca el recurso
+        dentro de `resources` para sacarle la sucursal y recién ahí compara
+        contra `holidays`. Con cualquiera de las dos vacía devuelve `False`
+        siempre. La tabla `holidays` existía desde la migración
+        `0003_timezone_holidays_branch` y nadie podía cargarla, así que el
+        defecto no tenía síntoma que alguien pudiera reportar.
+
+        🔑 **El feriado se evalúa en el día LOCAL, y eso sale gratis acá.**
+        `_is_branch_holiday()` compara `appointment.starts_at.date()`, y todo
+        lo que entra a este scheduler está en hora de pared de la sucursal (ver
+        el docstring del módulo). Si el turno llegara como instante UTC, en
+        UTC-3 uno de las 21:00 caería en el día siguiente y se lo compararía
+        contra el feriado equivocado — el mismo defecto de terreno que se
+        arregló el 2026-08-22, ahora en la fecha en vez de la hora.
         """
         windows = [item for _, item in self.availability.list_availability(resource_id)]
         windows += self.blocks.ventanas_vigentes(resource_id, dia)
@@ -211,8 +230,25 @@ class AppointmentService:
             for _, item in self.availability.list_blocks(resource_id)
         ]
         exceptions = [item for _, item in self.availability.list_exceptions(resource_id)]
+        resource = self.catalog.get_resource(resource_id)
+        # Un recurso sin sucursal no tiene calendario de feriados que aplicarle
+        # -- el motor ya lo trata así, pero pedirle los feriados de `None`
+        # sería traer los de todas las sucursales.
+        #
+        # 📝 Se traen TODOS los feriados de la sucursal, no los del día. Hoy
+        # son los que alguien cargó a mano y no llegan a la decena; cuando
+        # entre el feed nacional por API (unos 19 por año) va a convenir que
+        # el motor sepa filtrar por fecha — `list_holidays()` sólo acepta
+        # sucursal.
+        holidays = (
+            list(self.catalog.list_holidays(resource.branch_id))
+            if resource is not None and resource.branch_id is not None
+            else []
+        )
         return InMemoryScheduler(
             windows, blocks, exceptions,
+            holidays=holidays,
+            resources=[resource] if resource is not None else [],
             repository=_TurnosEnHoraLocal(self.appointments, zona, resource_id),
         )
 

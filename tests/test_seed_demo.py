@@ -196,6 +196,27 @@ def test_correrlo_dos_veces_no_duplica(api, capsys):
     assert len(api.get("/patients")) == 6
 
 
+def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
+    """🔴 **La ventana con la que el seed se pregunta "¿ya sembré?" tiene que
+    cubrir el plan entero**, y el plan avanza en días HÁBILES mientras que
+    cualquier margen fijo se mide en días de CALENDARIO.
+
+    Hasta el 2026-08-24 la cuenta iba de `HOY - 2` a `HOY + 5` y un lunes
+    dejaba afuera los dos turnos de "ayer hábil" —que caen el viernes, tres
+    días de calendario atrás—: el seed informaba 9 sobre 11. No duplicó nunca
+    nada de puro suerte, porque el corte de abajo es 8 y 9 lo pasa igual. Es
+    el mismo agujero que ya tapó dos veces el margen en este archivo, así que
+    acá se mira el número exacto y no un "alcanza".
+    """
+    sembrar(api)
+    capsys.readouterr()
+
+    sembrar(api)
+
+    salida = capsys.readouterr().out
+    assert "(ya hay 11 turnos cargados)" in salida, salida
+
+
 def test_la_segunda_corrida_no_agrega_evoluciones(api):
     """Las evoluciones son **append-only** —no se editan ni se borran, que es
     lo correcto para una historia clínica—, así que un seed que las duplique

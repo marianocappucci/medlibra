@@ -45,7 +45,8 @@ from .routers import (
     billing as billing_router, branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, health, prescriptions, reminders, resource_prices as resource_prices_router,
+    deposits, health, holidays, prescriptions, reminders,
+    resource_prices as resource_prices_router,
     resources, service_iva_rates, service_prices,
     services, study_orders, walkins as walkins_router,
 )
@@ -312,6 +313,7 @@ def create_app(database_url: str) -> FastAPI:
     admin_only = [Depends(require_admin)]
     app.include_router(branches.router, dependencies=admin_only)
     app.include_router(branch_hours.router, dependencies=admin_only)
+    app.include_router(holidays.router, dependencies=admin_only)
     app.include_router(resources.router, dependencies=admin_only)
     app.include_router(services.router, dependencies=admin_only)
     app.include_router(service_prices.router, dependencies=admin_only)

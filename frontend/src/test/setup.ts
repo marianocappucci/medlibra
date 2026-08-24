@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
+
+// 🔴 `waitFor`/`findBy*` esperan **1 segundo** por defecto, y eso alcanza sólo
+// mientras la máquina no esté cargada. Medido el 2026-08-24: en la corrida
+// inmediatamente posterior a un `npm ci` —con el transform tardando 9 s en vez
+// de 2,6— se cayeron dos tests del calendario que en las tres corridas
+// siguientes pasaron sin tocar una línea. El primer render de esas pantallas
+// pide cuatro endpoints y monta una grilla; con jsdom y el CI compartido, un
+// segundo es un margen que a veces no está.
+//
+// Se sube el margen en vez de convivir con el flake: un rojo intermitente
+// enseña a re-correr el CI hasta que salga verde, que es exactamente el hábito
+// que vuelve inútil al CI. Cinco segundos no hacen más lenta ninguna corrida
+// sana — el `waitFor` corta apenas la condición se cumple.
+configure({ asyncUtilTimeout: 5000 })
 
 afterEach(() => {
   cleanup()
@@ -50,4 +64,19 @@ if (typeof Range !== 'undefined' && !Range.prototype.getBoundingClientRect) {
   }) as DOMRect
   Range.prototype.getBoundingClientRect = cero
   Range.prototype.getClientRects = () => Object.assign([], { item: () => null }) as unknown as DOMRectList
+}
+
+// El `Select` de Radix usa las APIs de captura de puntero, que jsdom no
+// implementa: sin esto, abrirlo desde un test tira `hasPointerCapture is not a
+// function` y no despliega ninguna opción, así que el `getByRole('option')`
+// falla — y se lee como un defecto de la pantalla, que no lo es. Mismo criterio
+// que `scrollIntoView` de acá arriba: en un navegador de verdad existen.
+//
+// Hasta hoy este producto no lo tenía —lo agregó Gestiolibra al escribir sus
+// propias pantallas de configuración— y no se notaba porque ningún test de acá
+// abría un `Select`.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
 }
