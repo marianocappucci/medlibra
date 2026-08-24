@@ -148,9 +148,18 @@ def test_no_todos_los_pacientes_tienen_historia(api):
 # ── Los turnos ────────────────────────────────────────────────────────────
 
 def _estados(api):
+    """Los estados de todos los turnos que sembró la demo.
+
+    🔴 **La ventana se mide en días de CALENDARIO y el plan de la demo está en
+    días HÁBILES**, así que tiene que sobrar por los dos lados. Hasta el
+    2026-08-24 iba de `hoy - 2` a `hoy + 5`, y un lunes eso dejaba afuera los dos
+    turnos de "ayer hábil" — que caen el viernes, tres días de calendario atrás.
+    No lo notaba nadie porque el test pedía `>= 7` sobre un plan de 9: el margen
+    se comía justo el agujero. Al pasar a una cuenta exacta apareció.
+    """
     from datetime import date, timedelta
 
-    desde, hasta = date.today() - timedelta(days=2), date.today() + timedelta(days=5)
+    desde, hasta = date.today() - timedelta(days=7), date.today() + timedelta(days=10)
     estados = []
     for r in api.get("/resources"):
         agenda = api.get(f"/resources/{r['id']}/agenda"

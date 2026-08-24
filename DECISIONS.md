@@ -1330,3 +1330,10 @@ nadie.
 - Migración probada contra `postgres:16` real, con datos: `upgrade head` →
   filas cargadas → `downgrade -1` (las tres tablas se van, `resources` y
   `branches` quedan) → `upgrade head`.
+- **Un hallazgo del cambio anterior, que apareció recién acá.** Al pasar el test
+  de la demo de `>= 7` a una cuenta exacta (ADR-028), un lunes se puso en rojo
+  con 9 de 11: la ventana que ese test mira iba de `hoy - 2` a `hoy + 5` en días
+  de **calendario**, y el plan de la demo está en días **hábiles** — un lunes,
+  los dos turnos de "ayer hábil" caen el viernes, tres días atrás, y quedaban
+  afuera. El margen del `>= 7` se comía justo ese agujero, así que el test decía
+  verde mirando 9 de 11 turnos. La ventana pasa a `hoy - 7` … `hoy + 10`.
