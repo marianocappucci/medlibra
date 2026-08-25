@@ -62,8 +62,23 @@ configure(
     #
     # Son dos tablas de version distintas en la misma base: `alembic_version`
     # para LibraGenda y `alembic_version_medlibra` para esta cadena.
+    # 🔴 **TRES cadenas, y el orden no es decorativo.**
+    #
+    # 1. `libragenda-migrar` — va primero porque las revisiones propias de este
+    #    producto tienen FK contra tablas de LibraGenda.
+    # 2. `libracore-migrar` — el esquema de LibraCore vive en `medlibra_core`,
+    #    una base **aparte**: el comando la resuelve por `MEDLIBRA_LIBRACORE_DB_PATH` y **no**
+    #    por `DATABASE_URL`, que apunta al dominio. Ver
+    #    `libracore.migrar.url_de_core`.
+    # 3. `alembic` — la cadena propia.
+    #
+    # La del motor no la corría nadie hasta el 2026-08-25: sus migraciones no
+    # viajaban en el wheel. Medido, `medlibra_core` de la demo no tiene
+    # `alembic_version` ninguna y le faltan las cuatro columnas que la revisión
+    # `0002` le agrega a `clients`.
     migraciones=(
         ("libragenda-migrar", "upgrade"),
+        ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
         ("alembic", "upgrade", "head"),
     ),
     repo_root=REPO_ROOT,
