@@ -49,19 +49,31 @@ def test_una_url_de_postgres_no_crea_ninguna_carpeta(url, carpetas_creadas):
     assert creadas == [], f"se creó {creadas} — con la contraseña adentro"
 
 
-def test_una_ruta_de_archivo_SI_crea_su_carpeta(carpetas_creadas):
-    """🔴 El control. Sin esto, "no crear nunca ninguna carpeta" pasaría el test
-    de arriba — y una instancia SQLite nueva moriría al arrancar porque el
-    directorio de su base no existe."""
-    creadas, Corte = carpetas_creadas
-    with pytest.raises(Corte):
+def test_una_ruta_de_archivo_se_RECHAZA(carpetas_creadas):
+    """🔴 El control, con el invariante nuevo.
+
+    Hasta el 2026-08-25 este test exigía lo contrario: que una ruta de archivo
+    creara su carpeta, porque el producto todavía podía arrancar sobre SQLite.
+    Ya no puede — `configure()` rechaza cualquier destino que no sea una URL de
+    PostgreSQL, y el modo SQLite se retiró el 2026-08-12.
+
+    Sigue siendo el control del test de arriba y por el mismo motivo: sin él,
+    una `configure()` que rechazara **todo** —incluida la URL— pasaría aquel
+    igual, porque tampoco dejaría carpetas.
+    """
+    creadas, _ = carpetas_creadas
+    with pytest.raises(RuntimeError, match="solo sobre PostgreSQL"):
         libracore_setup.configure("./data/medlibra_libracore.db")
-    assert creadas == ["./data"]
+    assert creadas == [], "rechazó, pero antes creó la carpeta"
 
 
-def test_una_ruta_sin_carpeta_no_intenta_crear_la_vacia(carpetas_creadas):
-    """`os.path.dirname("medlibra.db")` es `""`, y `makedirs("")` revienta."""
-    creadas, Corte = carpetas_creadas
-    with pytest.raises(Corte):
+def test_un_nombre_suelto_tambien_se_rechaza(carpetas_creadas):
+    """Antes esto probaba que `makedirs("")` no se llamara —
+    `os.path.dirname("medlibra.db")` es `""` y revienta—. Sin ruta de archivo
+    posible ese camino no existe; lo que queda por exigir es que un nombre
+    suelto se rechace igual que una ruta, y no se cuele por parecer otra cosa.
+    """
+    creadas, _ = carpetas_creadas
+    with pytest.raises(RuntimeError, match="solo sobre PostgreSQL"):
         libracore_setup.configure("medlibra.db")
     assert creadas == []
