@@ -43,7 +43,7 @@ import {
   api, ApiError, STATUS_LABELS,
   opcionesPaciente, opcionesServicio,
   type AppointmentStatus, type Branch, type CompleteAppointmentResponse,
-  type EnvioAContalibra, type Patient, type Resource, type Service,
+  type EnvioAContalibra, type MedioPago, type Patient, type Resource, type Service,
 } from '../api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -65,12 +65,17 @@ import { VistaDia } from '@/components/agenda/vista-dia'
 
 const TODOS = '__todos__'
 
-const MEDIO_PAGO_LABELS: Record<string, string> = {
-  efectivo: 'Efectivo',
-  transferencia: 'Transferencia',
-  tarjeta: 'Tarjeta',
-  mercadopago: 'MercadoPago',
-}
+// 🔴 Acá había un `MEDIO_PAGO_LABELS` con cuatro medios escritos a mano, y uno
+// de ellos —`tarjeta`— **no existía en el vocabulario de la familia**. Llegaba
+// igual a Contalibra, creaba su movimiento de caja y salía en el cierre como un
+// bucket suelto con el nombre crudo: la plata bien contada y el reparto mal.
+//
+// Peor: era la misma copia byte a byte que tiene Gestiolibra, así que dos
+// productos inventaron el mismo medio por separado.
+//
+// Ahora la lista sale de `GET /medios-pago`, que la sirve `libracore.medios_pago`.
+// La tarjeta viene **partida en débito y crédito**, que es como la declara ARCA.
+// Ver `wiki/concepts/medios-de-pago-familia-libra.md`.
 
 const STATUS_TONO: Record<AppointmentStatus, TonoEstado> = {
   pending: 'neutro',
@@ -116,6 +121,9 @@ export function Agenda() {
   const [creando, setCreando] = useState(false)
   const [altaAbierta, setAltaAbierta] = useState(false)
   const [medioPago, setMedioPago] = useState('')
+  //: Los medios que sirve el motor (`GET /medios-pago`). Vacío hasta que
+  //: conteste: el diálogo de cobro no se abre antes de que cargue el catálogo.
+  const [mediosPago, setMediosPago] = useState<MedioPago[]>([])
   const [pidiendoMedioPago, setPidiendoMedioPago] = useState<TurnoConProfesional | null>(null)
   const [completando, setCompletando] = useState(false)
   // Sólo se llena cuando la consulta NO llegó a facturarse. El caso feliz no
@@ -141,7 +149,8 @@ export function Agenda() {
       api.get<Branch[]>('/branches'),
       api.get<Service[]>('/services'),
       api.get<Patient[]>('/patients'),
-    ]).then(([r, b, s, p]) => {
+      api.get<MedioPago[]>('/medios-pago'),
+    ]).then(([r, b, s, p, m]) => {
       // `Array.isArray` y no confiar en el tipo: un cuerpo truncado o un `{}`
       // es truthy, y el `.filter()` de más abajo tumbaría la pantalla entera
       // con un TypeError en vez de mostrar de menos.
@@ -149,6 +158,7 @@ export function Agenda() {
       setBranches(Array.isArray(b) ? b : [])
       setServices(Array.isArray(s) ? s : [])
       setPatients(Array.isArray(p) ? p : [])
+      setMediosPago(Array.isArray(m) ? m : [])
     }).catch((err) => setErrorCatalogo(describirError(err)))
       .finally(() => setCatalogoCargado(true))
   }, [])
@@ -545,8 +555,8 @@ export function Agenda() {
           <Select value={medioPago} onValueChange={setMedioPago}>
             <SelectTrigger><SelectValue placeholder="Medio de pago…" /></SelectTrigger>
             <SelectContent>
-              {Object.entries(MEDIO_PAGO_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
+              {mediosPago.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>

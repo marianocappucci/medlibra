@@ -20,6 +20,24 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 configure(
     postgres=True,
+    # ⚠️ **Tiene que decir lo mismo que `scripts/panel_admin.py`.** Hasta el
+    # 2026-08-24 este archivo no pasaba `backup_zip` y el otro sí. Como pisan un
+    # `_cfg` GLOBAL y `libracore.admin.services` importa los dos módulos en el
+    # mismo proceso, una diferencia acá hace que el resultado dependa del orden
+    # de los imports. `tests/test_provisioning.py` lo compara entero con
+    # `asdict`.
+    #
+    # **No estaba mordiendo**: todo camino que hoy lee `cfg.backup_zip` entra por
+    # `panel_admin.py`, que ya lo tenía en `True`. Se ve en el servidor — las
+    # instancias vienen armando su ZIP diario en `data/backups/`. Era una mina,
+    # no un incendio.
+    #
+    # `True` es el valor correcto y no un empate arbitrario: este producto sirve
+    # su pantalla de Backups con el `build_backup_router` de `libracore.respaldo`,
+    # así que el ZIP del cron es exactamente el que el cliente puede listar,
+    # bajar y restaurar solo. Sin el flag, el `tar.gz` empaqueta `data/` mientras
+    # el dump de PostgreSQL queda **afuera**.
+    backup_zip=True,
     base_core_separada=True,
     product_name="MEDLIBRA",
     image_name="medlibra:latest",
@@ -47,8 +65,23 @@ configure(
     #
     # Son dos tablas de version distintas en la misma base: `alembic_version`
     # para LibraGenda y `alembic_version_medlibra` para esta cadena.
+    # 🔴 **TRES cadenas, y el orden no es decorativo.**
+    #
+    # 1. `libragenda-migrar` — va primero porque las revisiones propias de este
+    #    producto tienen FK contra tablas de LibraGenda.
+    # 2. `libracore-migrar` — el esquema de LibraCore vive en `medlibra_core`,
+    #    una base **aparte**: el comando la resuelve por `MEDLIBRA_LIBRACORE_DB_PATH` y **no**
+    #    por `DATABASE_URL`, que apunta al dominio. Ver
+    #    `libracore.migrar.url_de_core`.
+    # 3. `alembic` — la cadena propia.
+    #
+    # La del motor no la corría nadie hasta el 2026-08-25: sus migraciones no
+    # viajaban en el wheel. Medido, `medlibra_core` de la demo no tiene
+    # `alembic_version` ninguna y le faltan las cuatro columnas que la revisión
+    # `0002` le agrega a `clients`.
     migraciones=(
         ("libragenda-migrar", "upgrade"),
+        ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
         ("alembic", "upgrade", "head"),
     ),
     repo_root=REPO_ROOT,

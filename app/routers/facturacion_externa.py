@@ -12,13 +12,16 @@ venta y la misma factura, no una segunda.
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from libragenda import DepositStatus
+from libragenda.repositories import DepositRepository
 from pydantic import BaseModel
 
 from ._instantes import InstanteUTC
 from ..dependencies import (
     get_appointment_service,
-    get_catalog_repository,
     get_business_settings_repository,
+    get_catalog_repository,
+    get_deposit_repository,
     get_envio_contalibra_repository,
     get_iva_rate_repository,
     get_patient_repository,
@@ -43,6 +46,9 @@ class EnvioOut(BaseModel):
     error: str
     intentos: int
     actualizado: InstanteUTC
+    #: Con qué se cobró el saldo. Sale en la respuesta porque es lo que el
+    #: reintento va a mandar: quien lo dispara tiene derecho a verlo antes.
+    medio_del_saldo: str = ""
 
 
 class EstadoOut(BaseModel):
@@ -71,6 +77,7 @@ async def reintentar(
     envios: contalibra.EnvioRepository = Depends(get_envio_contalibra_repository),
     service: AppointmentService = Depends(get_appointment_service),
     patients: PatientRepository = Depends(get_patient_repository),
+    deposits: DepositRepository = Depends(get_deposit_repository),
     service_prices: ServicePriceRepository = Depends(get_service_price_repository),
     resource_prices: ResourcePriceRepository = Depends(get_resource_price_repository),
     catalog=Depends(get_catalog_repository),
@@ -82,6 +89,14 @@ async def reintentar(
     **Se recalcula todo desde el turno**, no se guarda el cuerpo del envío
     fallido: si entre el intento y el reintento cambió el honorario, lo que
     tiene que viajar es el precio de hoy, no el que se congeló en un JSON.
+
+    🔴 **Salvo el medio del saldo, que es un hecho del pasado.** Con qué se cobró
+    no se recalcula: pasó, y ya. La seña queda en `deposits` con su medio, pero
+    el del saldo llega en el pedido de completar, así que se guarda en la fila
+    del envío. Hasta el 2026-08-24 acá iba `"efectivo"` fijo — y eso
+    **reintroducía en el reintento el mismo defecto que se está arreglando**: un
+    saldo cobrado por transferencia entraba a la caja de Contalibra como
+    efectivo.
     """
     if not contalibra.destino():
         raise HTTPException(
@@ -107,13 +122,19 @@ async def reintentar(
         )
 
     paciente = patients.get(turno.client_id) or {}
+    envio_previo = envios.get(appointment_id) or {}
+    sena = deposits.get_by_appointment(appointment_id)
+    pagada = sena is not None and sena.status is DepositStatus.PAID
     try:
         respuesta = await contalibra.enviar_consulta(
             appointment_id=appointment_id,
             fecha=_dia(turno.starts_at),
             descripcion=turno.service_id,
             importe=precio["price"],
-            medio_pago="efectivo",
+            pagos=contalibra.pagos_del_turno(
+                precio["price"], sena, pagada,
+                envio_previo.get("medio_del_saldo") or "efectivo",
+            ),
             paciente=paciente,
             iva_rate=iva_rates.resolve(
                 turno.service_id, business.get()["default_iva_rate"],

@@ -138,22 +138,28 @@ def enviados(monkeypatch):
     return capturados
 
 
-def test_con_sena_parcial_viaja_el_precio_ENTERO_con_el_medio_del_saldo(
+def _pagos(capturado: dict) -> dict:
+    """`{medio: monto}` de lo que viajó."""
+    return {p["medio"]: float(p["monto"]) for p in capturado["pagos"]}
+
+
+def test_con_sena_parcial_viajan_DOS_pagos_con_su_medio_cada_uno(
     admin_client: TestClient, enviados,
 ):
-    """⚠️ **Deja documentado un comportamiento que no es del todo correcto.**
+    """🔴 **La seña y el saldo son dos cobros distintos.**
 
-    El motor local repartía el cobro en dos movimientos de caja —la seña con su
-    medio de pago y el saldo con el suyo—. El envío a Contalibra no: manda una
-    sola venta por el precio entero, con el medio de pago del **saldo**.
+    Hasta el 2026-08-24 acá viajaba el precio entero con un solo medio —el del
+    saldo—, así que con 400 de seña por MercadoPago y 600 en efectivo, en
+    Contalibra entraban **1000 en efectivo**. La venta cerraba por el total
+    correcto —la plata bien contada— y **el reparto de la caja quedaba mal**: el
+    cierre no cuadra contra el arqueo y la diferencia no tiene de dónde salir.
 
-    Con una seña de 400 por MercadoPago y 600 en efectivo, allá entran 1000 en
-    efectivo. La venta cierra por el total correcto, pero la caja de Contalibra
-    queda mal repartida entre medios.
+    El motor de facturación local que se borró (ADR-036) sí repartía. Esto lo
+    devuelve.
 
-    No se arregla acá —requiere que el pedido acepte varios pagos, que es del
-    lado de Contalibra— y se asserta tal cual es para que el día que se toque,
-    este test se ponga rojo y obligue a decidir, en vez de cambiar en silencio.
+    Este test **estaba escrito al revés**: asertaba el defecto tal cual era, con
+    una nota de que el día que se tocara se pondría rojo y obligaría a decidir.
+    Es exactamente lo que pasó.
     """
     turno = _turno(admin_client)
     _senar(admin_client, turno, "400.00", "mercadopago")
@@ -163,4 +169,45 @@ def test_con_sena_parcial_viaja_el_precio_ENTERO_con_el_medio_del_saldo(
 
     assert len(enviados) == 1
     assert float(enviados[0]["importe"]) == 1000.0
-    assert enviados[0]["medio_pago"] == "efectivo"
+    assert _pagos(enviados[0]) == {"mercadopago": 400.0, "efectivo": 600.0}
+
+
+def test_sin_sena_viaja_un_solo_pago_por_el_total(
+    admin_client: TestClient, enviados,
+):
+    """🔴 El control. Sin esto, "mandar siempre dos pagos" pasaría el test de
+    arriba — y una consulta sin seña viajaría con un pago fantasma de cero, que
+    del otro lado es un movimiento de caja vacío."""
+    turno = _turno(admin_client)
+    admin_client.post(
+        f"/appointments/{turno}/complete", json={"medio_pago": "transferencia"},
+    )
+    assert _pagos(enviados[0]) == {"transferencia": 1000.0}
+
+
+def test_una_sena_que_cubre_todo_no_manda_un_saldo_en_cero(
+    admin_client: TestClient, enviados,
+):
+    """🔴 El otro control. Un pago de 0 crearía un movimiento de caja vacío en
+    la contabilidad de allá, y Contalibra lo rechaza (`monto: float = Field(gt=0)`)
+    — así que además de sucio, tumbaría el envío entero."""
+    turno = _turno(admin_client)
+    _senar(admin_client, turno, "1000.00", "transferencia")
+    admin_client.post(f"/appointments/{turno}/complete")
+
+    assert _pagos(enviados[0]) == {"transferencia": 1000.0}
+    assert len(enviados[0]["pagos"]) == 1
+
+
+def test_los_pagos_suman_el_importe(admin_client: TestClient, enviados):
+    """🔴 Contalibra **rechaza con 422** un pedido cuyos pagos no sumen el
+    importe: una venta que se marca cobrada tiene que estar cobrada entera. Acá
+    cierran por construcción —el saldo es `importe - seña`, no un número
+    aparte—, y este test lo deja fijado."""
+    turno = _turno(admin_client)
+    _senar(admin_client, turno, "333.33", "mercadopago")
+    admin_client.post(
+        f"/appointments/{turno}/complete", json={"medio_pago": "efectivo"},
+    )
+    enviado = enviados[0]
+    assert sum(float(p["monto"]) for p in enviado["pagos"]) == float(enviado["importe"])

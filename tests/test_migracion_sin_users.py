@@ -32,16 +32,16 @@ import pytest
 from alembic import command
 from alembic.config import Config
 
-from motor_de_test import TEST_DATABASE_URL, corre_contra_postgres
+from motor_de_test import TEST_DATABASE_URL
 
 PREVIA = "0018_envios_a_contalibra"
 NUEVA = "0019_sin_users"
 TABLA_VERSION = "alembic_version_medlibra"
 
-pytestmark = pytest.mark.skipif(
-    not corre_contra_postgres(),
-    reason="necesita PostgreSQL: la migración se ejercita contra una base real",
-)
+# El `pytestmark = skipif(not corre_contra_postgres(), ...)` que estaba aca se
+# saco el 2026-08-25: la suite ya no puede correr contra otra cosa, asi que el
+# skip nunca se disparaba. Estos tres tests **ganan** con el cambio --- antes
+# solo corrian en una de las dos pasadas del CI.
 
 
 def _cruda(url: str) -> str:
@@ -101,6 +101,29 @@ def _revision() -> str | None:
     return fila[0] if fila else None
 
 
+def _head_de_la_cadena() -> str:
+    """La cabeza real, leída del directorio de revisiones.
+
+    🔴 **Antes acá se comparaba contra `NUEVA` a secas**, o sea "la cabeza es mi
+    revisión". Eso vale el día que se escribe y deja de valer con la siguiente
+    migración que entre: `0020_medio_del_saldo` puso estos dos tests en rojo sin
+    tener nada que ver con `users`. Es el patrón de "el guard que cubre los N de
+    entonces".
+
+    Lo que estos tests quieren afirmar es que **la cadena llegó hasta el final**,
+    no cuál es el último eslabón. Eso se pregunta, no se escribe a mano.
+
+    De paso, el `assert` de una sola cabeza es un trinquete gratis: dos
+    migraciones colgando de la misma revisión rompen `upgrade head` con
+    *"Multiple head revisions are present"*, y eso hoy sólo lo ve el CI.
+    """
+    from alembic.script import ScriptDirectory
+
+    heads = ScriptDirectory.from_config(Config("alembic.ini")).get_heads()
+    assert len(heads) == 1, f"la cadena tiene {len(heads)} cabezas: {heads}"
+    return heads[0]
+
+
 def test_mundo_1_la_borra_cuando_existe(base_limpia):
     """La base que armaron las migraciones: `0001` la creó, `0019` la saca."""
     command.upgrade(base_limpia, "0001_users")
@@ -110,7 +133,7 @@ def test_mundo_1_la_borra_cuando_existe(base_limpia):
     command.upgrade(base_limpia, "head")
 
     assert not _hay_users()
-    assert _revision() == NUEVA
+    assert _revision() == _head_de_la_cadena()
 
 
 def test_mundo_2_no_falla_cuando_no_existe(base_limpia):
@@ -125,7 +148,7 @@ def test_mundo_2_no_falla_cuando_no_existe(base_limpia):
     command.upgrade(base_limpia, "head")
 
     assert not _hay_users()
-    assert _revision() == NUEVA
+    assert _revision() == _head_de_la_cadena()
 
 
 def test_el_downgrade_la_devuelve(base_limpia):

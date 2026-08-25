@@ -215,10 +215,15 @@ async def complete_appointment(
         # 🔴 **Este producto ya no factura.** La facturación vive en Contalibra
         # desde ADR-036: acá no queda ningún camino de emisión local, así que no
         # hay forma de que salgan dos comprobantes por una consulta.
+        medio_del_saldo = data.medio_pago or "efectivo"
         if contalibra.destino():
             enviado_a_contalibra = await _mandar(
                 envios, appointment_id, current, patient,
-                price_row["price"], data.medio_pago or "efectivo",
+                price_row["price"],
+                contalibra.pagos_del_turno(
+                    price_row["price"], deposit, paid, medio_del_saldo,
+                ),
+                medio_del_saldo=medio_del_saldo,
                 # La alícuota de ESTA prestación (ADR-027). Viaja con la
                 # consulta: en salud el caso normal es el exento, y sin mandarla
                 # Contalibra usaría su default del 21%.
@@ -236,6 +241,11 @@ async def complete_appointment(
             enviado_a_contalibra = envios.registrar(
                 appointment_id, contalibra.SIN_DESTINO,
                 error="CONTALIBRA_URL no está configurada: la consulta no se facturó.",
+                # 🔴 **Se guarda igual, aunque no haya a dónde mandarla.** Éste
+                # es el caso donde más falta hace: la consulta puede quedar meses
+                # esperando a que alguien configure el destino, y cuando lo haga
+                # el medio del saldo ya no está en ninguna parte.
+                medio_del_saldo=medio_del_saldo,
             )
 
     return {
@@ -246,7 +256,8 @@ async def complete_appointment(
 
 async def _mandar(
     envios: contalibra.EnvioRepository, appointment_id: str, turno,
-    patient: dict, importe, medio_pago: str, iva_rate=None,
+    patient: dict, importe, pagos: list[dict], *,
+    medio_del_saldo: str | None = None, iva_rate=None,
 ) -> dict:
     """Manda la consulta a Contalibra y **deja registro pase lo que pase**.
 
@@ -263,14 +274,20 @@ async def _mandar(
             fecha=turno.starts_at.date().isoformat(),
             descripcion=turno.service_id,
             importe=importe,
-            medio_pago=medio_pago,
+            pagos=pagos,
             paciente=patient,
             iva_rate=iva_rate,
         )
     except Exception as exc:  # noqa: BLE001 — cualquier fallo se registra igual
         logger.exception("No se pudo mandar la consulta %s a Contalibra", appointment_id)
-        return envios.registrar(appointment_id, contalibra.ERROR, error=str(exc))
+        # 🔴 El medio se guarda **también cuando falla**, que es cuando hace
+        # falta: la fila que queda acá es de la que va a salir el reintento.
+        return envios.registrar(
+            appointment_id, contalibra.ERROR, error=str(exc),
+            medio_del_saldo=medio_del_saldo,
+        )
     venta = (respuesta or {}).get("venta") or {}
     return envios.registrar(
         appointment_id, contalibra.ENVIADO, venta_id=venta.get("id"),
+        medio_del_saldo=medio_del_saldo,
     )

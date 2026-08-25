@@ -28,7 +28,16 @@ from pathlib import Path
 import pytest
 
 RAIZ = Path(__file__).resolve().parent.parent
-ESPERADO = (("libragenda-migrar", "upgrade"), ("alembic", "upgrade", "head"))
+#: Las TRES cadenas, en orden. La del medio entró el 2026-08-25: el schema de
+#: LibraCore de este producto vive en `medlibra_core`, una base aparte, y su
+#: cadena no la corría nadie porque las migraciones del motor no viajaban en el
+#: wheel. `libracore-migrar` la resuelve por la variable de la instancia y NO
+#: por `DATABASE_URL`, que apunta al dominio.
+ESPERADO = (
+    ("libragenda-migrar", "upgrade"),
+    ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
+    ("alembic", "upgrade", "head"),
+)
 
 
 def _config_de(script: str):
@@ -54,17 +63,35 @@ def _config_de(script: str):
 
 
 @pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])
-def test_los_dos_scripts_declaran_las_dos_cadenas(script):
+def test_los_dos_scripts_declaran_LAS_TRES_cadenas(script):
     assert _config_de(script) == ESPERADO
 
 
-def test_la_cadena_de_libragenda_va_primero():
+def test_el_orden_de_las_cadenas_es_el_que_importa():
     """Explicito ademas del `==` de arriba: si manana se agrega un comando, el
-    `==` se cae por el motivo equivocado y esto dice cual era la afirmacion."""
+    `==` se cae por el motivo equivocado y esto dice cual era la afirmacion.
+
+    El orden no es decorativo:
+
+    - **LibraGenda primero** porque las revisiones de este producto tienen FK
+      contra sus tablas.
+    - **La propia al final**, por lo mismo.
+    - **LibraCore en el medio**: corre contra otra base, asi que su posicion es
+      libre, pero fijarla evita que el `==` de arriba sea la unica afirmacion.
+    """
     comandos = _config_de("panel_admin")
-    assert len(comandos) == 2, f"esperaba las dos cadenas, llegaron {comandos}"
+    assert len(comandos) == 3, f"esperaba las tres cadenas, llegaron {comandos}"
     assert comandos[0][0] == "libragenda-migrar"
+    assert comandos[1][0] == "libracore-migrar"
     assert comandos[-1][:2] == ("alembic", "upgrade")
+
+    # 🔑 El `--prefijo` es lo que hace que `libracore-migrar` NO tome
+    # `DATABASE_URL` --- que en este contenedor apunta al dominio --- sino la
+    # variable de la base del core. Sin el, migraria la base equivocada y
+    # devolveria exito.
+    assert "--prefijo" in comandos[1], (
+        "sin `--prefijo`, `libracore-migrar` cae a DATABASE_URL, que aca es la "
+        "base del DOMINIO y no la del core")
 
 
 def test_el_pin_de_libragenda_trae_el_comando_instalable():
@@ -95,12 +122,20 @@ def test_el_pin_de_libragenda_no_salta_a_la_v0_10():
         "turnos; ver el comentario de `migraciones` en scripts/panel_admin.py")
 
 
-def test_el_pin_de_libracore_acepta_una_secuencia_de_comandos():
-    """El campo `migraciones` de la v1.48.0 era UN comando; la v1.51.0 es la que
-    acepta varios. Con un pin anterior, `configure()` no sabe que hacer con la
-    tupla anidada."""
+def test_el_pin_de_libracore_trae_el_comando_que_se_declara():
+    """El pin y la declaracion viajan juntos, y el minimo subio dos veces.
+
+    La `v1.48.0` introdujo `migraciones` como UN comando; la `v1.51.0` acepta
+    varios --- con un pin anterior, `configure()` no sabe que hacer con la tupla
+    anidada ---. Y desde el 2026-08-25 se declara `libracore-migrar`, que es un
+    `[project.scripts]` que **aparece en la v1.53.0**: con un pin anterior el
+    comando no existe en la imagen y el primer paso del deploy se cae.
+
+    Es el mismo control que `test_el_pin_de_libragenda_trae_el_comando_instalable`
+    hace del otro lado.
+    """
     pins = _pins()
-    assert _version(pins["libracore"]) >= (1, 51, 0), pins["libracore"]
+    assert _version(pins["libracore"]) >= (1, 53, 0), pins["libracore"]
 
 
 def _pins() -> dict:

@@ -21,28 +21,29 @@ from libracore.db.schema import init_core_schema
 def configure(db_path: str) -> None:
     """Llamar una vez al arrancar: configura `libracore.db` contra su propio
     destino, asegura el schema compartido y crea una caja por defecto."""
-    # 🔴 `db_path` puede ser una URL de PostgreSQL, y entonces NO hay carpeta
-    # que crear. Sin esta guarda, `os.path.dirname()` de
-    # `postgresql://usuario:clave@host:5432/base` devuelve
-    # `postgresql://usuario:clave@host:5432` y `makedirs` lo crea como
-    # directorio: **la contraseña queda escrita en el nombre de una carpeta**.
-    # Y donde el repo está bind-mounteado en `/app`, esa carpeta cae dentro del
-    # checkout del VPS y el siguiente `docker build` la mete en la imagen.
-    # Encontrado en VentaLibra el 2026-08-10, al cortar su demo a PostgreSQL.
+    # 🔴 **Este producto corre sobre PostgreSQL y nada mas.** La guarda va aca,
+    # en el arranque del producto, y no dentro de `libracore.db.core`: el motor
+    # tiene que poder abrir un SQLite igual, porque de eso vive la herramienta
+    # de diagnostico `python -m libracore.db.schema_dump`, que vuelca el schema
+    # de un archivo viejo o de la base de LibraEdge. La regla "este producto no
+    # habla con otro motor" es del producto, no del motor.
     #
-    # 🔴 **El criterio sale de LibraCore, no se escribe acá.** La lista a mano
-    # que había —`("postgres://", "postgresql://")`— **no reconocía
-    # `postgresql+psycopg://`**, que es la forma que este mismo arranque
-    # anticipa unas líneas más abajo (`app/main.py`, al armar el engine de
-    # libraauth). O sea que la guarda existía y el defecto que dice tapar
-    # pasaba igual, con la contraseña en el nombre de la carpeta, para la
-    # única URL de PostgreSQL que este producto realmente usa.
-    # `es_url_postgres` es el mismo criterio en un solo lugar, y existe
-    # exactamente por esto.
+    # Aca habia un `if not es_url_postgres(...)` que salteaba el `makedirs`
+    # cuando el destino era una URL. Existia para evitar un defecto medido: con
+    # una URL, `os.path.dirname()` devuelve `postgresql://usuario:clave@host` y
+    # `makedirs` lo creaba como carpeta --- **la contrasena escrita en el nombre
+    # de un directorio**, que ademas caia dentro del checkout bind-mounteado y
+    # se colaba en la imagen del siguiente build. Encontrado el 2026-08-10.
+    #
+    # Con la guarda ese camino no existe: si no hay ruta de archivo posible, no
+    # hay carpeta que crear ni defecto que evitar. El bloque entero se va.
     if not libracore_core.es_url_postgres(str(db_path)):
-        directory = os.path.dirname(db_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
+        raise RuntimeError(
+            "MedLibra corre solo sobre PostgreSQL y recibio {!r}, que es una "
+            "ruta de archivo. El modo SQLite se retiro el 2026-08-12: no chequea "
+            "las FK, tipa dinamicamente y acepta cadenas donde la base pide "
+            "enteros.".format(db_path)
+        )
     libracore_core.configure(db_path)
     conn = libracore_core.get_connection()
     try:

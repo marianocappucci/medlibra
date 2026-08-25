@@ -44,6 +44,21 @@ export type Resource = {
   active: boolean
 }
 
+/** Un medio de pago, tal como lo sirve `GET /medios-pago`.
+ *
+ *  🔴 **No hay lista de medios en este archivo, y es a propósito.** Hasta el
+ *  2026-08-24 `Agenda.tsx` declaraba cuatro a mano, y uno —`tarjeta`— no
+ *  existía en el vocabulario de la familia: llegaba igual a Contalibra, creaba
+ *  su movimiento de caja y salía en el cierre como un bucket suelto con el
+ *  nombre crudo. La plata bien contada y el reparto mal.
+ *
+ *  La lista es de `libracore.medios_pago` y llega por API. Ver
+ *  `wiki/concepts/medios-de-pago-familia-libra.md`. */
+export type MedioPago = {
+  id: string
+  label: string
+}
+
 /** Una sede. **El `timezone` no es decorativo**: es el huso en el que el
  *  backend valida y guarda los turnos (ADR-028), y por lo tanto el único con el
  *  que la agenda puede decir a qué día y a qué hora pertenece cada turno. Un

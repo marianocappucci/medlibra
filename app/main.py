@@ -45,7 +45,9 @@ from .routers import (
     branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, facturacion_externa, health, holidays, prescriptions, reminders,
+    deposits, facturacion_externa, health, holidays,
+    medios_pago as medios_pago_router,
+    prescriptions, reminders,
     resource_prices as resource_prices_router,
     resources, service_iva_rates, service_prices,
     services, study_orders, walkins as walkins_router,
@@ -324,6 +326,10 @@ def create_app(database_url: str) -> FastAPI:
     # Que consultas se mandaron a Contalibra y cuales no pudieron. Admin: es
     # plata y es configuracion de la instancia, no operacion del mostrador.
     app.include_router(facturacion_externa.router, dependencies=admin_only)
+    # 🔴 Con que medios se puede cobrar. **NO va con `admin_only`**: lo consume
+    # el selector del mostrador al completar un turno, y ahi no hay un admin.
+    # Es una lista de constantes del motor, sin datos de la instancia.
+    app.include_router(medios_pago_router.router)
     app.include_router(service_iva_rates.router, dependencies=admin_only)
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(consultorios_router.router, dependencies=admin_only)

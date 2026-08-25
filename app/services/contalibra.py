@@ -80,6 +80,17 @@ class EnvioAContalibraRow(Base):
     error: Mapped[str] = mapped_column(String(500), default="")
     intentos: Mapped[int] = mapped_column(Integer, default=0)
     actualizado: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    #: 🔴 **Con qué se cobró el saldo.** Es el único dato del cobro que no se
+    #: puede recalcular desde el turno: la seña queda en `deposits` con su medio,
+    #: pero el medio del saldo llega en el pedido de completar y no se guardaba
+    #: en ningún lado.
+    #:
+    #: Sin esto el reintento tenía que asumir `"efectivo"`, y eso **reintroduce
+    #: en el reintento el mismo defecto que este cambio arregla**: un saldo
+    #: cobrado por transferencia entraba a la caja de Contalibra como efectivo.
+    #: El reintento sigue recalculando *el precio* de hoy — lo que se guarda es
+    #: cómo se cobró, que es un hecho del pasado y no cambia.
+    medio_del_saldo: Mapped[str] = mapped_column(String(40), default="")
 
 
 def _to_dict(row: EnvioAContalibraRow) -> dict:
@@ -87,6 +98,7 @@ def _to_dict(row: EnvioAContalibraRow) -> dict:
         "appointment_id": row.appointment_id, "estado": row.estado,
         "venta_id": row.venta_id, "error": row.error,
         "intentos": row.intentos, "actualizado": row.actualizado,
+        "medio_del_saldo": row.medio_del_saldo,
     }
 
 
@@ -115,8 +127,15 @@ class EnvioRepository:
         self.session_factory = session_factory
 
     def registrar(self, appointment_id: str, estado: str, *,
-                  venta_id: int | None = None, error: str = "") -> dict:
-        """Crea o actualiza la fila del turno, sumando un intento."""
+                  venta_id: int | None = None, error: str = "",
+                  medio_del_saldo: str | None = None) -> dict:
+        """Crea o actualiza la fila del turno, sumando un intento.
+
+        `medio_del_saldo=None` **conserva el que ya estaba**, y no lo pisa con
+        vacío: el reintento no lo sabe —lo recalcula todo desde el turno— y
+        borrarlo ahí dejaría al siguiente reintento sin el dato que este campo
+        existe para guardar.
+        """
         with self.session_factory.begin() as session:
             row = session.get(EnvioAContalibraRow, appointment_id)
             if row is None:
@@ -124,6 +143,8 @@ class EnvioRepository:
                 session.add(row)
             row.estado = estado
             row.venta_id = venta_id
+            if medio_del_saldo is not None:
+                row.medio_del_saldo = medio_del_saldo[:40]
             # Se recorta y no se deja crecer: un traceback entero de httpx en
             # una columna que se muestra en pantalla es ruido, y el detalle
             # completo ya está en el log.
@@ -151,15 +172,63 @@ class EnvioRepository:
             return [_to_dict(row) for row in rows]
 
 
+def pagos_del_turno(importe, sena, sena_pagada: bool, medio_del_saldo: str | None):
+    """Cómo se cobró la consulta, medio por medio.
+
+    🔴 **La seña y el saldo son dos cobros distintos, y pueden ser dos medios
+    distintos.** Hasta el 2026-08-24 se mandaba el precio entero con un solo
+    medio —el del saldo—, así que con 400 de seña por MercadoPago y 600 en
+    efectivo, en Contalibra entraban **1000 en efectivo**. La venta cerraba por
+    el total correcto y **el reparto de la caja quedaba mal**: el cierre no
+    cuadra contra el arqueo y la diferencia no tiene de dónde salir.
+
+    El motor de facturación local que se borró (ADR-036) sí repartía —registraba
+    la seña con su medio y el saldo con el suyo, como dos movimientos de caja— y
+    eso se perdió al mudarse. Esto lo devuelve.
+
+    Vive acá y no en un router porque **la usan los dos caminos**: completar el
+    turno y reintentar el envío. Escrita en uno solo, el otro volvería a mandar
+    un pago único y el defecto seguiría vivo por la mitad.
+
+    Los montos **cierran contra el importe por construcción**: el saldo es
+    `importe - seña`, no un número aparte. Contalibra igual lo verifica y rebota
+    con 422 si no suman, que es la defensa del otro lado.
+
+    Cuando la seña cubre todo el precio el saldo es cero y **no viaja**: un pago
+    de 0 crearía un movimiento de caja vacío en la contabilidad de allá.
+    """
+    pagos = []
+    cobrado = 0
+    if sena_pagada and sena is not None:
+        pagos.append({
+            "medio": sena.medio_pago or "efectivo",
+            "monto": sena.amount,
+            "referencia": "Seña",
+        })
+        cobrado = sena.amount
+    saldo = importe - cobrado
+    if saldo > 0:
+        pagos.append({"medio": medio_del_saldo or "efectivo", "monto": saldo})
+    return pagos
+
+
 async def enviar_consulta(
     *, appointment_id: str, fecha: str, descripcion: str, importe: Decimal,
-    medio_pago: str, paciente: dict, iva_rate: Decimal | None = None,
+    pagos: list[dict], paciente: dict, iva_rate: Decimal | None = None,
 ) -> dict:
     """Manda la consulta y devuelve lo que contestó Contalibra.
 
     Levanta `httpx.HTTPError` o `RuntimeError` si no se pudo — el que llama
     decide qué hacer con eso, porque acá no se sabe si completar el turno puede
     esperar.
+
+    🔴 **`pagos` es una lista, y ése es el punto.** Hasta el 2026-08-24 esto
+    mandaba un solo `medio_pago` por el importe entero, y para un turno señado
+    eso es mentira: la seña se cobra al reservar y el saldo al atender, y pueden
+    ser medios distintos. Con 400 de seña por MercadoPago y 600 en efectivo, del
+    otro lado entraban **1000 en efectivo**. La venta cerraba por el total
+    correcto —la plata bien contada— y **el reparto de la caja quedaba mal**: el
+    cierre no cuadra contra el arqueo y la diferencia no tiene de dónde salir.
     """
     url = destino()
     if not url:
@@ -174,7 +243,19 @@ async def enviar_consulta(
         "fecha": fecha,
         "descripcion": descripcion,
         "importe": float(importe),
-        "medio_pago": medio_pago,
+        # 🔴 La lista, no un medio suelto. Contalibra **exige que sumen el
+        # importe**: una venta que se marca cobrada tiene que estar cobrada
+        # entera, así que si esto no cierra el pedido rebota con 422 y la
+        # consulta queda visible en `/facturacion-externa` en vez de entrar
+        # descuadrada.
+        "pagos": [
+            {
+                "medio": p["medio"],
+                "monto": float(p["monto"]),
+                "referencia": p.get("referencia", ""),
+            }
+            for p in pagos
+        ],
         "paciente": {
             "nombre": paciente.get("name") or "Consumidor Final",
             "cuit": paciente.get("cuit") or "",
