@@ -4,7 +4,7 @@ propio), sin tabla ni estado propio. Alcance del primer corte elegido por el
 usuario (`AskUserQuestion`): turnos, pacientes, recordatorios y señas --
 facturación/caja queda para una entrega futura.
 """
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from libragenda import AppointmentStatus, DepositStatus
 from libragenda.repositories import AppointmentRepository, DepositRepository, SentReminderRepository
@@ -12,10 +12,27 @@ from libragenda.repositories import AppointmentRepository, DepositRepository, Se
 from .patients import PatientRepository
 
 
+#: Zona del negocio. Argentina es UTC-3 fijo, sin horario de verano.
+_ZONA = timezone(timedelta(hours=-3))
+
+
 def _day_range_utc(date_from: date, date_to: date) -> tuple[datetime, datetime]:
+    """Los días **locales** del rango, expresados como instantes UTC.
+
+    🔴 Acá los días se armaban con `tzinfo=timezone.utc`, o sea que el rango
+    significaba *"del 00:00 UTC al 23:59 UTC"*. Y en el mismo `summary()` la
+    mitad de facturación compara ese rango contra fechas **locales** —las
+    facturas se estampan con `date.today()`—, así que **la misma función usaba
+    dos relojes**: entre las 21:00 y las 24:00 de Argentina, los turnos y los
+    pacientes se contaban de un día y las facturas de otro.
+
+    Idéntico a lo que tenía Gestiolibra, y encontrado por el mismo camino: los
+    dos dashboards salieron del mismo molde. Ahora el rango significa una sola
+    cosa —días del negocio— y las dos mitades responden por el mismo período.
+    """
     return (
-        datetime.combine(date_from, time.min, tzinfo=timezone.utc),
-        datetime.combine(date_to, time.max, tzinfo=timezone.utc),
+        datetime.combine(date_from, time.min, tzinfo=_ZONA).astimezone(timezone.utc),
+        datetime.combine(date_to, time.max, tzinfo=_ZONA).astimezone(timezone.utc),
     )
 
 
