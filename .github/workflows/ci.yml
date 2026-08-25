@@ -133,7 +133,12 @@ jobs:
       # `--cov` sin argumento toma el paquete de [tool.coverage.run] del
       # pyproject. El piso (fail_under) tambien esta ahi: es un trinquete
       # fijado 2 puntos debajo de lo medido el 2026-07-31, no una meta.
+      # Una sola corrida, contra el motor real. Hasta el 2026-08-25 habia dos:
+      # esta --- SIN la variable, o sea SQLite --- y otra despues. El guard de
+      # `tests/motor_de_test.py` ahora hace imposible la primera.
       - name: Run tests
+        env:
+          MEDLIBRA_TEST_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
         run: pytest -v --cov --cov-report=term-missing
 
       # La misma suite contra el motor de destino. Sin `--cov`: la cobertura ya
@@ -150,10 +155,7 @@ jobs:
       # compartir schema con el dominio: LibraCore y LibraGenda declaran las dos
       # una tabla `clients` con formas incompatibles -- `id` INTEGER contra
       # VARCHAR(100) -- y en SQLite eso no chocaba porque eran dos archivos.
-      - name: Run tests (PostgreSQL)
-        env:
-          MEDLIBRA_TEST_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
-        run: pytest -v
+
 
       # Smoke check for the two independent Alembic chains this repo
       # depends on: LibraGenda's own (engine schema) applied first, then
