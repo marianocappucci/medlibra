@@ -67,7 +67,7 @@ dependencies = [
     # v1.51.0 la trajo `develop` en paralelo (las varias cadenas de migraciones).
     # Se queda la mas alta: contiene a v1.50.0 -- verificado con
     # `git merge-base --is-ancestor`, y que `medios_pago.py` este en el tag.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.51.0",
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.53.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
