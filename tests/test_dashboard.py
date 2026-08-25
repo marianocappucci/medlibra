@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from libragenda import ReminderPolicy
@@ -68,7 +68,7 @@ def _seeded_client(client: TestClient):
 
 
 def _today_range():
-    today = datetime.now(timezone.utc).date()
+    today = date.today()
     return today.isoformat(), today.isoformat()
 
 
@@ -161,11 +161,14 @@ def test_dashboard_counts_reminders_sent_in_period(admin_client: TestClient):
     # abre ANTES del dispatch y se cierra DESPUES: si la corrida cruza la
     # medianoche justo en el medio, el rango la cubre igual. Con un unico
     # `hoy` calculado despues, ese caso daria 0 recordatorios en el periodo.
-    dia_antes = datetime.now(timezone.utc).date().isoformat()
+    # 🔴 Los dos bordes salen del reloj **local**: el rango del dashboard
+    # significa días del negocio (ver `_day_range_utc`), así que un borde en UTC
+    # deja afuera todo lo que pasa entre las 21:00 y las 24:00 de Argentina.
+    dia_antes = date.today().isoformat()
     dispatched = client.post("/reminders/dispatch")
     assert dispatched.status_code == 200
     assert len(dispatched.json()) == 2  # las dos politicas de arriba, ya vencidas
-    dia_despues = datetime.now(timezone.utc).date().isoformat()
+    dia_despues = date.today().isoformat()
 
     response = client.get(f"/dashboard?date_from={dia_antes}&date_to={dia_despues}")
     assert response.status_code == 200
