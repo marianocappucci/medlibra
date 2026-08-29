@@ -43,7 +43,33 @@ from datetime import date, datetime, time, timedelta
 from http.cookiejar import CookieJar
 from urllib.parse import urlparse
 
+#: La fecha que la siembra considera «hoy». La lee `_sembrar_turnos`, que
+#: reparte el plan de turnos en días hábiles alrededor de ella.
+#:
+#: 🔴 **Se refresca en `sembrar()`, NO al importar el módulo.** Era
+#: `HOY = date.today()` a secas acá arriba, o sea congelada en el instante del
+#: import. En Restolibra, con el mismo defecto, eso puso en rojo el CI de la
+#: promoción a producción del 2026-08-29 a las 00:04 de Argentina, con el mismo
+#: código que había pasado en verde una hora antes: la suite cruzó la medianoche
+#: entre el import y la siembra. Se lee como un test inestable y es un dato viejo.
+#:
+#: Y no es sólo el test: la demo se resiembra por cron sobre un proceso que
+#: puede vivir días. Con la fecha del import, «el turno de hoy» termina siendo
+#: el del día que arrancó el proceso, y la agenda se ve vacía.
 HOY = date.today()
+
+
+def _fijar_hoy() -> date:
+    """Resuelve `HOY` para esta corrida y lo devuelve.
+
+    Se hace UNA vez por siembra y no en cada uso: el plan de turnos se cuenta
+    en días hábiles a partir de esta fecha, y si se moviera a mitad de camino
+    la ventana con la que el seed se pregunta «¿ya sembré?» dejaría de cubrir
+    lo que acaba de sembrar.
+    """
+    global HOY
+    HOY = date.today()
+    return HOY
 
 #: Los subdominios que NO son de un cliente. Se compara el host entero o su
 #: primera etiqueta, **no como substring de la URL**.
@@ -207,7 +233,11 @@ RECETAS = [
 ]
 
 
-def sembrar(api: Api) -> None:
+def sembrar(api: Api) -> date:
+    # 🔴 Primera línea, y no en cada uso: ver `_fijar_hoy`. Se devuelve la
+    # fecha usada para que quien verifique «hay un turno hoy» pregunte por
+    # ESTA y no por `date.today()` al momento del assert.
+    hoy = _fijar_hoy()
     hechos = {}
 
     def contar(clave: str, nuevo: bool):
@@ -280,6 +310,8 @@ def sembrar(api: Api) -> None:
     print()
     for clave, (creados, existentes) in sorted(hechos.items()):
         print(f"  {clave:<15} {creados} creados, {existentes} ya estaban")
+
+    return hoy
 
 
 def _sembrar_turnos(api: Api, contar) -> None:
