@@ -1,14 +1,32 @@
-/** Configuración de MedLibra (ítem 5, 2026-08-05).
+/** Configuración de MedLibra.
  *
- *  Hasta hoy este producto **no tenía ninguna pantalla de configuración**: los
- *  datos del consultorio no se podían cargar, el logo no se podía subir, el
- *  SMTP sólo entraba por el backoffice de la suite y el backup era
- *  exclusivamente por CLI.
+ *  El armado y las secciones comunes vienen de `libra-ui/Configuracion`, que
+ *  desde la v0.47.0 es **la pantalla de Configuración de la familia entera** —
+ *  la de Contalibra, con su barra de pestañas, la sub-navegación de
+ *  Integraciones, el botón de *Backup rápido* y los tutoriales. Acá se declara
+ *  sólo lo que corresponde a este producto.
  *
- *  El armado y las secciones vienen de `libra-ui/Configuracion`; acá se declara
- *  **lo que corresponde a este producto**. MedLibra no imprime tickets de
- *  comanda ni usa balanza — y desde el 2026-08-24 tampoco factura: la
- *  facturación es de Contalibra (ADR-036).
+ *  🔴 **La copia única vive en el kit, no acá.** Es el punto del pedido del
+ *  humano del 2026-08-29: *"si hago una modificación en la configuración o una
+ *  actualización se actualice en todas"*. Cualquier arreglo de esta pantalla se
+ *  hace en `libra-ui` y llega a los ocho productos; lo que se escriba en este
+ *  archivo llega sólo a MedLibra.
+ *
+ *  ## Qué integraciones tiene este producto, y cuáles no
+ *
+ *  Sólo **correo (SMTP)**. Ni ARCA ni MercadoPago, y las dos ausencias son
+ *  deliberadas:
+ *
+ *  - **ARCA no está porque el backend no lo tiene.** El 2026-08-24 se fue el
+ *    motor de facturación local (ADR-036): este producto no emite comprobantes,
+ *    los emite Contalibra, que es donde vive la contabilidad. `/config/arca`
+ *    devuelve 404, no 403.
+ *  - **MercadoPago tampoco**: no hay cobro con QR de mostrador acá, así que no
+ *    hay endpoints del otro lado. Una pestaña que guarde credenciales que nadie
+ *    lee es peor que no tenerla.
+ *
+ *  Con una sola integración el kit no dibuja la sub-navegación lateral y
+ *  muestra el correo directo — ver `libra-ui` v0.49.0.
  *
  *  > 🔴 **El backup de este producto se lleva también los documentos
  *  > clínicos**, que son archivos en disco. Un backup "de la base" los dejaría
@@ -21,12 +39,8 @@
  *  propios del sidebar: **lo que se configura vive en un solo lugar**, y estas
  *  cuatro son exactamente eso — se cargan al arrancar y se tocan poco, a
  *  diferencia de la agenda y los pacientes, que se usan todos los días.
- *
- *  Los endpoints existían; lo que faltaba era la pantalla. Sin ella un
- *  consultorio nuevo no podía parametrizar nada: ni sus salas, ni sus
- *  prestaciones, ni la jornada de quien atiende.
  */
-import { SECCIONES_BASE, createConfiguracion } from 'libra-ui/Configuracion'
+import { createConfiguracion } from 'libra-ui/Configuracion'
 import { CalendarClock, DoorClosed, MapPin, Settings, Stethoscope } from 'lucide-react'
 import { SedesCard } from './configuracion/sedes'
 import { ConsultoriosCard } from './configuracion/consultorios'
@@ -36,24 +50,16 @@ import { ProfesionalesCard } from './configuracion/profesionales'
 export const Configuracion = createConfiguracion({
   // El icono que el sidebar de este producto le da a /configuracion.
   icono: Settings,
-  // empresa (+logo), correo (SMTP) y Datos / Backup, más la agenda.
-  //
-  // 🔴 **ARCA NO está, y ya no hay nada que agregar acá**: el 2026-08-24 se fue
-  // también el motor de facturación local (ADR-036), así que `/config/arca` no
-  // existe más en el backend — devuelve 404, no 403. Este producto no emite
-  // comprobantes: los emite Contalibra, que es donde vive la contabilidad.
-  //
-  // Hasta el 2026-08-22 esta nota decía que la sección se sacaba "por pedido del
-  // humano" y que una instancia nueva no la podía configurar desde acá. Se leía
-  // como una sección escondida que en algún momento vuelve, y no lo es.
-  //
+  // Sale en el tutorial de Gmail: es el nombre que hay que ponerle a la
+  // contraseña de aplicación que se crea en la cuenta de Google.
+  producto: 'MedLibra',
+  integraciones: { email: true },
   // 🔴 El ORDEN es el del arranque de un consultorio nuevo: dónde se atiende,
   // en qué sala, qué se hace y quién lo hace. Al revés, un consultorio se carga
   // sin sede a la cual pertenecer, una prestación sin poder ponerle precio (el
   // precio es por sede) y un bloque de agenda sin consultorio donde ubicarlo —
   // que es el único campo que no se puede dejar vacío.
-  secciones: [
-    ...SECCIONES_BASE,
+  propias: [
     { clave: 'sedes', label: 'Sedes', icono: MapPin, contenido: <SedesCard /> },
     {
       clave: 'consultorios', label: 'Consultorios', icono: DoorClosed,
