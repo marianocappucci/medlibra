@@ -71,3 +71,34 @@ def test_borrar_vuelve_al_entorno(admin_client):
 
 def test_host_vacio_da_422(admin_client):
     assert admin_client.put("/admin/smtp", json={"host": "   "}).status_code == 422
+
+# ------------------------------------------------------- probar la conexion
+
+def test_probar_esta_montado(admin_client):
+    """`POST /admin/smtp/probar`, del motor (libracore v1.69.0).
+
+    Sin SMTP cargado contesta 400 y dice que falta completar la pantalla --pero
+    contesta. 🔑 Ese 400 es la prueba de que la ruta existe: sin la linea de
+    montaje seria 404 o 405, la instancia arrancaria igual, y el boton de la
+    pantalla compartida quedaria muerto sin que nada fallara.
+    """
+    r = admin_client.post("/admin/smtp/probar")
+
+    assert r.status_code == 400, r.text
+    assert "Complet" in r.json()["detail"]
+
+
+def test_una_ruta_inventada_al_lado_no_contesta(admin_client):
+    """El control del de arriba: distingue "esta montado" de "cualquier cosa
+    colgada de /admin/smtp contesta"."""
+    assert admin_client.post("/admin/smtp/inventado").status_code in (404, 405)
+
+
+def test_probar_es_de_administrador(staff_client):
+    """Abre una sesion SMTP con las credenciales del cliente: no alcanza con
+    estar logueado.
+
+    Se prueba con un usuario de **staff** y no con uno anonimo a proposito: el
+    anonimo lo rechaza la sesion y no diria nada sobre el gate de rol.
+    """
+    assert staff_client.post("/admin/smtp/probar").status_code == 403
