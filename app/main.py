@@ -219,6 +219,15 @@ def create_app(database_url: str) -> FastAPI:
     ensure_demo_user(user_repository)
 
     app = FastAPI(title="MedLibra")
+
+    # 🔴 Colgado de la app para poder SOLTARLO. En produccion la app es una y
+    # vive lo que vive el proceso, asi que da igual; en la suite cada test arma
+    # una app nueva y este engine deja un pool vivo por test. Contra SQLite no
+    # se notaba --un `StaticPool` de una conexion que se recolecta sola--, pero
+    # contra PostgreSQL son conexiones TCP que se acumulan hasta
+    # `max_connections`, y el sintoma son errores de conexion en tests que no
+    # tienen nada que ver con el que los causo. Ver `fresh_database_url()`.
+    app.state.auth_engine = auth_engine
     app.state.catalog = catalog
     app.state.availability = availability_repository
     app.state.branches = BranchRepository(catalog, sessions)

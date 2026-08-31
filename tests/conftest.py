@@ -93,7 +93,17 @@ def admin_client():
     with https_client(create_app(fresh_database_url())) as client:
         response = client.post("/auth/login", json={"username": "admin", "password": "admin"})
         assert response.status_code == 200, response.text
-        yield client
+        try:
+            yield client
+        finally:
+            # 🔴 Sin esto, cada test deja vivo el pool del engine de auth y la
+            # corrida entera se come el `max_connections` del servidor. El
+            # sintoma aparece lejos: mueren tests del medio con "too many
+            # clients" y el que los causo paso en verde. `fresh_database_url()`
+            # ya suelta el engine de LibraGenda; este es el otro.
+            motor = getattr(client.app.state, "auth_engine", None)
+            if motor is not None:
+                motor.dispose()
 
 
 @pytest.fixture
