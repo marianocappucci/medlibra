@@ -329,7 +329,21 @@ export function Pacientes() {
           {loading ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Cargando…</p>
           ) : (
-            <DataTable columns={columns} data={patients} emptyMessage="Sin pacientes todavía." />
+            <DataTable
+              columns={columns}
+              data={patients}
+              emptyMessage="Sin pacientes todavía."
+              // La tabla no pagina: sin buscador, llegar a un paciente entre
+              // cientos es scrollear. El DNI es lo que se dicta en el
+              // mostrador; el CUIT entra en la búsqueda aunque no sea columna,
+              // porque es por donde se lo busca cuando lo que se tiene a mano
+              // es una factura.
+              search={{
+                campos: (p) => [p.name, p.dni, p.cuit, p.email, p.phone],
+                placeholder: 'Buscar por nombre, DNI, CUIT, email o teléfono',
+                ariaLabel: 'Buscar paciente',
+              }}
+            />
           )}
         </CardContent>
       </Card>
