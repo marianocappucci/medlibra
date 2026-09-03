@@ -2,8 +2,8 @@
 paciente (informes externos, estudios escaneados). Solo metadata en la
 base -- el archivo en si vive en filesystem bajo MEDLIBRA_DOCUMENTS_DIR.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0007_clinical_documents"
 down_revision = "0006_study_orders"

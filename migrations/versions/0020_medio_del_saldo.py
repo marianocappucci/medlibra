@@ -13,8 +13,8 @@ Nace vacia, y vacia significa "no lo sabemos": las filas anteriores a esta
 migracion siguen reintentandose con "efectivo", que es lo que ya venian
 mandando. No hay backfill posible porque el dato nunca existio.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # 🔴 Va detras de `0019_sin_users`, que entro en `develop` en paralelo mientras
 # esta rama estaba abierta. Las dos colgaban de `0018` y Alembic quedaba con DOS

@@ -8,8 +8,8 @@ La tabla nace vacia: sin honorario propio, el turno se sigue cobrando al precio
 de la sede exactamente como hasta ahora. Un `upgrade` sobre una base con datos
 no le cambia la facturacion a ninguna instancia.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0017_honorarios_por_profesional"
 down_revision = "0016_walkins"

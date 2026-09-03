@@ -1,8 +1,8 @@
 """Create MedLibra's own patients table: clinical extension (dni,
 birth_date) of LibraGenda's generic Client, sharing its id via FK.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0002_patients"
 down_revision = "0001_users"

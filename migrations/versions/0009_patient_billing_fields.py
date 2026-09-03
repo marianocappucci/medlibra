@@ -1,6 +1,6 @@
 """Add cuit and condicion_iva to patients (facturacion con LibraCore)."""
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0009_patient_billing_fields"
 down_revision = "0008_consents"

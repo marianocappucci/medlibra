@@ -39,10 +39,10 @@ def configure(db_path: str) -> None:
     # hay carpeta que crear ni defecto que evitar. El bloque entero se va.
     if not libracore_core.es_url_postgres(str(db_path)):
         raise RuntimeError(
-            "MedLibra corre solo sobre PostgreSQL y recibio {!r}, que es una "
+            f"MedLibra corre solo sobre PostgreSQL y recibio {db_path!r}, que es una "
             "ruta de archivo. El modo SQLite se retiro el 2026-08-12: no chequea "
             "las FK, tipa dinamicamente y acepta cadenas donde la base pide "
-            "enteros.".format(db_path)
+            "enteros."
         )
     libracore_core.configure(db_path)
     conn = libracore_core.get_connection()

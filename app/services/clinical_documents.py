@@ -13,13 +13,12 @@ Un documento se vincula solo al paciente -- no a un registro puntual
 (nota, receta, pedido de estudio) -- decision explicita del usuario.
 """
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import uuid4
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class ClinicalDocumentRow(Base):
@@ -63,7 +62,7 @@ class ClinicalDocumentRepository:
             f.write(content)
         row = ClinicalDocumentRow(
             id=str(uuid4()), patient_id=patient_id, author=author,
-            created_at=datetime.now(timezone.utc), title=title, description=description,
+            created_at=datetime.now(UTC), title=title, description=description,
             original_filename=original_filename, stored_filename=stored_filename,
             content_type=content_type, size_bytes=len(content),
         )

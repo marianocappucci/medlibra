@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from libragenda import ReminderPolicy
@@ -31,7 +31,7 @@ def _turno_de_hoy() -> datetime:
     """Hoy al mediodia UTC. La FECHA sale del reloj -- no hay otra forma de
     pedir "hoy" -- pero la HORA no, que es de donde venia el problema."""
     return datetime.combine(
-        datetime.now(timezone.utc).date(), HORA_DEL_TURNO_DE_HOY, tzinfo=timezone.utc
+        datetime.now(UTC).date(), HORA_DEL_TURNO_DE_HOY, tzinfo=UTC
     )
 
 
@@ -108,7 +108,7 @@ def test_dashboard_counts_appointments_by_status_and_today(admin_client: TestCli
     assert body["turnos"]["total_en_periodo"] == 1
     assert body["turnos"]["por_estado"]["confirmed"] == 1
     assert body["turnos"]["por_estado"]["pending"] == 0
-    if starts_at_dt.date() == datetime.now(timezone.utc).date():
+    if starts_at_dt.date() == datetime.now(UTC).date():
         assert body["turnos"]["hoy"] == 1
 
 

@@ -22,7 +22,6 @@ from fastapi.testclient import TestClient
 
 from app.services.iva_rates import ALLOWED_RATES, InvalidIvaRate, validate_rate
 
-
 # --- que alicuota se acepta ----------------------------------------------
 
 @pytest.mark.parametrize("rate", [Decimal("0.13"), Decimal("0.05"), Decimal("1")])

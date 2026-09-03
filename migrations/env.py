@@ -18,9 +18,8 @@ tracking.
 """
 import os
 
-from libracore.db.url_de_instancia import url_de_instancia
-
 from alembic import context
+from libracore.db.url_de_instancia import url_de_instancia
 from sqlalchemy import engine_from_config, pool
 
 target_metadata = None

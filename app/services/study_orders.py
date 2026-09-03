@@ -7,13 +7,12 @@ propios (llegan por separado, en momentos distintos): el resultado es un
 registro nuevo vinculado al item, nunca una edicion del pedido original --
 mismo espiritu append-only que recetas/notas clinicas.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import uuid4
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class StudyOrderRow(Base):
@@ -90,7 +89,7 @@ class StudyOrderRepository:
             raise ValueError("a study order needs at least one item")
         row = StudyOrderRow(
             id=str(uuid4()), patient_id=patient_id, author=author,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             items=[
                 StudyOrderItemRow(
                     id=str(uuid4()), position=position,
@@ -134,7 +133,7 @@ class StudyOrderRepository:
                 raise KeyError(item_id)
             result = StudyResultRow(
                 id=str(uuid4()), item_id=item_id, author=author,
-                created_at=datetime.now(timezone.utc), text=text,
+                created_at=datetime.now(UTC), text=text,
             )
             session.add(result)
             session.flush()

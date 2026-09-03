@@ -16,7 +16,6 @@ from libragenda import DepositStatus
 from libragenda.repositories import DepositRepository
 from pydantic import BaseModel
 
-from ._instantes import InstanteUTC
 from ..dependencies import (
     get_appointment_service,
     get_business_settings_repository,
@@ -35,6 +34,7 @@ from ..services.iva_rates import IvaRateRepository
 from ..services.patients import PatientRepository
 from ..services.resource_prices import ResourcePriceRepository, precio_del_turno
 from ..services.service_prices import ServicePriceRepository
+from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/facturacion-externa", tags=["facturacion-externa"])
 

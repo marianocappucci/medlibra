@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
-
 from libragenda import Resource
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from ..dependencies import get_catalog_repository
 

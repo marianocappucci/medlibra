@@ -29,7 +29,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import typing
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import BaseModel
@@ -49,7 +49,7 @@ class _Modelo(BaseModel):
     [
         pytest.param(datetime(2026, 7, 20, 10, 0, tzinfo=timezone(timedelta(hours=-3))),
                      id="como lo devuelve PostgreSQL con la sesion en AR"),
-        pytest.param(datetime(2026, 7, 20, 13, 0, tzinfo=timezone.utc),
+        pytest.param(datetime(2026, 7, 20, 13, 0, tzinfo=UTC),
                      id="como lo devolvia con la sesion en UTC"),
         pytest.param(datetime(2026, 7, 20, 13, 0),
                      id="naive, como lo devuelve SQLite"),

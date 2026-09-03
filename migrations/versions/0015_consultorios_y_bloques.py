@@ -14,8 +14,8 @@ turnos por ese camino. Un `upgrade` sobre una base con datos no le cambia el
 comportamiento a nadie -- las tablas nuevas nacen vacias y el codigo se degrada
 a lo de antes cuando no hay bloque que cubra el horario.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0015_consultorios_y_bloques"
 down_revision = "0014_entidad_id_texto"

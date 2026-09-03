@@ -6,13 +6,12 @@ records shouldn't be silently rewritten after the fact; only creation and
 Structured diagnoses, recetas, estudios and consentimientos are Fase 2
 (see ROADMAP.md), out of scope here.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import uuid4
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class ClinicalNoteRow(Base):
@@ -39,7 +38,7 @@ class ClinicalNoteRepository:
     def create(self, patient_id: str, author: str, text: str) -> dict:
         row = ClinicalNoteRow(
             id=str(uuid4()), patient_id=patient_id,
-            created_at=datetime.now(timezone.utc), author=author, text=text,
+            created_at=datetime.now(UTC), author=author, text=text,
         )
         with self.session_factory.begin() as session:
             session.add(row)

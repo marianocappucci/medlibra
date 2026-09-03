@@ -7,13 +7,12 @@ una receta con varios farmacos. Append-only por diseno, mismo criterio que
 borrar (el borrado pensado para corregir errores de carga, no para editar
 contenido ya recetado).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import uuid4
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class PrescriptionRow(Base):
@@ -68,7 +67,7 @@ class PrescriptionRepository:
             raise ValueError("a prescription needs at least one item")
         row = PrescriptionRow(
             id=str(uuid4()), patient_id=patient_id, author=author,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             items=[
                 PrescriptionItemRow(
                     id=str(uuid4()), position=position, medication=item["medication"],

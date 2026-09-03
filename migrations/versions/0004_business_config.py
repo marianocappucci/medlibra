@@ -2,8 +2,8 @@
 por servicio y sucursal, contacto de sucursal, y datos del negocio
 (nombre/moneda). Mismo feature ya aplicado en Gestiolibra.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0004_business_config"
 down_revision = "0003_clinical_notes"

@@ -1,7 +1,6 @@
 """FastAPI dependency providers reading shared state off the app instance."""
 
 from fastapi import Request
-
 from libragenda import DepositManager, ReminderDispatcher
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
@@ -18,9 +17,9 @@ from .services.consents import ConsentRepository
 from .services.consultorios import ConsultorioRepository
 from .services.contalibra import EnvioRepository
 from .services.dashboard import DashboardService
+from .services.iva_rates import IvaRateRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
-from .services.iva_rates import IvaRateRepository
 from .services.resource_prices import ResourcePriceRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
