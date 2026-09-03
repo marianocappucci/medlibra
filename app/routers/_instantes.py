@@ -25,7 +25,7 @@ decide el formato, en vez de un `field_serializer` repetido por router.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Annotated
 
 from pydantic import PlainSerializer
@@ -36,8 +36,8 @@ def a_utc(valor: datetime) -> datetime:
         # Convención de almacenamiento del dominio: lo naive ya es UTC. Pasa con
         # SQLite, que se come el offset en el viaje de ida y vuelta y devuelve
         # el `DateTime(timezone=True)` sin `tzinfo`.
-        return valor.replace(tzinfo=timezone.utc)
-    return valor.astimezone(timezone.utc)
+        return valor.replace(tzinfo=UTC)
+    return valor.astimezone(UTC)
 
 
 #: `datetime` que se serializa siempre en UTC, sin importar la zona de la sesión

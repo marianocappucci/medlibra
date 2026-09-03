@@ -2,8 +2,6 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
 from libragenda import (
     AppointmentConflict,
     AppointmentNotFound,
@@ -13,6 +11,7 @@ from libragenda import (
 )
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import DepositRepository
+from pydantic import BaseModel
 
 from .. import mensajes_agenda as mensajes
 from ..dependencies import (
@@ -27,13 +26,13 @@ from ..dependencies import (
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
+from ..services import contalibra
 from ..services.appointments import (
     AppointmentService,
     ConsultorioOcupado,
     OutsideBusinessHours,
     ServiceNotFound,
 )
-from ..services import contalibra
 from ..services.business_settings import BusinessSettingsRepository
 from ..services.iva_rates import IvaRateRepository
 from ..services.modules import ModuleRepository

@@ -35,12 +35,10 @@ el envío anterior llegó y la respuesta se perdió.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
 
 import httpx
-from sqlalchemy import DateTime, Integer, String, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 # 🔴 El nombre del header sale de libraauth y no se escribe a mano. Es el mismo
 # motor que valida del otro lado (`token_de_servicio_valido`), así que si el
@@ -48,6 +46,8 @@ from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 # 401 y el mensaje diría "no autorizado", no "el header se llama distinto".
 from libraauth.session_auth import SERVICE_TOKEN_HEADER
 from libragenda.sqlalchemy_repository import Base
+from sqlalchemy import DateTime, Integer, String, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 #: Cómo se identifica este producto ante Contalibra. Junto con el id del turno
 #: forma la clave de idempotencia del otro lado.
@@ -150,7 +150,7 @@ class EnvioRepository:
             # completo ya está en el log.
             row.error = (error or "")[:500]
             row.intentos = (row.intentos or 0) + 1
-            row.actualizado = datetime.now(timezone.utc)
+            row.actualizado = datetime.now(UTC)
             session.flush()
             return _to_dict(row)
 

@@ -2,8 +2,8 @@
 paciente (procedimiento, quien autoriza, texto libre). Append-only, mismo
 criterio que clinical_notes.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0008_consents"
 down_revision = "0007_clinical_documents"

@@ -9,8 +9,8 @@ El default arranca en 21% -- el valor que ya estaba hardcodeado -- para que
 la migracion no le cambie la facturacion a ninguna instancia existente. Un
 consultorio con prestaciones exentas lo baja a 0 una sola vez.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0012_service_iva_rates"
 down_revision = "0011_modulos"

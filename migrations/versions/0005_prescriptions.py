@@ -2,8 +2,8 @@
 medicas por paciente, con uno o mas items (medicamento, dosis,
 indicaciones). Append-only, mismo criterio que clinical_notes.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0005_prescriptions"
 down_revision = "0004_business_config"

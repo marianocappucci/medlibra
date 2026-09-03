@@ -7,8 +7,8 @@ Gestiolibra, el dominio clinico (pacientes, historia clinica, recetas,
 estudios, documentos, consentimientos) nunca pasa por esta tabla -- solo
 lo comercial (recordatorios/senas/facturacion/dashboard) es gateable.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0011_modulos"
 down_revision = "0010_patient_created_at"

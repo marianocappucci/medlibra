@@ -2,10 +2,9 @@ from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
 from libragenda import Deposit, DepositManager, DepositNotFound, InvalidDepositTransition
 from libragenda.repositories import DepositRepository
+from pydantic import BaseModel
 
 from ..dependencies import get_deposit_manager, get_deposit_repository
 

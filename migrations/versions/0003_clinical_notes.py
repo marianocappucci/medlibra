@@ -1,8 +1,8 @@
 """Create MedLibra's own clinical_notes table: append-only historia
 clinica basica (free-text evolution notes per patient).
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0003_clinical_notes"
 down_revision = "0002_patients"

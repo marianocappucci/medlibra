@@ -20,10 +20,9 @@ de node), cae a `frontend/dist` relativo al repo para build+preview local
 sin Docker. Si no existe ninguno de los dos (API pura sin frontend
 buildeado), el mount se salta solo."""
 import os
-
-from libracore.db.url_de_instancia import url_de_instancia
 from pathlib import Path
 
+from libracore.db.url_de_instancia import url_de_instancia
 
 from app.spa import montar_spa
 

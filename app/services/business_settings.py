@@ -5,10 +5,9 @@ fila. Portado de Gestiolibra, con `default_iva_rate` propio de MedLibra
 """
 from decimal import Decimal
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import Numeric, String
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 from .iva_rates import DEFAULT_RATE, validate_rate
 

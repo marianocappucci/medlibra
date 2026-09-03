@@ -12,9 +12,10 @@ _time.tzset()
 
 import pytest
 from fastapi.testclient import TestClient
+from motor_de_test import destino_libracore, fresh_database_url
 
 from app.main import create_app
-from motor_de_test import destino_libracore, fresh_database_url
+
 
 @pytest.fixture(autouse=True)
 def _dev_env(monkeypatch, tmp_path):

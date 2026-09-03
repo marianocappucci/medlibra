@@ -9,8 +9,8 @@ asigna el numero con un `max + 1`, que entre dos llegadas simultaneas es una
 condicion de carrera. Sin la restriccion, dos pacientes quedan en la misma
 posicion y la fila se ve perfectamente bien.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0016_walkins"
 down_revision = "0015_consultorios_y_bloques"

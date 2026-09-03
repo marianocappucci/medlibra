@@ -9,13 +9,12 @@ nuevo que lo deja constancia, nunca se edita el original. Sin archivo
 adjunto embebido: si hace falta el PDF firmado escaneado, se sube aparte
 como documento clinico (/patients/{id}/documents, ya construido).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import uuid4
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class ConsentRow(Base):
@@ -45,7 +44,7 @@ class ConsentRepository:
     def create(self, patient_id: str, author: str, procedure: str, granted_by: str, text: str) -> dict:
         row = ConsentRow(
             id=str(uuid4()), patient_id=patient_id, author=author,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             procedure=procedure, granted_by=granted_by, text=text,
         )
         with self.session_factory.begin() as session:

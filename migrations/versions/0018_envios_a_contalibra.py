@@ -9,8 +9,8 @@ La tabla nace vacia y solo se usa si la instancia tiene CONTALIBRA_URL
 configurada. Sin ella, MedLibra factura por su cuenta como hasta ahora y aca no
 se escribe nada.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0018_envios_a_contalibra"
 down_revision = "0017_honorarios_por_profesional"

@@ -6,12 +6,11 @@ this configuration instead of a hardcoded window)."""
 from datetime import date, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
-
 from libragenda import Availability
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.scheduling import AvailabilityException, TimeBlock
+from pydantic import BaseModel
 
 from ..dependencies import get_availability_repository, get_catalog_repository
 from ..services.husos import como_instante, zona_del_recurso

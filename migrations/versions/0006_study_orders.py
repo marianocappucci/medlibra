@@ -4,8 +4,8 @@ tables: pedidos de estudios/analisis por paciente, con uno o mas items
 separado, en momentos distintos). Append-only, mismo criterio que
 prescriptions/clinical_notes.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0006_study_orders"
 down_revision = "0005_prescriptions"

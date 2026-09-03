@@ -37,6 +37,7 @@ a UTC **en el repositorio**, que es el único lugar donde el instante se
 guarda. De eso se encarga `_TurnosEnHoraLocal`.
 """
 
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from datetime import date, datetime
 from uuid import uuid4
@@ -132,6 +133,34 @@ class _TurnosEnHoraLocal:
             self._a_local(turno) for turno in self._base.list()
             if turno.resource_id == self._resource_id
         )
+
+    def reserve(
+        self,
+        appointment: Appointment,
+        validator: Callable[[Iterable[Appointment]], Appointment],
+    ) -> Appointment:
+        """El `reserve` atomico que pide LibraGenda desde v0.10.0.
+
+        El motor opera en hora de pared; el repositorio base, en UTC. Se traduce
+        el turno a UTC para el base y se envuelve el validador para que reciba
+        los turnos existentes **en hora local y solo los de este recurso** --la
+        misma vista que da `list`, por la misma razon: son los unicos que se
+        pueden traducir con una sola zona sin equivocarse--, y para devolver en
+        UTC lo que el base va a guardar. Todo ocurre dentro de `_base.reserve`,
+        que es lo que conserva la atomicidad entre validar el choque y guardar
+        --lo que evita que dos pedidos reserven el mismo slot a la vez--.
+        """
+
+        def validador_utc(existentes_utc: Iterable[Appointment]) -> Appointment:
+            existentes_local = tuple(
+                self._a_local(turno)
+                for turno in existentes_utc
+                if turno.resource_id == self._resource_id
+            )
+            return self._a_utc(validator(existentes_local))
+
+        guardado = self._base.reserve(self._a_utc(appointment), validador_utc)
+        return self._a_local(guardado)
 
 
 class AppointmentService:

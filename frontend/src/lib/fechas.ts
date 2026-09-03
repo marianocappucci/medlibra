@@ -129,3 +129,16 @@ function deDate(d: Date, conHora: boolean): string {
   const dia = `${p('day')}-${p('month')}-${p('year')}`
   return conHora ? `${dia} ${p('hour')}:${p('minute')}` : dia
 }
+
+/**
+ * `dd-mm HH:MM` a partir de la hora de pared que ya calculo `enHoraDePared`.
+ *
+ * Sin año a proposito: es la etiqueta de una celda de la grilla y el año no
+ * entra. 🔴 Y se corta el string en vez de construir un `Date` porque ese valor
+ * YA esta en la zona de la sucursal -- pasarlo por `Date` lo reinterpretaria
+ * como hora del navegador y correria el turno.
+ */
+export function diaMesYHora(local: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(local ?? '')
+  return m ? `${m[3]}-${m[2]} ${m[4]}:${m[5]}` : (local ?? '')
+}

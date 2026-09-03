@@ -62,6 +62,7 @@ import {
 import { useAgendaRango, type TurnoConProfesional } from '@/components/agenda/datos'
 import { armadores, porDiaComoEventos } from '@/components/agenda/eventos'
 import { VistaDia } from '@/components/agenda/vista-dia'
+import { diaMesYHora, hora } from '@/lib/fechas'
 
 const TODOS = '__todos__'
 
@@ -88,12 +89,10 @@ const STATUS_TONO: Record<AppointmentStatus, TonoEstado> = {
 
 /** `22-08 17:00` a partir de la hora de pared que ya calculó `datos.ts`.
  *
- *  El separador de la fecha es el GUION: el formato visible del ecosistema es
- *  `dd-mm-aaaa` (regla del 2026-08-12). Se corta el string en vez de construir
- *  un `Date` porque ese string YA está en la zona correcta — pasarlo por `Date`
- *  lo re-interpretaría como hora del navegador. */
+ *  El formato vive en `lib/fechas`: era el mismo recorte que `PacienteFicha`
+ *  tenia escrito aparte. */
 function horaDePared(local: string): string {
-  return `${local.slice(8, 10)}-${local.slice(5, 7)} ${local.slice(11, 16)}`
+  return diaMesYHora(local)
 }
 
 const turnoSchema = z.object({
@@ -498,7 +497,7 @@ export function Agenda() {
               {[
                 ['Prestación', nombrePrestacion(turno.service_id)],
                 ['Profesional', turno.profesional_nombre],
-                ['Horario', `${horaDePared(turno.desde)} – ${turno.hasta.slice(11, 16)}`],
+                ['Horario', `${horaDePared(turno.desde)} – ${hora(turno.hasta)}`],
               ].map(([rotulo, valor]) => (
                 <div key={rotulo} className="flex justify-between gap-4">
                   <span className="text-muted-foreground">{rotulo}</span>
