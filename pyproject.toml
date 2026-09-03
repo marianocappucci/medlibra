@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.9.1",
+    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.10.0",
     # libracore sigue proveyendo facturacion/caja/ARCA. El auth SALIO de aca el
     # 2026-07-30 y ahora lo da libraauth (ver app/auth.py y app/services/users.py).
     #

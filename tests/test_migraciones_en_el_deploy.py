@@ -103,23 +103,25 @@ def test_el_pin_de_libragenda_trae_el_comando_instalable():
     assert _version(pins["libragenda"]) >= (0, 9, 1), pins["libragenda"]
 
 
-def test_el_pin_de_libragenda_no_salta_a_la_v0_10():
-    """🔴 El motor cambia de interfaz en la `v0.10.0`.
+def test_el_adaptador_de_turnos_acompana_el_pin_de_libragenda():
+    """Desde `v0.10.0` el scheduler crea con `repository.reserve(...)` (la reserva
+    atomica, ADR-013), no con `save`. El adaptador de hora local de este producto
+    ---`_TurnosEnHoraLocal`--- tiene que ofrecer `reserve` o todos los altas de
+    turno se caen con `AttributeError: ... has no attribute 'reserve'`.
 
-    Entre `v0.9.1` y `v0.10.0` entra la **reserva atomica** (ADR-013): el
-    scheduler pasa a llamar `repository.reserve(...)`, y el adaptador de este
-    producto ---`_TurnosEnHoraLocal`--- no lo implementa. El CI lo mostro el
-    2026-08-24 con mas de 20 tests de agenda en rojo por
-    `AttributeError: '_TurnosEnHoraLocal' object has no attribute 'reserve'`.
-
-    Este test no dice "nunca subas": dice **"el salto no entra de contrabando
-    en un bump de rutina"**. Cuando se adapte el repositorio, se cambia aca y se
-    borra este docstring.
+    Reemplaza al guard que frenaba el pin en `< v0.10.0` hasta que estuviera
+    implementado: se adapto el 2026-09-03 (el `reserve` traduce hora local <-> UTC
+    envolviendo el validador). Este test lo sostiene desde el otro lado --- si el
+    metodo se borra, o el pin sube sin el, el CI lo agarra --- y por eso mira el
+    codigo real y no solo el numero del pin.
     """
+    from app.services.appointments import _TurnosEnHoraLocal
+
     pins = _pins()
-    assert _version(pins["libragenda"]) < (0, 10, 0), (
-        "subir a v0.10.0 necesita implementar `reserve()` en el adaptador de "
-        "turnos; ver el comentario de `migraciones` en scripts/panel_admin.py")
+    if _version(pins["libragenda"]) >= (0, 10, 0):
+        assert hasattr(_TurnosEnHoraLocal, "reserve"), (
+            "el pin de libragenda esta en v0.10.0+, que exige `reserve()` en "
+            "`_TurnosEnHoraLocal`; sin el, los altas de turno se caen en runtime")
 
 
 def test_el_pin_de_libracore_trae_el_comando_que_se_declara():
