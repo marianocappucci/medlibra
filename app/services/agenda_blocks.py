@@ -44,11 +44,10 @@ from __future__ import annotations
 
 from datetime import date, time, timedelta
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Time, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
 from libragenda import Availability
 from libragenda.sqlalchemy_repository import Base
+from sqlalchemy import Date, ForeignKey, Integer, String, Time, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 #: Las duraciones que ofrece la pantalla. Cerrada y no un entero libre: el
 #: pedido fue "poner 10, 15, 20, 25, 30 minutos", y una lista cerrada es lo que

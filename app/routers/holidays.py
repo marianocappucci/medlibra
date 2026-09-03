@@ -17,8 +17,8 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from libracore.feriados import FueraDeCobertura, feriados_de
-from libragenda.domain import Holiday
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from libragenda.domain import Holiday
 from pydantic import BaseModel
 
 from ..dependencies import get_catalog_repository

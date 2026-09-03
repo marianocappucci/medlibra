@@ -3,38 +3,43 @@ clinical-note extensions, and mounts the routers."""
 
 import os
 
-from libracore.db.url_de_instancia import url_de_instancia
-
 from fastapi import Depends, FastAPI
-
 from libraauth.auditoria import (
-    AuditoriaBase, AuditoriaRepository, agregar_middleware_de_usuario, build_logs_router,
+    AuditoriaBase,
+    AuditoriaRepository,
+    agregar_middleware_de_usuario,
+    build_logs_router,
     configurar_auditoria,
 )
 from libraauth.auth_events import AuthEventRepository
+from libraauth.bootstrap import ensure_demo_user
 from libraauth.demo_codigos import DemoCodigoRepository
 from libraauth.models import Base as AuthBase
 from libraauth.password_reset import PasswordResetService
 from libraauth.session_auth import (
-    build_demo_codigos_router, build_smtp_settings_router, demo_username,
+    build_demo_codigos_router,
+    build_smtp_settings_router,
+    demo_username,
 )
 from libraauth.smtp_settings import SmtpSettingsRepository, resolver_smtp_config
 from libraauth.terminos import TerminosRepository, build_terminos_router
 from libracore import config_manager
 from libracore.config_router import (
-    build_backup_router, build_empresa_admin_router, build_empresa_router,
+    build_backup_router,
+    build_empresa_admin_router,
+    build_empresa_router,
 )
+from libracore.db.url_de_instancia import url_de_instancia
 from libracore.respaldo import Instancia
 from libracore.smtp_router import build_smtp_probe_router
+from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
+from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
+from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from libragenda.database import configure, get_engine, get_session_factory
+from libragenda.sqlalchemy_repository import Base, SqlAlchemyAppointmentRepository
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
-
-from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
-from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
-from libragenda.database import configure, get_engine, get_session_factory
-from libragenda.catalog_repository import SqlAlchemyCatalogRepository
-from libragenda.sqlalchemy_repository import Base, SqlAlchemyAppointmentRepository
 
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, require_admin, require_admin_o_servicio, require_staff
@@ -42,42 +47,69 @@ from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
-    agenda, agenda_blocks as agenda_blocks_router, appointments, availability,
-    branch_hours, branches,
-    business_settings, clinical_documents, clinical_notes, consents,
-    consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, facturacion_externa, health, holidays,
-    medios_pago as medios_pago_router,
-    prescriptions, reminders,
-    resource_prices as resource_prices_router,
-    resources, service_iva_rates, service_prices,
-    services, study_orders, walkins as walkins_router,
+    agenda,
+    appointments,
+    availability,
+    branch_hours,
+    branches,
+    business_settings,
+    clinical_documents,
+    clinical_notes,
+    consents,
+    deposits,
+    facturacion_externa,
+    health,
+    holidays,
+    prescriptions,
+    reminders,
+    resources,
+    service_iva_rates,
+    service_prices,
+    services,
+    study_orders,
+)
+from .routers import (
+    agenda_blocks as agenda_blocks_router,
 )
 from .routers import auth as auth_router
+from .routers import (
+    consultorios as consultorios_router,
+)
+from .routers import (
+    dashboard as dashboard_router,
+)
+from .routers import (
+    medios_pago as medios_pago_router,
+)
 from .routers import patients as patients_router
+from .routers import (
+    resource_prices as resource_prices_router,
+)
 from .routers import users as users_router
+from .routers import (
+    walkins as walkins_router,
+)
+from .services import libracore_setup
+from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
-from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .services.branches import BranchRepository
-from .services.consultorios import ConsultorioRepository
-from .services.contalibra import EnvioRepository as EnvioContalibraRepository
-from .services.walkins import WalkinRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
 from .services.clinical_notes import ClinicalNoteRepository
 from .services.consents import ConsentRepository
+from .services.consultorios import ConsultorioRepository
+from .services.contalibra import EnvioRepository as EnvioContalibraRepository
 from .services.dashboard import DashboardService
+from .services.iva_rates import IvaRateRepository
 from .services.modules import ModuleRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
-from .services.iva_rates import IvaRateRepository
 from .services.resource_prices import ResourcePriceRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
-from libraauth.bootstrap import ensure_demo_user
 from .services.users import UserRepository, ensure_default_admin
-from .services import libracore_setup
+from .services.walkins import WalkinRepository
 
 
 def _carpeta_de_backups(libracore_db_path: str) -> str:

@@ -11,10 +11,9 @@ no bloquea nada, y recién `aplicar_plan_en_db()` (llamado por el
 provisioning al dar de alta un cliente real con un plan elegido) achica el
 acceso según corresponda.
 """
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 from plans import TODOS_LOS_MODULOS
 

@@ -1,9 +1,9 @@
 """Tests for POST /auth/verify -- the stateless check that medlibra_web's
 /docs/ login uses, protected by the shared secret DOCS_AUTH_SECRET."""
 from conftest import https_client
+from motor_de_test import fresh_database_url
 
 from app.main import create_app
-from motor_de_test import fresh_database_url
 
 
 def test_verify_without_secret_configured_returns_401(monkeypatch, admin_client):

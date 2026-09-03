@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -12,7 +12,7 @@ def _inicio_sin_cruzar_medianoche(minutos_adelante, duracion_minutos=30):
     fallaba en una franja de media hora de cada dia, invisible el resto del
     tiempo (bug real, 2026-07-28).
     """
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     inicio = ahora + timedelta(minutes=minutos_adelante)
     ultimo_del_dia = inicio.replace(
         hour=23, minute=59, second=0, microsecond=0

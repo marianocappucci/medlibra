@@ -1,6 +1,6 @@
 """Add nullable created_at to patients (dashboard: pacientes nuevos en un rango)."""
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0010_patient_created_at"
 down_revision = "0009_patient_billing_fields"

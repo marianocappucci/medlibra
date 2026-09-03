@@ -23,8 +23,8 @@ from libraauth.auditoria import (  # noqa: F401 — re-export para el router y l
     CREAR,
     EDITAR,
     AuditoriaRepository,
+    etiqueta_por_defecto,
 )
-from libraauth.auditoria import etiqueta_por_defecto
 
 # {nombre de la clase del modelo: nombre logico}
 AUDITABLES: dict[str, str] = {

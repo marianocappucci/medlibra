@@ -3,12 +3,11 @@ timezone) with MedLibra's own contact extension (phone, address) -- same
 pattern as Patient extending LibraGenda's Client, and the same feature
 already built for Gestiolibra (see that repo's app/services/branches.py).
 """
-from sqlalchemy import ForeignKey, String, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
 from libragenda import Branch
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base
+from sqlalchemy import ForeignKey, String, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 
 class BranchContactRow(Base):

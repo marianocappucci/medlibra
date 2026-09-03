@@ -20,12 +20,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
-from ._instantes import InstanteUTC
 from ..dependencies import get_agenda_block_repository, get_walkin_repository
 from ..services.agenda_blocks import AgendaBlockRepository
 from ..services.walkins import (
-    ATENDIDO, CANCELADO, EN_ATENCION, TransicionInvalida, WalkinRepository,
+    ATENDIDO,
+    CANCELADO,
+    EN_ATENCION,
+    TransicionInvalida,
+    WalkinRepository,
 )
+from ._instantes import InstanteUTC
 
 router = APIRouter(tags=["walkins"])
 

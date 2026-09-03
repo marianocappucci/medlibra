@@ -21,8 +21,8 @@ el log arranca vacio y desde hoy.
 `auth_log` (accesos) NO esta aca: vive en la base de LibraCore y ya la crea su
 schema. Lo unico que cambia es que ahora alguien la escribe.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0013_actividad_log"
 down_revision = "0012_service_iva_rates"

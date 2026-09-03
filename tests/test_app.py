@@ -1,7 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
-
 from conftest import https_client
+from fastapi.testclient import TestClient
 from motor_de_test import fresh_database_url
 
 

@@ -35,10 +35,9 @@ mismo mapa que usa LibraCore.
 """
 from decimal import Decimal
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import ForeignKey, Numeric, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 EXENTO = Decimal("0")
 

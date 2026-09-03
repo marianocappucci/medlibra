@@ -27,14 +27,20 @@ cola tiene. Quién sigue se calcula filtrando por estado, no por el número.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-
-from sqlalchemy import (
-    Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func, select,
-)
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
+from datetime import UTC, date, datetime, timezone
 
 from libragenda.sqlalchemy_repository import Base
+from sqlalchemy import (
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+)
+from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 #: Los estados de alguien en la fila.
 #:
@@ -113,7 +119,7 @@ class WalkinRepository:
             row = WalkinRow(
                 id=id, block_id=block_id, day=dia, client_id=client_id,
                 service_id=service_id, arrival_order=(ultimo or 0) + 1,
-                status=ESPERANDO, created_at=datetime.now(timezone.utc),
+                status=ESPERANDO, created_at=datetime.now(UTC),
             )
             session.add(row)
             session.flush()

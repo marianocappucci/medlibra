@@ -14,10 +14,9 @@ turno a ocupar dos, que es justo lo que el motor no hace. La sala vive acá y su
 choque lo valida `AppointmentService` — el reparto que fija LibraGenda es que el
 vertical resuelve lo que el motor no modela, en vez de deformar el motor.
 """
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import Boolean, ForeignKey, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class ConsultorioRow(Base):

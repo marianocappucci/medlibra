@@ -9,10 +9,9 @@ resources also have to fall inside them.
 """
 from datetime import time
 
+from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import ForeignKey, Integer, Time, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
-
-from libragenda.sqlalchemy_repository import Base
 
 
 class BranchHoursRow(Base):

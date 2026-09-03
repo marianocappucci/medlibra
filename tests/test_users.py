@@ -1,6 +1,5 @@
-from fastapi.testclient import TestClient
-
 from conftest import https_client
+from fastapi.testclient import TestClient
 
 
 def test_admin_can_create_list_and_get_a_staff_user(admin_client: TestClient):

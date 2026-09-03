@@ -6,14 +6,13 @@ Not part of LibraGenda's domain -- clinical identity belongs to the
 vertical, same principle as "users" being Gestiolibra's own table instead
 of living in the engine.
 """
-from datetime import date, datetime, timezone
-
-from sqlalchemy import Date, DateTime, ForeignKey, String, func, select
-from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
+from datetime import UTC, date, datetime, timezone
 
 from libragenda import Client
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base
+from sqlalchemy import Date, DateTime, ForeignKey, String, func, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from .clinical_documents import ClinicalDocumentRow
 from .clinical_notes import ClinicalNoteRow
@@ -67,7 +66,7 @@ class PatientRepository:
         with self.session_factory.begin() as session:
             session.add(PatientRow(
                 id=id, dni=dni, birth_date=birth_date, cuit=cuit, condicion_iva=condicion_iva,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ))
         return self._to_out(client, dni, birth_date, cuit, condicion_iva)
 
