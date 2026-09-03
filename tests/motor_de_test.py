@@ -22,8 +22,24 @@ import os
 TEST_DATABASE_URL = os.environ.get("MEDLIBRA_TEST_DATABASE_URL", "").strip()
 
 
-def corre_contra_postgres() -> bool:
-    return TEST_DATABASE_URL.startswith("postgresql")
+# 🔴 **PostgreSQL y nada mas.** Hasta el 2026-08-25 la suite caia a SQLite
+# cuando la variable no estaba, y el CI corria las dos pasadas. El modo SQLite
+# se retiro el 2026-08-12 para toda la familia: no chequea las FK, tipa
+# dinamicamente y acepta cadenas donde la base pide enteros, asi que una corrida
+# verde sobre el no dice nada del motor real.
+#
+# El guard va ACA porque este es el unico lugar donde se elegia el motor. Con el
+# puesto, el predicado que preguntaba por el motor seria siempre True, asi que
+# se saco junto con las tres ramas SQLite que colgaban de el.
+if not TEST_DATABASE_URL.startswith("postgresql"):
+    raise RuntimeError(
+        "La suite de MedLibra necesita PostgreSQL: defini "
+        "MEDLIBRA_TEST_DATABASE_URL (ej. "
+        "postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra). "
+        "Sin esa variable la suite correria sobre SQLite, que es lo que se "
+        "retiro el 2026-08-12: una suite verde sobre SQLite no dice nada "
+        "sobre el motor real."
+    )
 
 
 def fresh_database_url() -> str:
@@ -48,9 +64,6 @@ def fresh_database_url() -> str:
     (`max_connections`) con **186 errores**, mientras cada archivo por separado
     pasaba en verde. El sintoma no se parece en nada a la causa.
     """
-    if not corre_contra_postgres():
-        return "sqlite:///:memory:"
-
     import psycopg
     from libragenda.database import reset as soltar_engine_anterior
 
@@ -75,8 +88,6 @@ def url_para_archivo(ruta) -> str:
     archivo y LibraCore en la base nueva. El backup salia con una sola base y el
     test fallaba por el cableado del test, no por el producto.
     """
-    if not corre_contra_postgres():
-        return f"sqlite:///{ruta}"
     return fresh_database_url()
 
 
@@ -141,7 +152,5 @@ def destino_libracore(ruta_sqlite) -> str:
     asi que el verde de este repo no decia nada sobre las ~340 consultas crudas
     de LibraCore.
     """
-    if not corre_contra_postgres():
-        return str(ruta_sqlite)
     _preparar_libracore()
     return url_libracore()

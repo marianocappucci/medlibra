@@ -147,8 +147,8 @@ def test_no_todos_los_pacientes_tienen_historia(api):
 
 # ── Los turnos ────────────────────────────────────────────────────────────
 
-def _estados(api):
-    """Los estados de todos los turnos que sembró la demo.
+def _turnos(api, hoy):
+    """Todos los turnos que sembró la demo.
 
     🔴 **La ventana se mide en días de CALENDARIO y el plan de la demo está en
     días HÁBILES**, así que tiene que sobrar por los dos lados. Hasta el
@@ -157,23 +157,31 @@ def _estados(api):
     No lo notaba nadie porque el test pedía `>= 7` sobre un plan de 9: el margen
     se comía justo el agujero. Al pasar a una cuenta exacta apareció.
     """
-    from datetime import date, timedelta
+    from datetime import timedelta
 
-    desde, hasta = date.today() - timedelta(days=7), date.today() + timedelta(days=10)
-    estados = []
+    # ⚠️ La ventana se arma con la fecha que devolvió `sembrar()`, no con
+    # `date.today()`: si el día cambia entre la siembra y la consulta, la
+    # ventana se corre y deja turnos afuera. Ver la guarda
+    # `test_LA_FECHA_NO_SE_RESUELVE_AL_IMPORTAR`.
+    desde, hasta = hoy - timedelta(days=7), hoy + timedelta(days=10)
+    turnos = []
     for r in api.get("/resources"):
-        agenda = api.get(f"/resources/{r['id']}/agenda"
-                         f"?date_from={desde}&date_to={hasta}") or []
-        estados += [t["status"] for t in agenda]
-    return estados
+        turnos += api.get(f"/resources/{r['id']}/agenda"
+                          f"?date_from={desde}&date_to={hasta}") or []
+    return turnos
+
+
+def _estados(api, hoy):
+    """Los estados de todos los turnos que sembró la demo."""
+    return [t["status"] for t in _turnos(api, hoy)]
 
 
 def test_deja_turnos_en_mas_de_un_estado(api):
     """Completar un turno no es un campo: hay que confirmarlo antes. Este test
     también prueba que la cadena de transiciones se hizo bien."""
-    sembrar(api)
+    hoy = sembrar(api)
 
-    estados = _estados(api)
+    estados = _estados(api, hoy)
     # 🔴 **Los 11 del PLAN, exactos.** Antes decía `>= 7` sobre un plan de 9, y
     # ese margen es justo el que hace invisible el modo de falla que importa:
     # un turno que el alta rechaza (fuera de horario, sin disponibilidad, huso
@@ -204,7 +212,7 @@ def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
     Hasta el 2026-08-24 la cuenta iba de `HOY - 2` a `HOY + 5` y un lunes
     dejaba afuera los dos turnos de "ayer hábil" —que caen el viernes, tres
     días de calendario atrás—: el seed informaba 9 sobre 11. No duplicó nunca
-    nada de puro suerte, porque el corte de abajo es 8 y 9 lo pasa igual. Es
+    nada de puro suerte, porque el corte de entonces era 8 y 9 lo pasa igual. Es
     el mismo agujero que ya tapó dos veces el margen en este archivo, así que
     acá se mira el número exacto y no un "alcanza".
     """
@@ -215,6 +223,64 @@ def test_la_segunda_corrida_ve_TODOS_los_turnos(api, capsys):
 
     salida = capsys.readouterr().out
     assert "(ya hay 11 turnos cargados)" in salida, salida
+
+
+def test_una_demo_a_medias_no_se_re_siembra(api, capsys):
+    """🔴 **Un turno no tiene clave natural.** No hay `obtener_o_crear` que lo
+    salve, así que sembrar sobre una demo a medias agrega los 11 **encima** de
+    los que ya estaban.
+
+    Es la franja que el corte viejo tapaba: con `>= 8` sobre un plan de 11, una
+    demo con 8, 9 o 10 turnos se salteaba en silencio y quedaba incompleta para
+    siempre. Subir el corte a `len(PLAN)` **sin** esta rama la haría duplicar,
+    que es peor que dejarla corta. Este test fija que no hace ninguna de las
+    dos: avisa y no toca nada.
+
+    El estado a medias se arma **por la API**, reprogramando dos turnos fuera de
+    la ventana del plan — que es como se llega en la vida real (alguien mueve un
+    turno de la demo) y además la única forma disponible: no hay
+    `DELETE /appointments`.
+    """
+    from datetime import date, datetime, time, timedelta
+
+    # ⚠️ Se trabaja con la fecha que devolvió `sembrar()` y no con
+    # `date.today()`: volver a preguntarle al reloj reproduce, con una ventana
+    # más chica, el defecto que este archivo acaba de tapar.
+    hoy = sembrar(api)
+
+    # 🔑 Control de que la fecha devuelta es realmente «hoy» y no cualquier
+    # cosa: sin esto, un `sembrar()` que devolviera una fecha inventada --y
+    # sembrara en esa-- pasaría los asserts de abajo sin que la agenda tenga
+    # nada el día que el operador la abre.
+    assert abs((hoy - date.today()).days) <= 1, (
+        f"sembrar() dijo haber sembrado para {hoy}, y hoy es {date.today()}"
+    )
+
+    assert len(_turnos(api, hoy)) == 11
+    capsys.readouterr()
+
+    lejos = hoy + timedelta(days=28)
+    while lejos.weekday() >= 5:
+        lejos += timedelta(days=1)
+    movidos = 0
+    for turno in _turnos(api, hoy):
+        if movidos == 2 or turno["status"] != "pending":
+            continue
+        api.post(f"/appointments/{turno['id']}/reschedule", {
+            "starts_at": datetime.combine(lejos, time(9 + movidos)),
+            "reason": "Movido a mano, como haría alguien sobre la demo",
+        })
+        movidos += 1
+    assert movidos == 2, f"no se pudieron mover dos turnos: {movidos}"
+    assert len(_turnos(api, hoy)) == 9, "los turnos movidos siguen dentro de la ventana"
+
+    sembrar(api)
+
+    salida = capsys.readouterr().out
+    assert "PARCIAL" in salida, salida
+    # 🔴 El mensaje es lo de menos: lo que este test protege es que NO haya
+    # sembrado encima. Si lo hiciera, acá habría 9 + 11.
+    assert len(_turnos(api, hoy)) == 9, "sembró sobre una demo a medias y duplicó"
 
 
 def test_la_segunda_corrida_no_agrega_evoluciones(api):
@@ -252,3 +318,45 @@ def test_donde_NO(url):
     """🔴 Acá la guarda importa más que en ningún otro producto: los datos de
     una instancia real son historias clínicas."""
     assert url_no_productiva(url) is False
+
+
+def test_LA_FECHA_NO_SE_RESUELVE_AL_IMPORTAR(monkeypatch):
+    """🔴 La guarda del defecto que puso en rojo el CI de Restolibra el 2026-08-29.
+
+    `HOY` era un `date.today()` a nivel de módulo: quedaba congelado en el
+    instante del import. Un proceso que importa antes de medianoche y siembra
+    después —la suite tarda minutos, y el cron de la demo corre sobre procesos
+    que viven días— siembra para AYER, y después la agenda se ve vacía el día
+    que alguien la abre.
+
+    Acá pega doble: el plan de turnos se cuenta en días hábiles a partir de
+    `HOY`, y la ventana con la que el seed se pregunta «¿ya sembré?» también.
+    Con la fecha corrida, el seed no ve lo que él mismo sembró y **duplica**.
+
+    No se prueba llamando a `sembrar()`: eso es una corrida entera contra la
+    base. Se prueba la pieza que decide la fecha, que es donde vivía el defecto.
+    """
+    import datetime
+
+    import scripts.seed_demo as seed
+
+    # Se mueve el reloj DESPUÉS de que el módulo ya está importado, que es
+    # exactamente el cruce de medianoche a mitad de corrida.
+    otro_dia = datetime.date(2031, 7, 4)
+
+    class RelojMovido(datetime.date):
+        @classmethod
+        def today(cls):
+            return otro_dia
+
+    monkeypatch.setattr(seed, "date", RelojMovido)
+
+    assert seed._fijar_hoy() == otro_dia, (
+        "la fecha sigue viniendo del import: mover el reloj no la cambió"
+    )
+    # Y deja el módulo consistente: `_sembrar_turnos` lee `seed.HOY`, no el
+    # valor devuelto.
+    assert seed.HOY == otro_dia, (
+        "`_fijar_hoy` devolvió la fecha nueva pero no actualizó `HOY`, que es "
+        "la que usan los sembradores"
+    )

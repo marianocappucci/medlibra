@@ -40,10 +40,10 @@ import {
   VistaSemana, clasePunto, diaDeLaUrl, hoyLocal, rangoDeVista, vistaDeLaUrl,
 } from 'libra-ui/agenda'
 import {
-  api, ApiError, STATUS_LABELS, TIPO_COMPROBANTE_LABELS,
+  api, ApiError, STATUS_LABELS,
   opcionesPaciente, opcionesServicio,
   type AppointmentStatus, type Branch, type CompleteAppointmentResponse,
-  type Factura, type Patient, type Resource, type Service,
+  type EnvioAContalibra, type MedioPago, type Patient, type Resource, type Service,
 } from '../api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -66,12 +66,17 @@ import { diaMesYHora, hora } from '@/lib/fechas'
 
 const TODOS = '__todos__'
 
-const MEDIO_PAGO_LABELS: Record<string, string> = {
-  efectivo: 'Efectivo',
-  transferencia: 'Transferencia',
-  tarjeta: 'Tarjeta',
-  mercadopago: 'MercadoPago',
-}
+// 🔴 Acá había un `MEDIO_PAGO_LABELS` con cuatro medios escritos a mano, y uno
+// de ellos —`tarjeta`— **no existía en el vocabulario de la familia**. Llegaba
+// igual a Contalibra, creaba su movimiento de caja y salía en el cierre como un
+// bucket suelto con el nombre crudo: la plata bien contada y el reparto mal.
+//
+// Peor: era la misma copia byte a byte que tiene Gestiolibra, así que dos
+// productos inventaron el mismo medio por separado.
+//
+// Ahora la lista sale de `GET /medios-pago`, que la sirve `libracore.medios_pago`.
+// La tarjeta viene **partida en débito y crédito**, que es como la declara ARCA.
+// Ver `wiki/concepts/medios-de-pago-familia-libra.md`.
 
 const STATUS_TONO: Record<AppointmentStatus, TonoEstado> = {
   pending: 'neutro',
@@ -80,14 +85,6 @@ const STATUS_TONO: Record<AppointmentStatus, TonoEstado> = {
   completed: 'ok',
   cancelled: 'negativo',
   no_show: 'negativo',
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
-}
-
-function formatNumeroComprobante(f: Factura): string {
-  return `${String(f.punto_venta).padStart(4, '0')}-${String(f.numero).padStart(8, '0')}`
 }
 
 /** `22-08 17:00` a partir de la hora de pared que ya calculó `datos.ts`.
@@ -123,9 +120,14 @@ export function Agenda() {
   const [creando, setCreando] = useState(false)
   const [altaAbierta, setAltaAbierta] = useState(false)
   const [medioPago, setMedioPago] = useState('')
+  //: Los medios que sirve el motor (`GET /medios-pago`). Vacío hasta que
+  //: conteste: el diálogo de cobro no se abre antes de que cargue el catálogo.
+  const [mediosPago, setMediosPago] = useState<MedioPago[]>([])
   const [pidiendoMedioPago, setPidiendoMedioPago] = useState<TurnoConProfesional | null>(null)
   const [completando, setCompletando] = useState(false)
-  const [factura, setFactura] = useState<Factura | null>(null)
+  // Sólo se llena cuando la consulta NO llegó a facturarse. El caso feliz no
+  // interrumpe a nadie: viajó a Contalibra y no hay nada que mostrar.
+  const [sinFacturar, setSinFacturar] = useState<EnvioAContalibra | null>(null)
 
   const vista = vistaDeLaUrl(params.get('vista'))
   // `hoyLocal()` en cada render y no en un `useState`: si alguien deja la
@@ -146,7 +148,8 @@ export function Agenda() {
       api.get<Branch[]>('/branches'),
       api.get<Service[]>('/services'),
       api.get<Patient[]>('/patients'),
-    ]).then(([r, b, s, p]) => {
+      api.get<MedioPago[]>('/medios-pago'),
+    ]).then(([r, b, s, p, m]) => {
       // `Array.isArray` y no confiar en el tipo: un cuerpo truncado o un `{}`
       // es truthy, y el `.filter()` de más abajo tumbaría la pantalla entera
       // con un TypeError en vez de mostrar de menos.
@@ -154,6 +157,7 @@ export function Agenda() {
       setBranches(Array.isArray(b) ? b : [])
       setServices(Array.isArray(s) ? s : [])
       setPatients(Array.isArray(p) ? p : [])
+      setMediosPago(Array.isArray(m) ? m : [])
     }).catch((err) => setErrorCatalogo(describirError(err)))
       .finally(() => setCatalogoCargado(true))
   }, [])
@@ -241,7 +245,12 @@ export function Agenda() {
       )
       setPidiendoMedioPago(null)
       setMedioPago('')
-      if (respuesta.factura) setFactura(respuesta.factura)
+      // 🔴 Sólo se avisa si NO se facturó. `enviado` es el caso normal y no
+      // merece un diálogo; `sin_destino` y `error` sí, porque son un turno
+      // cobrado sin comprobante y el mostrador es el último lugar donde
+      // todavía hay alguien mirando.
+      const envio = respuesta.contalibra
+      if (envio && envio.estado !== 'enviado') setSinFacturar(envio)
       await recargar()
       cerrarTurno()
     } catch (err) {
@@ -545,8 +554,8 @@ export function Agenda() {
           <Select value={medioPago} onValueChange={setMedioPago}>
             <SelectTrigger><SelectValue placeholder="Medio de pago…" /></SelectTrigger>
             <SelectContent>
-              {Object.entries(MEDIO_PAGO_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
+              {mediosPago.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -562,29 +571,37 @@ export function Agenda() {
         </DialogContent>
       </Dialog>
 
-      {/* ── La factura emitida ────────────────────────────────────────── */}
-      <Dialog open={factura !== null} onOpenChange={(abierto) => { if (!abierto) setFactura(null) }}>
+      {/* ── La consulta que NO llegó a facturarse ─────────────────────── */}
+      {/*  🔴 Reemplaza al diálogo de "Factura emitida", que se fue con el motor
+           local (ADR-036). El caso feliz ya no interrumpe a nadie: la consulta
+           viajó a Contalibra y no hay nada que mostrar. Lo que sí interrumpe es
+           el caso malo — un turno cobrado que no se facturó es plata que se
+           pierde en silencio, y el mostrador es el único momento en que
+           todavía hay alguien mirando. */}
+      <Dialog
+        open={sinFacturar !== null}
+        onOpenChange={(abierto) => { if (!abierto) setSinFacturar(null) }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Factura emitida</DialogTitle>
+            <DialogTitle>El turno se completó, pero no se facturó</DialogTitle>
+            <DialogDescription>
+              {/* 🔴 **Nada se manda solo.** No hay reintento automático: el
+                  único camino es `POST /facturacion-externa/{id}/reintentar`,
+                  a mano. Decir "se manda sola cuando se configure" haría que
+                  nadie vuelva a mirarla, y la consulta se quedaría ahí. */}
+              {sinFacturar?.estado === 'sin_destino'
+                ? 'Este consultorio todavía no tiene configurado a dónde mandar las consultas a facturar. La consulta quedó registrada como pendiente: una vez configurado el destino, hay que reenviarla.'
+                : 'Contalibra no pudo recibir la consulta. Quedó registrada como pendiente y hay que reintentarla.'}
+            </DialogDescription>
           </DialogHeader>
-          {factura && (
-            <div className="space-y-2 text-sm">
-              {[
-                ['Tipo', TIPO_COMPROBANTE_LABELS[factura.tipo] ?? String(factura.tipo)],
-                ['Número', formatNumeroComprobante(factura)],
-                ['CAE', factura.cae || '—'],
-                ['Total', formatCurrency(factura.total)],
-              ].map(([rotulo, valor]) => (
-                <div key={rotulo} className="flex justify-between">
-                  <span className="text-muted-foreground">{rotulo}</span>
-                  <span className="font-medium">{valor}</span>
-                </div>
-              ))}
-            </div>
+          {sinFacturar?.error && (
+            <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+              {sinFacturar.error}
+            </p>
           )}
           <DialogFooter>
-            <Button onClick={() => setFactura(null)}>Cerrar</Button>
+            <Button onClick={() => setSinFacturar(null)}>Entendido</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -216,10 +216,13 @@ const RUTAS_DEL_PROFESIONAL = {
   '/resources': [PROFESIONAL],
   '/branches': [SEDE],
   '/consultorios': [CONSULTORIO],
+  '/services': [PRESTACION],
   '/agenda-blocks?resource_id=dra-vidal': [],
   '/agenda-blocks/opciones': OPCIONES,
   '/resources/dra-vidal/blocks': [],
   '/resources/dra-vidal/exceptions': [],
+  '/resources/dra-vidal/prices': [],
+  '/services/consulta/prices': [],
 }
 
 describe('Profesionales', () => {
@@ -317,5 +320,82 @@ describe('Profesionales', () => {
     expect(mandado('/resources/dra-vidal/exceptions')!.cuerpo).toEqual({
       day: '2026-12-25', starts_at: '09:00:00', ends_at: '19:00:00', available: true,
     })
+  })
+})
+
+// ── Honorarios ─────────────────────────────────────────────────────────────
+
+describe('Honorarios', () => {
+  it('el alta manda la prestación y el importe', async () => {
+    servir(RUTAS_DEL_PROFESIONAL)
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    await screen.findByText('Honorarios')
+
+    // El campo se rotula con el nombre de la prestación: es la lista de todas,
+    // no sólo las que ya tienen honorario.
+    await userEvent.type(screen.getByLabelText('Consulta'), '2500')
+    const guardar = screen.getAllByRole('button', { name: 'Guardar' })
+    await userEvent.click(guardar[guardar.length - 1])
+
+    await waitFor(() => expect(mandado('/resources/dra-vidal/prices', 'PUT')).toBeTruthy())
+    expect(mandado('/resources/dra-vidal/prices', 'PUT')!.cuerpo).toEqual({
+      service_id: 'consulta', price: '2500',
+    })
+  })
+
+  it('🔴 sin honorario propio dice cuánto se cobra igual', async () => {
+    // Un honorario es una EXCEPCIÓN al precio de lista. Mostrar sólo las
+    // excepciones deja invisible lo que se cobra en todo lo demás, que es la
+    // mitad de la respuesta a "¿cuánto sale atenderse con esta persona?".
+    servir({
+      ...RUTAS_DEL_PROFESIONAL,
+      '/services/consulta/prices': [
+        { id: 'p1', service_id: 'consulta', branch_id: 'centro', price: '1000.00' },
+      ],
+    })
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    expect(await screen.findByText(/Cobra el de la sede/)).toBeInTheDocument()
+  })
+
+  it('🔴 con honorario propio dice que ése es el que manda', async () => {
+    servir({
+      ...RUTAS_DEL_PROFESIONAL,
+      '/resources/dra-vidal/prices': [
+        { id: 'h1', service_id: 'consulta', resource_id: 'dra-vidal', price: '2500.00' },
+      ],
+      '/services/consulta/prices': [
+        { id: 'p1', service_id: 'consulta', branch_id: 'centro', price: '1000.00' },
+      ],
+    })
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    expect(await screen.findByText(/Propio/)).toBeInTheDocument()
+    expect(screen.queryByText(/Cobra el de la sede/)).not.toBeInTheDocument()
+  })
+
+  it('🔴 sin ningún precio avisa que el turno no se factura', async () => {
+    // Ni honorario propio ni precio de sede. Es un estado válido —el turno se
+    // completa igual— pero silencioso: el consultorio atiende y no cobra.
+    servir(RUTAS_DEL_PROFESIONAL)
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    expect(await screen.findByText(/se completa sin facturar/)).toBeInTheDocument()
+  })
+
+  it('quitar el honorario lo borra por prestación', async () => {
+    servir({
+      ...RUTAS_DEL_PROFESIONAL,
+      '/resources/dra-vidal/prices': [
+        { id: 'h1', service_id: 'consulta', resource_id: 'dra-vidal', price: '2500.00' },
+      ],
+    })
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Quitar' }))
+    await waitFor(() => expect(
+      mandado('/resources/dra-vidal/prices/consulta', 'DELETE'),
+    ).toBeTruthy())
   })
 })

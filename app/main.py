@@ -25,6 +25,7 @@ from libracore.config_router import (
     build_backup_router, build_empresa_admin_router, build_empresa_router,
 )
 from libracore.respaldo import Instancia
+from libracore.smtp_router import build_smtp_probe_router
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
@@ -42,11 +43,15 @@ from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
 from .routers import (
     agenda, agenda_blocks as agenda_blocks_router, appointments, availability,
-    billing as billing_router, branch_hours, branches,
+    branch_hours, branches,
     business_settings, clinical_documents, clinical_notes, consents,
     consultorios as consultorios_router, dashboard as dashboard_router,
-    deposits, health, holidays, prescriptions, reminders, resources, service_iva_rates,
-    service_prices, services, study_orders, walkins as walkins_router,
+    deposits, facturacion_externa, health, holidays,
+    medios_pago as medios_pago_router,
+    prescriptions, reminders,
+    resource_prices as resource_prices_router,
+    resources, service_iva_rates, service_prices,
+    services, study_orders, walkins as walkins_router,
 )
 from .routers import auth as auth_router
 from .routers import patients as patients_router
@@ -56,6 +61,7 @@ from .services.branch_hours import BranchHoursRepository
 from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
 from .services.branches import BranchRepository
 from .services.consultorios import ConsultorioRepository
+from .services.contalibra import EnvioRepository as EnvioContalibraRepository
 from .services.walkins import WalkinRepository
 from .services.business_settings import BusinessSettingsRepository
 from .services.clinical_documents import ClinicalDocumentRepository
@@ -66,11 +72,12 @@ from .services.modules import ModuleRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.iva_rates import IvaRateRepository
+from .services.resource_prices import ResourcePriceRepository
 from .services.service_prices import ServicePriceRepository
 from .services.study_orders import StudyOrderRepository
 from libraauth.bootstrap import ensure_demo_user
 from .services.users import UserRepository, ensure_default_admin
-from .services import billing
+from .services import libracore_setup
 
 
 def _carpeta_de_backups(libracore_db_path: str) -> str:
@@ -81,8 +88,9 @@ def _carpeta_de_backups(libracore_db_path: str) -> str:
     `postgresql://usuario:clave@host:5432/base` devuelve
     `postgresql://usuario:clave@host:5432`, y ahi se creaba `backups/`: una
     carpeta **con la contrasena en el nombre**, colgando del directorio de
-    trabajo. Es el mismo defecto que `billing.configure()` tenia en los tres
-    productos, en otro lugar del mismo arranque.
+    trabajo. Es el mismo defecto que `libracore_setup.configure()` —entonces
+    llamado `billing.configure()`— tenia en los tres productos, en otro lugar
+    del mismo arranque.
 
     Con la base en PostgreSQL no hay "al lado de la base": se usa `DATA_DIR`,
     que es donde viven los logos y los documentos de esta instancia.
@@ -150,7 +158,7 @@ def create_app(database_url: str) -> FastAPI:
     libracore_db_path = url_de_instancia(
         "medlibra", core=True, default="./data/medlibra_libracore.db"
     )
-    billing.configure(libracore_db_path)
+    libracore_setup.configure(libracore_db_path)
     # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
     # fuera una URL PostgreSQL: la interpolacion la convertia en una ruta
     # relativa sin sentido (`sqlite:///postgresql://...`) y el engine moria con
@@ -211,17 +219,28 @@ def create_app(database_url: str) -> FastAPI:
     ensure_demo_user(user_repository)
 
     app = FastAPI(title="MedLibra")
+
+    # 🔴 Colgado de la app para poder SOLTARLO. En produccion la app es una y
+    # vive lo que vive el proceso, asi que da igual; en la suite cada test arma
+    # una app nueva y este engine deja un pool vivo por test. Contra SQLite no
+    # se notaba --un `StaticPool` de una conexion que se recolecta sola--, pero
+    # contra PostgreSQL son conexiones TCP que se acumulan hasta
+    # `max_connections`, y el sintoma son errores de conexion en tests que no
+    # tienen nada que ver con el que los causo. Ver `fresh_database_url()`.
+    app.state.auth_engine = auth_engine
     app.state.catalog = catalog
     app.state.availability = availability_repository
     app.state.branches = BranchRepository(catalog, sessions)
     app.state.branch_hours = branch_hours_repository
     app.state.service_prices = ServicePriceRepository(sessions)
+    app.state.resource_prices = ResourcePriceRepository(sessions)
     app.state.iva_rates = IvaRateRepository(sessions)
     app.state.business_settings = BusinessSettingsRepository(sessions)
     app.state.consultorios = ConsultorioRepository(sessions)
     app.state.agenda_blocks = AgendaBlockRepository(sessions)
     app.state.appointment_rooms = AppointmentRoomRepository(sessions)
     app.state.walkins = WalkinRepository(sessions)
+    app.state.envios_contalibra = EnvioContalibraRepository(sessions)
     app.state.appointment_service = AppointmentService(
         catalog, appointment_repository, availability_repository, branch_hours_repository,
         app.state.agenda_blocks, app.state.appointment_rooms,
@@ -284,6 +303,18 @@ def create_app(database_url: str) -> FastAPI:
     # quien pueda escribir ahí puede redirigir a dónde salen los enlaces de
     # recuperación de contraseña de todos los usuarios.
     app.include_router(build_smtp_settings_router())
+    # `POST /admin/smtp/probar`, del motor: abre la conexion, negocia TLS y
+    # hace login.
+    #
+    # 🔑 Resuelve por el MISMO camino que los envios, y por eso el boton
+    # significa algo: un endpoint que probara otra config diria "Conectado"
+    # contra un servidor mientras los mails salen por otro. El gate va afuera
+    # porque el router del motor no trae ninguno propio, y esto abre una
+    # sesion SMTP con las credenciales del cliente.
+    app.include_router(
+        build_smtp_probe_router(lambda: resolver_smtp_config(auth_sessions)),
+        dependencies=[Depends(require_admin)],
+    )
     # `GET /terminos`, `POST /terminos/aceptar`, `GET /terminos/historial`.
     # NO se gatea desde afuera: es el unico camino para salir del gate.
     app.include_router(build_terminos_router())
@@ -313,6 +344,14 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(resources.router, dependencies=admin_only)
     app.include_router(services.router, dependencies=admin_only)
     app.include_router(service_prices.router, dependencies=admin_only)
+    app.include_router(resource_prices_router.router, dependencies=admin_only)
+    # Que consultas se mandaron a Contalibra y cuales no pudieron. Admin: es
+    # plata y es configuracion de la instancia, no operacion del mostrador.
+    app.include_router(facturacion_externa.router, dependencies=admin_only)
+    # 🔴 Con que medios se puede cobrar. **NO va con `admin_only`**: lo consume
+    # el selector del mostrador al completar un turno, y ahi no hay un admin.
+    # Es una lista de constantes del motor, sin datos de la instancia.
+    app.include_router(medios_pago_router.router)
     app.include_router(service_iva_rates.router, dependencies=admin_only)
     app.include_router(availability.router, dependencies=admin_only)
     app.include_router(consultorios_router.router, dependencies=admin_only)
@@ -336,9 +375,9 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(
         deposits.admin_router, dependencies=admin_only + [Depends(require_module("senas"))],
     )
-    app.include_router(
-        billing_router.router, dependencies=admin_only + [Depends(require_module("facturacion"))],
-    )
+    # 🔴 No hay router de `/config/arca`. Este producto ya no factura: la
+    # facturación vive en Contalibra (ADR-036). El módulo "facturacion" del plan
+    # sigue existiendo y ahora gatea **el envío**, no la emisión local.
     app.include_router(
         dashboard_router.router, dependencies=admin_only + [Depends(require_module("dashboard"))],
     )

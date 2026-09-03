@@ -1476,3 +1476,464 @@ es el único campo del bloque que no se puede dejar vacío.
 - **La fila de demanda espontánea sigue sin pantalla**: esta ronda cubre la
   parametrización (dónde, cuándo, quién, cuánto), no la operación diaria del
   llamador.
+
+## ADR-033 — Honorarios: el valor de la consulta por profesional
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"agregar cobro de honorarios por médico,
+permitiendo setear valor de la consulta por profesional"*.
+
+`service_prices` modela **(prestación × sede)**: la misma consulta puede costar
+distinto en dos consultorios. Lo que no puede decir es que la consulta con la
+Dra. Vidal salga más cara que con el Dr. Molina **en la misma sede**, que es
+justamente lo que distingue a un honorario de un precio de lista.
+
+### Decisión
+
+Una tabla `(prestación × profesional)` que **pisa** al precio de la sede cuando
+existe.
+
+**El orden no es arbitrario.** El precio por sede es el de lista —lo que sale
+esa prestación en ese consultorio— y el del profesional es la excepción
+explícita que alguien cargó para él; una excepción que no pisara al general no
+serviría para nada. Y **sacar el honorario no deja la prestación sin precio**:
+vuelve a cobrarse la de lista. Si dejara un hueco, el turno se completaría sin
+facturar y el consultorio perdería la consulta sin que nada avise.
+
+🔴 **Un solo resolvedor, y tiene que seguir siendo uno.** `precio_del_turno()`
+es el único lugar donde se decide qué se cobra. Hoy tiene un único consumidor
+—`complete_appointment`— y ahí está la trampa: es fácil que mañana la seña, un
+presupuesto o el envío a facturar copien la línea `service_prices.get(...)` en
+vez de llamar acá. Con dos lugares resolviendo lo mismo, el honorario aplica en
+un camino y no en el otro, y la diferencia aparece como un descuadre de caja que
+nadie sabe de dónde sale. Queda dicho en el código, en los dos lados.
+
+**El honorario alcanza solo**: no es un descuento sobre un precio de lista que
+tenga que existir. Un consultorio que cobra distinto por profesional y no maneja
+precio de lista es un caso normal, y tiene su test.
+
+**El endpoint cuelga del profesional** (`/resources/{id}/prices`) y no de la
+prestación, porque es como se carga: se entra a la ficha de la persona y se le
+ponen sus honorarios. La otra forma obligaría a recorrer las prestaciones una
+por una para configurar a alguien.
+
+### Consecuencias
+
+- 9 tests nuevos de backend (381 en la suite) y 5 de frontend (41). **El que
+  manda no mira la fila de la tabla**: completa un turno de verdad y verifica el
+  **total de la factura emitida**.
+- **Verificados por mutación**: ignorando el honorario propio se ponen en rojo
+  cinco, y el control —*sin honorario se cobra el precio de la sede*— sigue
+  verde.
+- El control que distingue *"pisa el precio"* de *"cambió el precio"* va con las
+  **dos filas cargadas y distintas**: el turno de la Dra. Vidal sale 2500 y el
+  del Dr. Molina, que no tiene honorario propio, sigue en los 1000 de la sede.
+  Con una sola fila, un bug que aplicara el honorario a todo el mundo pasaría
+  igual.
+- **La tabla nace vacía**: sin honorario propio se factura exactamente como
+  hasta ahora, y hay un test que lo fija. La migración `0017` no le cambia la
+  facturación a ninguna instancia existente.
+- En la pantalla, la card de Honorarios lista **todas las prestaciones activas
+  con el precio de la sede al lado**, no sólo las que tienen honorario propio: un
+  honorario es una excepción, y mostrar sólo las excepciones deja invisible lo
+  que se cobra en todo lo demás. Cuando no hay ninguno de los dos precios, lo
+  dice — *"se completa sin facturar"* es un estado válido pero silencioso.
+- Migración probada contra `postgres:16` real, ida y vuelta; el único por
+  `(prestación, profesional)` verificado **en la base**.
+
+## ADR-034 — La facturación sale de la vista de MedLibra
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+Pedido del humano (2026-08-22): *"sacar la opción de facturación en el sidebar, y
+sacar la opción de facturación dentro de configuración, permitir enviar a
+facturar consultas con enlace a contalibra"*.
+
+La facturación de este producto pasa a **Contalibra**, que es donde vive la
+contabilidad del ecosistema. Este cambio hace la primera mitad —sacarla de la
+vista— y deja la segunda para su propio trabajo, que además toca otro repo con
+clientes reales.
+
+### Decisión
+
+**Se saca de la vista, no del producto.** Al preguntarlo, el humano eligió sacar
+la pantalla y **dejar el motor**: el turno completado sigue emitiendo su factura
+hasta que Contalibra la reciba, para que ninguna instancia quede sin poder
+facturar en el medio.
+
+Sale entonces:
+
+- El ítem **Facturación** del sidebar (`components/Layout.tsx`).
+- La sección **ARCA** de Configuración (`pages/Configuracion.tsx`).
+- 🔴 **Y la ruta `/facturacion` del router.** Sacar sólo el ítem del sidebar
+  habría dejado la pantalla viva y accesible escribiendo la URL. Una pantalla
+  que el producto ya no ofrece pero que sigue funcionando es peor que cualquiera
+  de las dos cosas por separado: nadie la mantiene y sigue escribiendo en la
+  base.
+
+**No se borra `pages/Facturacion.tsx`.** Es la única forma de configurar ARCA, y
+el backend **sigue facturando**: si a un cliente se le vencen los certificados
+antes de que Contalibra esté recibiendo, borrar el componente sacaría el único
+camino de recuperación mientras el motor está vivo. Queda sin referenciar y con
+fecha de vencimiento: se va con el cambio que conecte Contalibra.
+
+### Consecuencias
+
+- ⚠️ **Una instancia NUEVA ya no puede configurar ARCA desde la interfaz.** Las
+  que ya tienen su configuración cargada siguen facturando igual; las nuevas
+  dependen de que la integración con Contalibra esté lista. Es una consecuencia
+  buscada —el destino es Contalibra— pero conviene tenerla escrita, porque es
+  exactamente lo que vuelve urgente al cambio siguiente.
+- Los endpoints `/config/arca` y `/billing` **no se tocan**: siguen ahí y siguen
+  siendo `admin_only`. Lo que se saca es la interfaz.
+- 1 test nuevo (37 en la suite del frontend). 🔴 **La ruta se mide del lado del
+  router de React y no pidiéndosela al backend**: el catch-all del SPA devuelve
+  `index.html` con 200 para cualquier ruta, así que un `GET /facturacion` daría
+  200 aunque la ruta no exista. Verificado por control: volviendo a poner la
+  ruta, el test se pone rojo.
+- El guard de títulos (`titulos-con-icono.test.ts`) exigía **7 ítems de menú** y
+  se puso en rojo con 6 — no encontró nada raro, encontró un ítem menos. Era un
+  número calcado de la foto del día que se escribió, y con él **toda baja
+  legítima es un rojo que no dice nada**. Baja a 5, que sigue siendo un piso de
+  "midió algo" con margen para otra baja.
+
+## ADR-035 — Las consultas se mandan a Contalibra, y acá se deja de facturar
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+
+### Contexto
+
+ADR-034 sacó la facturación **de la vista** y dejó el motor vivo a propósito,
+para que ninguna instancia quedara sin poder facturar en el medio. Esta es la
+otra mitad del pedido: *"permitir enviar a facturar consultas con enlace a
+contalibra"*.
+
+Del otro lado, Contalibra sumó el endpoint que las recibe (su
+`POST /api/integraciones/consultas`, PR #142). El hallazgo que definió ese
+diseño: **el token de servicio no es un usuario**, y en Contalibra el
+`usuario_id` de una venta es lo que la engancha al turno de caja — una venta
+creada con el token quedaría fuera de todo turno y el cierre no la vería.
+
+### Decisión
+
+🔴 **O factura Contalibra, o factura MedLibra. Nunca las dos.**
+
+`complete_appointment` emite la factura con LibraCore/ARCA desde ADR-016. Si
+además mandara la consulta a Contalibra —que también factura— saldrían **dos
+comprobantes por una consulta**, y un CAE emitido no se borra: se anula con una
+nota de crédito. Por eso el destino es un **interruptor**, no un agregado:
+
+- Con `CONTALIBRA_URL` configurada → se manda y **este producto no emite**.
+- Vacía → se factura acá, exactamente como hasta ahora.
+
+**El token va en una variable propia** (`CONTALIBRA_SERVICE_TOKEN`) y no en la
+`LIBRA_SERVICE_TOKEN` que este producto ya lee para su propio guard de entrada:
+son dos permisos distintos —el que nos dejan usar y el que nosotros aceptamos— y
+compartir el nombre haría que rotar uno rote el otro sin que nadie lo pida.
+
+**Lo que viaja pasa por el mismo resolvedor que la factura local**
+(`precio_del_turno`, ADR-033). Si el envío leyera el precio por su cuenta, el
+honorario del profesional aplicaría facturando acá y no mandando allá.
+
+### Un fallo del otro lado no rompe el turno, pero tampoco es invisible
+
+Son las dos mitades, y las dos importan:
+
+- **No rompe el completar.** La atención ya ocurrió; negarse a completarla
+  porque la contabilidad de otro producto no contesta sería castigar al
+  consultorio por una falla que no es suya. Y `COMPLETED` no admite otra
+  transición: un turno que no se puede completar queda trabado para siempre.
+- **No es invisible.** Una consulta que no se facturó y de la que nadie se
+  entera es plata que se pierde en silencio. Cada envío deja su fila en
+  `envios_a_contalibra` con su estado y su error; `GET /facturacion-externa` los
+  lista y `POST /facturacion-externa/{id}/reintentar` los reintenta.
+
+El reintento **recalcula todo desde el turno** en vez de guardar el cuerpo del
+envío fallido: si entre el intento y el reintento cambió el honorario, lo que
+tiene que viajar es el precio de hoy. Y es seguro repetirlo — Contalibra es
+idempotente por `(sistema, referencia)`, y la referencia es el id del turno.
+
+### Consecuencias
+
+- 14 tests nuevos (412 en la suite). **Verificados por mutación**: forzando a
+  que nunca mande, se ponen en rojo seis.
+- 🔴 **Tres de esos tests miden el pedido HTTP de verdad**, no el doble. Todo lo
+  demás reemplaza `enviar_consulta`, así que el nombre de los campos, la URL y
+  el header quedarían sin cubrir — y son exactamente lo que hace que el otro
+  lado conteste 401 o 422 sin que nada de acá se ponga rojo. **Escribiendo eso
+  ya apareció uno**: el header se había puesto como `X-Service-Token` y el que
+  libraauth valida es `x-internal-auth`. Ahora la constante se importa del
+  motor en vez de escribirse.
+- **La respuesta de completar suma `contalibra`**, con el estado del envío. Sin
+  eso, el mostrador no tendría forma de saber que la consulta no llegó.
+- `GET /facturacion-externa` devuelve **el destino junto a la lista**: una lista
+  vacía significa cosas opuestas —"todo salió bien" contra "esto ni siquiera
+  está prendido"— y sin ese dato la pantalla no las puede distinguir.
+- Migración `0018`, probada contra `postgres:16` real, ida y vuelta. La tabla
+  nace vacía y sólo se escribe si la instancia tiene `CONTALIBRA_URL`.
+- **Todavía sin pantalla.** `GET /facturacion-externa` se opera por API, como el
+  resto de lo que se construyó esta semana.
+
+## ADR-036 — Se va el motor de facturación local: Contalibra es el único camino
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+**Reemplaza el interruptor de**: ADR-035
+
+### Contexto
+
+Pedido del humano: *"borrar Facturacion.tsx y limpiar /config/arca"*.
+
+ADR-034 sacó la facturación de la vista y ADR-035 la mandó a Contalibra, pero
+los dos dejaron el motor local vivo: `Facturacion.tsx` seguía en el repo aunque
+nada la ruteara, `/config/arca` seguía respondiendo, y `complete_appointment`
+tenía un `else` que emitía el comprobante acá cuando `CONTALIBRA_URL` estaba
+vacía.
+
+### Decisión
+
+**Se borra el motor, no sólo la pantalla.** Se van `app/services/billing.py`,
+`app/routers/billing.py`, `frontend/src/pages/Facturacion.tsx` y
+`tests/test_billing.py`. `/config/arca` deja de existir: **404, no 403**.
+
+De `billing.py` sobrevive una sola función, `configure()`, en un archivo con el
+nombre que le corresponde: `app/services/libracore_setup.py`. No factura nada —
+configura la base de LibraCore donde viven **los usuarios**, crea el schema y la
+caja por defecto. Es load-bearing y no tiene nada que ver con facturar; el
+nombre `billing` era el que mentía.
+
+### 🔴 Lo que reemplaza al `else`: `sin_destino`, no silencio
+
+Borrar el motor deja una pregunta que no se puede contestar borrando: **qué pasa
+cuando una instancia no tiene `CONTALIBRA_URL`**. La respuesta obvia —completar
+el turno y no hacer nada— es la peor: la consulta se atendió, se cobró, y no hay
+ningún rastro de que faltó facturarla.
+
+Así que el turno se completa igual —la atención ocurrió— y el envío se registra
+con estado **`sin_destino`**, que entra en `envios_a_contalibra` como cualquier
+otro y **aparece en `GET /facturacion-externa`** junto a los que fallaron.
+Configurar el destino y reintentar las factura; no hacerlo las deja a la vista.
+Es la misma regla de ADR-035 llevada a su último caso: *una consulta sin
+facturar de la que nadie se entera es plata que se pierde en silencio*.
+
+Con el módulo `facturacion` **apagado** el envío es `None`, y ahí sí no se
+registra nada: no es que falte a dónde mandarlo, es que **esta instancia no
+cobra**. Registrarlo llenaría la pantalla de consultas que nunca hay que
+facturar.
+
+### La alícuota se queda, y ahora viaja
+
+`app/services/iva_rates.py` **no se va con el motor**. Qué alícuota le
+corresponde a una prestación es configuración *de la prestación*, y las
+prestaciones viven acá; en salud la mayoría están **exentas**. Lo que cambia es
+a dónde va el dato: en vez de alimentar el `_split_iva` propio, viaja con la
+consulta en `iva_rate` y Contalibra la guarda con la venta
+([contalibra PR de `ventas_origen_externo.iva_rate`]).
+
+Sin eso, del otro lado no hay forma de saber que una consulta era exenta: se
+declararía al **21% en silencio**, que es un error fiscal que nadie ve hasta la
+inspección.
+
+### Consecuencias
+
+- **Una instancia sin `CONTALIBRA_URL` ya no puede emitir comprobantes.** Es el
+  punto de la decisión, no un efecto colateral: este producto no factura. Pero
+  no pierde el dato — queda en `/facturacion-externa`.
+- Los tests que medían el motor local se fueron con él (`test_billing.py`), y
+  los que medían el XML de ARCA salieron de `test_iva_rates.py`: ese contrato
+  ahora es de Contalibra. Lo que se agregó en su lugar:
+  - `test_no_queda_ningun_camino_de_facturacion_local`, que mide **el schema de
+    OpenAPI** —no el árbol de routers, que no expone `path`— con control
+    positivo (`len(rutas) > 20`), para que un `paths` vacío no lo pase.
+  - `test_sin_contalibra_configurada_la_consulta_queda_SIN_FACTURAR`, el caso
+    que reemplaza al `else`.
+  - `test_la_alicuota_de_la_prestacion_viaja_con_la_consulta` y su control
+    `test_sin_alicuota_propia_viaja_la_de_la_instancia`.
+  - 🔴 Esos dos **interceptan `enviar_consulta`**, así que miden que
+    `complete_appointment` resuelva la alícuota y la pase — no que llegue al
+    pedido. Con ese doble puesto, escribir mal la clave del cuerpo (o mandar
+    `None` siempre) los deja en verde y la consulta exenta se declara al 21%
+    del otro lado. **Lo encontró la mutación, no la lectura**: forzando
+    `"iva_rate": None` en el cuerpo, los 17 tests pasaban. Lo cubre ahora
+    `test_el_pedido_lleva_el_vocabulario_de_contalibra`, que mide el pedido
+    HTTP real, más su control
+    `test_sin_alicuota_el_cuerpo_la_manda_nula_y_no_la_omite` — porque `None`
+    (usá tu default, 21%) y `0.0` (exento) no son lo mismo, y confundirlos es
+    IVA no declarado.
+- `test_ya_no_hay_configuracion_de_arca_que_gatear` reemplaza al test que
+  verificaba el 403 de `/config/arca` sin módulo. El módulo `facturacion` sigue
+  existiendo y ahora gatea **el envío**, no la emisión.
+- La respuesta de completar deja de traer `factura`: es `{id, status,
+  contalibra}`. El frontend perdió `ArcaConfig`, `Factura` y
+  `TIPO_COMPROBANTE_LABELS`.
+- El diálogo de "Factura emitida" de la agenda se reemplaza por uno que aparece
+  **sólo cuando la consulta NO se facturó**. El caso bueno no necesita
+  interrumpir a nadie; el malo sí.
+- **Sin migración.** No se borra ninguna tabla: las facturas que una instancia
+  ya emitió siguen donde están. Se va el código que emite nuevas, no el
+  histórico.
+
+### Dos cosas que aparecieron al vaciar el archivo
+
+**1. `tests/test_billing.py` no medía sólo facturación.** Cinco de sus once
+tests cubrían la validación del medio de pago, la seña que descuenta del saldo y
+que un turno no se pueda completar dos veces — todo eso sigue vivo en
+`complete_appointment`. Borrar el archivo entero los habría dejado sin una sola
+aserción encima. Se rescataron en `tests/test_completar_turno.py`, que es donde
+tenían que estar desde el principio. Los que sí se fueron son los del
+comprobante (tipo A contra tipo B, el CAE): ese contrato ahora es de Contalibra.
+
+**2. La guarda de `configure()` no cubría la URL que este producto usa.** El
+`billing.configure()` que se renombró traía escrito a mano
+`startswith(("postgres://", "postgresql://"))` para no crear una carpeta cuando
+el destino es PostgreSQL — el defecto de VentaLibra del 2026-08-10, donde
+`os.makedirs()` terminaba creando **un directorio con la contraseña en el
+nombre**. Pero `"postgresql+psycopg://".startswith("postgresql://")` es `False`,
+y ésa es exactamente la forma que este arranque usa: `app/main.py` la nombra
+unas líneas más abajo, al armar el engine de libraauth. **La guarda existía y el
+defecto pasaba igual.** Ahora el criterio sale de
+`libracore.db.core.es_url_postgres`, que existe para ser el mismo criterio en un
+solo lugar, con `tests/test_libracore_setup.py` encima — verificado por mutación:
+con la lista a mano de vuelta, el caso `postgresql+psycopg://` se pone en rojo.
+
+### Lo que quedaba abierto
+
+> ✅ **Cerrado el mismo día, en ADR-037.** El test que asertaba el defecto se
+> puso en rojo, que era exactamente para lo que estaba escrito. Lo de abajo es
+> el planteo original.
+
+⚠️ **La seña no se reparte por medio de pago.** Un turno señado manda a
+Contalibra **una sola venta por el precio entero, con el medio de pago del
+saldo**: con 400 de seña por MercadoPago y 600 en efectivo, allá entran 1000 en
+efectivo. La venta cierra por el total correcto, pero la caja queda mal
+repartida entre medios. El motor local sí repartía —seña y saldo como dos
+movimientos— y eso se perdió al mudarse. Arreglarlo necesita que
+`POST /api/integraciones/consultas` acepte una lista de pagos, como ya hace
+`POST /api/ventas`; o sea, un PR en Contalibra primero. Queda **asertado tal cual
+es hoy** en `test_con_sena_parcial_viaja_el_precio_ENTERO_con_el_medio_del_saldo`,
+para que el día que se toque se ponga rojo y obligue a decidir en vez de cambiar
+en silencio.
+
+## ADR-037 — La seña y el saldo viajan como dos pagos, cada uno con su medio
+
+**Fecha**: 2026-08-24
+**Estado**: Aceptada
+**Cierra el pendiente de**: ADR-036
+
+### Contexto
+
+ADR-036 dejó esto anotado como *"lo que queda abierto"*, con un test que
+asertaba el defecto tal cual era para que el día que se tocara se pusiera rojo.
+Se tocó, y se puso rojo.
+
+Un turno señado se cobra en dos momentos: la seña al reservar y el saldo al
+atender, y pueden ser medios distintos. Lo que viajaba a [[contalibra]] era **el
+precio entero con un solo medio, el del saldo**.
+
+Con 400 de seña por MercadoPago y 600 en efectivo, allá entraban **1000 en
+efectivo**. La venta cerraba por el total correcto —la plata bien contada— y el
+reparto de la caja quedaba mal: el cierre no cuadra contra el arqueo y la
+diferencia no tiene de dónde salir. El motor de facturación local que se borró
+sí repartía, con un movimiento de caja por medio; eso se perdió al mudarse.
+
+### Decisión
+
+`enviar_consulta` manda **`pagos`, una lista**, y del otro lado
+`POST /api/integraciones/consultas` la acepta (contalibra#146).
+
+`contalibra.pagos_del_turno()` la arma, y **vive en el servicio y no en un
+router** porque la usan los dos caminos: completar el turno y reintentar el
+envío. Escrita en uno solo, el otro seguiría mandando un pago único y el defecto
+quedaría vivo por la mitad — hay un test para cada camino.
+
+Los montos **cierran contra el importe por construcción**: el saldo es
+`importe - seña`, no un número aparte. Contalibra igual lo verifica y rebota con
+422 si no suman, porque una venta que se marca cobrada tiene que estar cobrada
+entera.
+
+Cuando la seña cubre todo el precio el saldo es cero y **no viaja**: un pago de 0
+crearía un movimiento de caja vacío allá, y además Contalibra lo rechaza
+(`monto: float = Field(gt=0)`), o sea que tumbaría el envío entero.
+
+### 🔴 El medio del saldo se guarda, porque no se puede recalcular
+
+El reintento **recalcula todo desde el turno** —si cambió el honorario, viaja el
+precio de hoy—, pero con qué se cobró no es algo que se recalcule: pasó, y ya. La
+seña queda en `deposits` con su medio; el del saldo llega en el pedido de
+completar y no se guardaba en ningún lado.
+
+Hasta acá el reintento asumía `"efectivo"`, y eso **reintroducía en el reintento
+el mismo defecto que esta decisión arregla**. Ahora va en
+`envios_a_contalibra.medio_del_saldo` (migración `0019`), y se guarda **también
+cuando el envío falla y cuando no hay destino** — que es justamente cuando más
+falta hace: una consulta puede quedar meses esperando a que alguien configure
+`CONTALIBRA_URL`.
+
+`registrar(medio_del_saldo=None)` **conserva el que ya estaba** en vez de pisarlo
+con vacío: el reintento no lo sabe, y borrarlo ahí dejaría al siguiente reintento
+sin el dato que este campo existe para guardar.
+
+### El vocabulario de medios de pago
+
+Arreglando esto apareció que **`tarjeta`, uno de los cuatro medios que ofrecía
+`Agenda.tsx`, no existía en el vocabulario de la familia**. Llegaba igual a
+Contalibra, creaba su movimiento de caja y aparecía en el cierre como un bucket
+suelto con el nombre crudo — la plata bien contada y el reparto mal, por segunda
+vez y por otra razón.
+
+Peor: era la misma copia byte a byte que tiene Gestiolibra, así que dos productos
+inventaron el mismo medio por separado. Tirando de ahí, la lista estaba declarada
+**28 veces en 11 repos** y ya divergía en seis formas
+(`wiki/concepts/medios-de-pago-familia-libra.md`).
+
+- La lista canónica subió a `libracore.medios_pago` (libracore#123, v1.50.0), con
+  la **tarjeta partida en débito y crédito** — que es como la declara ARCA.
+- Este producto la sirve en `GET /medios-pago`, **sin gatear por admin**: la
+  consume el selector del mostrador al completar un turno, y ahí no hay un admin.
+  Es una lista de constantes del motor; no expone nada de la instancia.
+- `Agenda.tsx` la pide en vez de declararla.
+- La cuenta corriente **no se ofrece**: no es un medio de cobro, es la marca de
+  que la operación se hizo a crédito.
+
+### Consecuencias
+
+- Migración `0020`, probada ida y vuelta contra `postgres:16` real: el
+  `downgrade` saca la columna y **deja las filas**, y el `upgrade` de vuelta las
+  encuentra con el campo vacío. Sin backfill posible — el dato nunca existió.
+- 🔴 **La migración nació como `0019` y tuvo que correrse a `0020`.** Otra
+  sesión mergeó `0019_sin_users` en `develop` mientras esta rama estaba abierta,
+  y las dos colgaban de `0018`: Alembic quedaba con **dos cabezas** y
+  `upgrade head` falla con *"Multiple head revisions are present"*. **La suite
+  local no lo vio** —este worktree tenía una sola de las dos— sino el CI, que
+  corre sobre el *merge* con `develop`.
+- 🔴 **Y tuvo que hacerse defensiva.** El test que la sesión paralela escribió
+  ejercita una instancia **estampada en `0018` sin haber ejecutado `0018`**, que
+  es lo que se le hace a las instancias vivas. Ahí `envios_a_contalibra` no
+  existe y un `add_column` pelado revienta — y desde LibraCore v1.48.0 **una
+  migración fallida aborta el deploy**. Ahora chequea con `inspect().has_table`,
+  igual que `0019_sin_users` usa `DROP TABLE IF EXISTS`.
+- De paso, ese test comparaba la revisión aplicada contra **su propia
+  revisión** escrita a mano, así que se ponía en rojo con cualquier migración
+  nueva. Ahora pregunta la cabeza real al `ScriptDirectory`, y de paso afirma
+  que hay **una sola** — el trinquete que habría atajado lo de arriba.
+- 🔴 **Dos tests medían lo que creían y no lo que pasaba**, y los encontró la
+  mutación:
+  - El del cuerpo HTTP **nunca serializaba nada**: el doble reemplaza
+    `httpx.AsyncClient.post`, así que un `Decimal` en `monto` quedaba capturado
+    tal cual — y `Decimal("500") == 500.0` es `True`. Los montos vienen de
+    `deposits`, que los guarda como `Decimal`: **todos los envíos de un turno
+    señado fallaban** con *"Object of type Decimal is not JSON serializable"* y
+    ningún test lo veía. Ahora el test hace `json.dumps(cuerpo)`.
+  - El de la agenda no abría el `Select` de Radix, que no rendea sus opciones
+    hasta que se clickea el trigger: un `queryByRole('option')` pasaba por no
+    encontrar nada, no por el filtro.
+- El `EnvioOut` suma `medio_del_saldo`: quien dispara un reintento tiene derecho
+  a ver con qué se va a mandar antes de mandarlo.

@@ -52,9 +52,15 @@ def test_deposits_require_senas_module(admin_client: TestClient):
     assert response.status_code == 403
 
 
-def test_billing_config_requires_facturacion_module(admin_client: TestClient):
-    _disable(admin_client, "facturacion")
-    assert admin_client.get("/config/arca").status_code == 403
+def test_ya_no_hay_configuracion_de_arca_que_gatear(admin_client: TestClient):
+    """🔴 Reemplaza a `test_billing_config_requires_facturacion_module`, que
+    verificaba que `/config/arca` diera 403 sin el módulo. Esa ruta se fue con
+    el motor de facturación local (ADR-036): **no hay comprobante que MedLibra
+    emita**, así que no hay configuración fiscal que gatear.
+
+    El módulo "facturacion" sigue existiendo y ahora gatea **el envío a
+    Contalibra** — eso lo cubre el test de abajo."""
+    assert admin_client.get("/config/arca").status_code == 404
 
 
 def test_dashboard_requires_dashboard_module(admin_client: TestClient):
@@ -70,13 +76,16 @@ def test_complete_skips_invoicing_when_facturacion_module_disabled(admin_client:
     assert confirmed.status_code == 200
 
     _disable(client, "facturacion")
-    # Sin el modulo, completar el turno nunca pide medio_pago ni factura,
-    # aunque el servicio tenga precio configurado -- el plan no incluye
-    # facturacion, pero eso nunca bloquea completar el turno en si.
+    # Sin el modulo, completar el turno nunca pide medio_pago ni manda nada a
+    # Contalibra, aunque el servicio tenga precio configurado -- el plan no
+    # incluye facturacion, pero eso nunca bloquea completar el turno en si.
     response = client.post(f"/appointments/{appointment_id}/complete")
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
-    assert response.json()["factura"] is None
+    # 🔴 `None`, y no `sin_destino`: sin el módulo no es que falte a dónde
+    # mandarlo, es que esta instancia no cobra. Registrarlo como pendiente
+    # llenaría `/facturacion-externa` de consultas que nunca hay que facturar.
+    assert response.json()["contalibra"] is None
 
 
 def test_turnos_and_catalog_are_never_gated(admin_client: TestClient):

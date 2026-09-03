@@ -30,13 +30,13 @@ function describeError(err: unknown): string {
   return 'Error de conexión.'
 }
 
-// El formato vive en `lib/fechas`: esta funcion estaba escrita identica en
-// Agenda, con otro nombre. 🔴 Ademas de dejar de duplicarse, gana el `timeZone`
-// explicito: la version de aca usaba la zona del NAVEGADOR, que en Argentina da
-// lo mismo hasta que alguien abre la ficha desde otro huso.
-function formatDateTime(iso: string): string {
-  return fechaHora(iso)
-}
+// El formateador propio de esta pantalla se fue al helper unico del producto
+// (`@/lib/fechas`, 2026-08-30). Hacia lo mismo salvo por una diferencia real:
+// no le pasaba `timeZone` a `Intl`, asi que rendia el instante en la zona del
+// NAVEGADOR. Los `created_at` de la historia clinica son `InstanteUTC` --salen
+// con offset explicito-- y el helper los convierte siempre a hora de Argentina.
+// En una maquina argentina el texto es identico; en cualquier otra, el de antes
+// mostraba la hora de esa maquina para un dato clinico.
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -152,7 +152,7 @@ function NotesSection({ patientId, isAdmin }: { patientId: string; isAdmin: bool
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{note.author}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(note.created_at)}</p>
+                    <p className="text-xs text-muted-foreground">{fechaHora(note.created_at)}</p>
                   </div>
                   {isAdmin && (
                     <Button size="sm" variant="outline" onClick={() => handleDelete(note)}>Eliminar</Button>
@@ -327,7 +327,7 @@ function PrescriptionsSection({ patientId, isAdmin }: { patientId: string; isAdm
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{prescription.author}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(prescription.created_at)}</p>
+                    <p className="text-xs text-muted-foreground">{fechaHora(prescription.created_at)}</p>
                   </div>
                   {isAdmin && (
                     <Button size="sm" variant="outline" onClick={() => handleDelete(prescription)}>Eliminar</Button>
@@ -539,7 +539,7 @@ function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">{order.author}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(order.created_at)}</p>
+                    <p className="text-xs text-muted-foreground">{fechaHora(order.created_at)}</p>
                   </div>
                   {isAdmin && (
                     <Button size="sm" variant="outline" onClick={() => handleDelete(order)}>Eliminar</Button>
@@ -556,7 +556,7 @@ function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin
                           {item.results.map((result) => (
                             <li key={result.id}>
                               <span className="font-medium text-foreground">{result.author}</span>
-                              {' '}({formatDateTime(result.created_at)}): {result.text}
+                              {' '}({fechaHora(result.created_at)}): {result.text}
                             </li>
                           ))}
                         </ul>
@@ -721,7 +721,7 @@ function DocumentsSection({ patientId, isAdmin }: { patientId: string; isAdmin: 
                 <div>
                   <p className="text-sm font-medium">{document.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {document.original_filename} · {formatBytes(document.size_bytes)} · {document.author} · {formatDateTime(document.created_at)}
+                    {document.original_filename} · {formatBytes(document.size_bytes)} · {document.author} · {fechaHora(document.created_at)}
                   </p>
                   {document.description && <p className="mt-1 text-sm">{document.description}</p>}
                 </div>
@@ -889,7 +889,7 @@ function ConsentsSection({ patientId, isAdmin }: { patientId: string; isAdmin: b
                   <div>
                     <p className="text-sm font-medium">{consent.procedure}</p>
                     <p className="text-xs text-muted-foreground">
-                      Autoriza: {consent.granted_by} · {consent.author} · {formatDateTime(consent.created_at)}
+                      Autoriza: {consent.granted_by} · {consent.author} · {fechaHora(consent.created_at)}
                     </p>
                   </div>
                   {isAdmin && (

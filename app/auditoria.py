@@ -43,6 +43,7 @@ AUDITABLES: dict[str, str] = {
     "AgendaBlockRow": "bloque de agenda",
     "AppointmentRoomRow": "sala del turno",
     "WalkinRow": "llegada",
+    "EnvioAContalibraRow": "envio a Contalibra",
     "BranchRow": "sede",
     "AvailabilityRow": "disponibilidad",
     "AvailabilityExceptionRow": "excepcion",
@@ -63,6 +64,7 @@ AUDITABLES: dict[str, str] = {
     "BranchContactRow": "contacto",
     "BusinessSettingsRow": "configuracion",
     "ServicePriceRow": "precio",
+    "ResourceServicePriceRow": "honorario",
     "ServiceIvaRateRow": "alicuota",
 }
 

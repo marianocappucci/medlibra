@@ -41,6 +41,18 @@ const DE_MANANA = {
   status: 'pending',
 }
 
+/** Lo que sirve `GET /medios-pago`, que sale de `libracore.medios_pago`.
+ *
+ *  🔴 **La pantalla ya no declara esta lista.** Hasta el 2026-08-24 tenía
+ *  cuatro medios escritos a mano en `Agenda.tsx`, y uno —`tarjeta`— no existía
+ *  en el vocabulario de la familia: llegaba igual a Contalibra y salía en el
+ *  cierre de caja como un bucket suelto con el nombre crudo. */
+const MEDIOS_PAGO = [
+  { id: 'efectivo', label: 'Efectivo' },
+  { id: 'tarjeta_debito', label: 'Tarjeta de débito' },
+  { id: 'mercadopago', label: 'Mercado Pago' },
+]
+
 let fetchMock: ReturnType<typeof vi.fn>
 let pedidos: { url: string; metodo: string; cuerpo: unknown }[]
 
@@ -65,12 +77,40 @@ function servir(turnos: unknown[], extra: Record<string, unknown> = {}) {
       // El endpoint es por profesional: sólo el Dr. Molina tiene turnos.
       return Promise.resolve(json(u.includes('/resources/dr-molina/') ? turnos : []))
     }
+    if (u.includes('/medios-pago')) return Promise.resolve(json(MEDIOS_PAGO))
     if (u.includes('/resources')) return Promise.resolve(json([PROFESIONAL, OTRO_PROFESIONAL]))
     if (u.includes('/branches')) return Promise.resolve(json([SEDE]))
     if (u.includes('/services')) return Promise.resolve(json([PRESTACION]))
     if (u.includes('/patients')) return Promise.resolve(json([PACIENTE]))
     return Promise.resolve(json([]))
   })
+}
+
+/** Como `servir`, pero el POST de completar contesta 422 pidiendo el medio.
+ *
+ *  Es lo que hace el backend cuando el turno tiene saldo pendiente, y lo único
+ *  que abre el diálogo del medio de pago. */
+function conCompletarQuePideMedio(turnos: unknown[]) {
+  return (url: string, init?: RequestInit) => {
+    const u = String(url)
+    pedidos.push({
+      url: u,
+      metodo: init?.method ?? 'GET',
+      cuerpo: init?.body ? JSON.parse(String(init.body)) : null,
+    })
+    if (u.includes('/complete')) {
+      return Promise.resolve(json({ detail: 'medio_pago requerido' }, 422))
+    }
+    if (u.includes('/medios-pago')) return Promise.resolve(json(MEDIOS_PAGO))
+    if (u.includes('/agenda?')) {
+      return Promise.resolve(json(u.includes('/resources/dr-molina/') ? turnos : []))
+    }
+    if (u.includes('/resources')) return Promise.resolve(json([PROFESIONAL, OTRO_PROFESIONAL]))
+    if (u.includes('/branches')) return Promise.resolve(json([SEDE]))
+    if (u.includes('/services')) return Promise.resolve(json([PRESTACION]))
+    if (u.includes('/patients')) return Promise.resolve(json([PACIENTE]))
+    return Promise.resolve(json([]))
+  }
 }
 
 /** Espía de la URL, para afirmar sobre la navegación sin leer el DOM. */
@@ -227,5 +267,46 @@ describe('la agenda como calendario', () => {
     })
     montar()
     expect(await screen.findByText(/Cargá uno en Configuración/)).toBeInTheDocument()
+  })
+
+  describe('el medio de pago al completar', () => {
+    it('🔴 los medios salen del backend, no de una lista de esta pantalla', async () => {
+      // Hasta el 2026-08-24 `Agenda.tsx` declaraba cuatro a mano, y uno
+      // —`tarjeta`— no existía en el vocabulario de la familia: llegaba igual a
+      // Contalibra, creaba su movimiento de caja y salía en el cierre como un
+      // bucket suelto con el nombre crudo. La plata bien contada y el reparto
+      // mal.
+      // `DE_NOCHE` está `confirmed`, que es el único estado desde el que la
+      // ficha ofrece "Completar". Y el POST contesta 422 —el turno tiene saldo—,
+      // que es lo que abre el diálogo del medio de pago.
+      fetchMock.mockImplementation(conCompletarQuePideMedio([DE_NOCHE]))
+      montar(`/agenda?dia=${LUNES}`)
+      await waitFor(() => expect(screen.getByText('Ana Gómez')).toBeInTheDocument())
+      await userEvent.click(screen.getByText('Ana Gómez'))
+      await userEvent.click(await screen.findByRole('button', { name: /^Completar$/ }))
+
+      // El `Select` de Radix no rendea sus opciones hasta que se abre: hay que
+      // clickear el trigger. Sin esto, un `queryByRole('option')` pasaría por no
+      // encontrar nada y no por el filtro.
+      await userEvent.click(await screen.findByRole('combobox'))
+
+      // Primero que hay opciones: si esto falla, lo de abajo no prueba nada.
+      expect(await screen.findByRole('option', { name: 'Tarjeta de débito' }))
+        .toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Mercado Pago' })).toBeInTheDocument()
+      // 🔴 Y **no** los que declaraba la pantalla: `Tarjeta` a secas era el
+      // medio inventado, y el backend de este stub no lo ofrece.
+      expect(screen.queryByRole('option', { name: 'Tarjeta' })).not.toBeInTheDocument()
+    })
+
+    it('🔴 se le pide la lista al backend al cargar el catálogo', async () => {
+      // El control por el otro lado: si la pantalla nunca pidiera `/medios-pago`
+      // y las opciones vinieran de una constante, el test de arriba podría pasar
+      // igual con una lista hardcodeada que coincida con este stub.
+      servir([DE_MANANA])
+      montar()
+      await waitFor(() => expect(screen.getByText('Ana Gómez')).toBeInTheDocument())
+      expect(pedidos.some((p) => p.url.includes('/medios-pago'))).toBe(true)
+    })
   })
 })

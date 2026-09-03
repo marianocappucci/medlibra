@@ -6,10 +6,19 @@
  * presentacion. La base sigue guardando ISO, los parametros de fecha en URLs
  * siguen en ISO y los `<input type="date">` no se tocan.
  *
- * El producto tenia el mismo formateador copiado en dos pantallas
- * (`formatDateTime` en PacienteFicha y `horaDePared` en Agenda). El calculo de
- * hora de pared de `components/agenda/datos.ts` es otra cosa y se queda donde
- * esta: ahi la zona es un dato de la sucursal, no del sistema.
+ * Este archivo es **el mismo que el de Contalibra**, byte por byte salvo este
+ * encabezado. No es una copia por comodidad: la regla de la familia es un
+ * helper unico POR PRODUCTO, y hasta hoy MedLibra no tenia ninguno --
+ * `PacienteFicha` se armaba el suyo con `Intl.DateTimeFormat` y `Agenda` corta
+ * el string a mano--. Entro con la Configuracion normalizada (2026-08-30), que
+ * lo necesita para mostrar la fecha de cada copia de backup.
+ *
+ * 🔴 `horaDePared()` de `Agenda.tsx` NO se reemplaza con esto, y es a
+ * proposito: ahi el string ya viene en la zona de la SEDE --que puede no ser
+ * UTC-3-- y pasarlo por `Date` lo re-interpretaria como hora del navegador. Es
+ * el caso que la regla del ecosistema deja explicitamente afuera: "donde la
+ * zona es por sucursal, UTC-3 es el default del campo, no un reemplazo del
+ * modelo".
  */
 
 export const TZ = 'America/Argentina/Buenos_Aires'

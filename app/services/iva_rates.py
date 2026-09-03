@@ -4,12 +4,20 @@ LibraGenda's `Service` no tiene campo de impuestos por diseno -- el motor
 de turnos es generico y no sabe de facturacion -- asi que la alicuota vive
 en una tabla propia de MedLibra, mismo patron que `service_prices`.
 
-**Por que existe.** Hasta esta tabla, `billing._split_iva` asumia 21% fijo
-para todo. En un producto de salud eso esta mal en el caso normal: la
-mayoria de las prestaciones medicas estan **exentas** de IVA, y algunas
-tributan al 10,5%. El 21% de antes no era una decision fiscal, era un
-placeholder que el propio docstring marcaba como pendiente de revisar con
-un contador.
+**Por que existe.** Hasta esta tabla, el `_split_iva` del motor de
+facturacion local asumia 21% fijo para todo. En un producto de salud eso
+esta mal en el caso normal: la mayoria de las prestaciones medicas estan
+**exentas** de IVA, y algunas tributan al 10,5%. El 21% de antes no era una
+decision fiscal, era un placeholder que el propio docstring marcaba como
+pendiente de revisar con un contador.
+
+**Sigue existiendo aunque el motor local ya no.** Con ADR-036 el comprobante
+lo emite [[contalibra]], no este producto -- pero **la alicuota no se mudo
+con el motor**: cual le corresponde a una prestacion es configuracion *de la
+prestacion*, y las prestaciones viven aca. Lo que cambio es a donde va el
+dato: en vez de alimentar un `_split_iva` propio, viaja con la consulta en
+`iva_rate` y Contalibra la guarda con la venta. Sin eso, alla no hay forma
+de saber que una consulta era exenta y se declararia al 21% **en silencio**.
 
 **Que decide este modulo y que no.** Decide *donde* se guarda la alicuota
 y *cuales* son validas; **no** decide que alicuota le corresponde a cada
