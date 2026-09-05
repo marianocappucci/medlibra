@@ -103,7 +103,7 @@ services:
     # código nuevo sobre un esquema viejo.
     command: sh -c "libragenda-migrar upgrade && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --reload"
     environment:
-      - SECRET_KEY=${SECRET_KEY:-medlibra-dev-secret}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY es obligatorio tambien en dev (sin default en un repo publico)}
       - TZ=America/Argentina/Buenos_Aires
       - MEDLIBRA_ADMIN_USERNAME=${MEDLIBRA_ADMIN_USERNAME:-admin}
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
