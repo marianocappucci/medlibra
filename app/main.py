@@ -31,6 +31,7 @@ from libracore.config_router import (
 )
 from libracore.db.url_de_instancia import url_de_instancia
 from libracore.respaldo import Instancia
+from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
@@ -328,6 +329,15 @@ def create_app(database_url: str) -> FastAPI:
     app.state.auth_events = AuthEventRepository(auth_sessions)
     # Sella el usuario de la cookie para que la auditoría sepa quién escribió.
     agregar_middleware_de_usuario(app)
+
+    # 🔴 Los headers de seguridad. Se agrega **al final** a proposito: en
+    # Starlette el ultimo middleware agregado es el mas externo, asi que asi
+    # envuelve a todas las respuestas, incluidas las de error que devuelven los
+    # de adentro.
+    #
+    # `CSP_SPA` y no la CSP por defecto: esa habilita `cdn.jsdelivr.net` para las
+    # apps Jinja2, y este producto no carga nada externo. Ver libracore.
+    app.add_middleware(SecurityHeadersMiddleware, csp=CSP_SPA)
 
     app.include_router(health.router)
     app.include_router(auth_router.router)
