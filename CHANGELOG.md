@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+- **Copia externa del backup: el enlace con la nube del cliente, como add-on**
+  (`resguardo_externo`, LibraCore v1.93.0). Se monta
+  `build_resguardo_enlace_router` bajo `/api/config/resguardo-externo/enlace`,
+  admin y gateado por el add-on. El frontend (libra-ui v0.68.0) ya lo consume y
+  lee el 403 como "sin plan".
+  - `plans.ADDONS = {"resguardo_externo"}`: fuera de todo plan y de
+    `TODOS_LOS_MODULOS`, así que ni el seed ni aplicar un plan lo tocan.
+  - 🔴 **`ModuleRepository.is_enabled` trata aparte a los add-ons**: habilitado
+    sólo con fila y `habilitado` verdadero. Antes daba `True` a cualquier módulo
+    fuera de `TODOS_LOS_MODULOS` o sin fila, así que el gate de un add-on
+    **nunca daba 403**. Los módulos de plan y el core clínico no cambian.
+  - Nuevo `app/database.py` con `get_modulos()`/`set_addon()`: el contrato que
+    el backoffice invoca por `docker exec`. Apunta el core de LibraCore a la
+    base del **dominio**, que es donde vive la `modulos` que manda; adentro de
+    la app corta con un error, porque ahí el core apunta a `medlibra_core`.
+  - El router de backup y el del enlace comparten `backups_dir`: el
+    `rclone.conf` del enlace tiene que quedar al lado de los ZIP.
+
 - **La seña y el saldo viajan como dos pagos** (ver ADR-037). Cierra el pendiente
   que ADR-036 dejó anotado.
   - 🔴 Un turno señado mandaba a Contalibra **el precio entero con un solo medio,
