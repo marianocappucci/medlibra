@@ -30,6 +30,7 @@ from libracore.config_router import (
     build_empresa_router,
 )
 from libracore.db.url_de_instancia import url_de_instancia
+from libracore.resguardo_enlace import build_resguardo_enlace_router
 from libracore.respaldo import Instancia
 from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
@@ -474,6 +475,11 @@ def create_app(database_url: str) -> FastAPI:
     # base" los deja afuera enteros, y el cliente se lleva un ZIP creyendo que
     # tiene los estudios de sus pacientes.
     engine = get_engine()
+    # Una sola variable para los dos routers de abajo: el enlace de la copia
+    # externa deja su `rclone.conf` en `<backups_dir>/.resguardo/`, y el subidor
+    # del host lo busca AL LADO de los ZIP. Calculada dos veces, un cambio en
+    # una sola llamada dejaria el enlace en una carpeta que nadie lee.
+    backups_dir = _carpeta_de_backups(libracore_db_path)
     app.include_router(
         build_backup_router(
             _instancia_a_respaldar(
@@ -484,7 +490,7 @@ def create_app(database_url: str) -> FastAPI:
                     os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents"),
                 ],
             ),
-            _carpeta_de_backups(libracore_db_path),
+            backups_dir,
             # Sin estos dos el restore devuelve `ok` y no tiene efecto hasta
             # que alguien reinicie el contenedor: el pool sigue con el archivo
             # viejo abierto. `dispose()` sirve para los dos momentos.
@@ -492,6 +498,23 @@ def create_app(database_url: str) -> FastAPI:
             reabrir_conexiones=engine.dispose,
         ),
         dependencies=admin_only,
+    )
+    # Enlace de la copia externa con la nube del cliente (LibraCore v1.93.0):
+    # `GET`/`DELETE /api/config/resguardo-externo/enlace`, `POST .../{proveedor}`
+    # y `GET .../callback`. El router es del motor; el producto pone el gate.
+    #
+    # 🔴 Dos gates y los dos hacen falta. `admin_only` porque conecta la cuenta
+    # de nube del cliente; `require_module("resguardo_externo")` porque es un
+    # ADD-ON (`plans.ADDONS`): apagado hasta que el backoffice lo prenda en esta
+    # instancia. El 403 del segundo es lo que la pantalla lee como "sin plan".
+    # El callback queda detras de los dos a proposito: la cookie de sesion es
+    # `SameSite=Lax` y viaja en la vuelta desde Google/Dropbox.
+    #
+    # `volver_a` queda en el default (`/configuracion?seccion=datos`): es donde
+    # vive la pantalla en este producto.
+    app.include_router(
+        build_resguardo_enlace_router(backups_dir, carpeta="Resguardo MedLibra"),
+        dependencies=admin_only + [Depends(require_module("resguardo_externo"))],
     )
 
     return app
