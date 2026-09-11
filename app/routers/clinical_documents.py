@@ -45,7 +45,7 @@ def _require_document(patient_id: str, document_id: str, documents: ClinicalDocu
 
 
 @router.post("", status_code=201, response_model=ClinicalDocumentOut)
-async def upload_clinical_document(
+def upload_clinical_document(
     patient_id: str,
     author: str = Form(...),
     title: str = Form(...),
@@ -54,11 +54,15 @@ async def upload_clinical_document(
     documents: ClinicalDocumentRepository = Depends(get_clinical_document_repository),
     patients: PatientRepository = Depends(get_patient_repository),
 ):
+    # 🔴 `def` y no `async def`: buscar el paciente y dar de alta el documento
+    # son la base y el disco, sincrónicos, y con un solo proceso de uvicorn
+    # frenaban el loop entero mientras duraban. Como `def` corre en el
+    # threadpool, y el archivo se lee de su `SpooledTemporaryFile` sin `await`.
     _require_patient(patient_id, patients)
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(422, f"unsupported file type: {ext or '(none)'}")
-    content = await file.read()
+    content = file.file.read()
     if len(content) > MAX_SIZE_BYTES:
         raise HTTPException(422, "file too large (max 20MB)")
     return documents.create(
