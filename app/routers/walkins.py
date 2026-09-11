@@ -12,16 +12,32 @@ chequeos que parecen burocracia y no lo son:
   vigencia. Sin eso se puede anotar gente para un martes en una agenda que sólo
   atiende los lunes, o para después de que la agenda venció: una fila que nadie
   va a llamar nunca.
+
+🔴 **Lo que la pantalla necesita leer también vive acá, y no en los routers de
+configuración.** `/agenda-blocks` y `/services` son `admin_only`: el mostrador
+—que es quien opera la fila— recibe 403 en los dos. Abrirlos a `staff` le daría
+además el alta, la edición y el borrado de la agenda. En vez de eso, este router
+(que ya es `staff_or_admin`) sirve una lectura recortada a lo que la fila usa:
+qué bloques de demanda espontánea rigen un día y qué prestaciones se pueden
+anotar. Ver ADR-038.
 """
-from datetime import date
+from datetime import date, time
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
-from ..dependencies import get_agenda_block_repository, get_walkin_repository
+from ..dependencies import (
+    get_agenda_block_repository,
+    get_catalog_repository,
+    get_consultorio_repository,
+    get_walkin_repository,
+)
 from ..services.agenda_blocks import AgendaBlockRepository
+from ..services.consultorios import ConsultorioRepository
+from ..services.husos import zona_del_recurso
 from ..services.walkins import (
     ATENDIDO,
     CANCELADO,
@@ -52,6 +68,75 @@ class WalkinOut(BaseModel):
     arrival_order: int
     status: str
     created_at: InstanteUTC
+
+
+class BloqueDeLaFila(BaseModel):
+    """Un bloque de demanda espontánea que rige el día pedido, con los nombres
+    ya resueltos: quien lo pide no puede leer `/resources` ni `/consultorios`."""
+
+    id: str
+    resource_id: str
+    profesional: str
+    consultorio_id: str
+    consultorio: str
+    starts_at: time
+    ends_at: time
+    #: El huso de la sede del profesional. La hora de llegada viaja en UTC
+    #: (`InstanteUTC`) y se muestra en la hora de la SEDE, que puede no ser la
+    #: de Argentina — la misma separación que la agenda (ADR-028).
+    timezone: str
+
+
+class PrestacionDeLaFila(BaseModel):
+    id: str
+    name: str
+
+
+@router.get("/walkins/bloques", response_model=list[BloqueDeLaFila])
+def bloques_del_dia(
+    day: date,
+    blocks: AgendaBlockRepository = Depends(get_agenda_block_repository),
+    catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
+    consultorios: ConsultorioRepository = Depends(get_consultorio_repository),
+):
+    """Dónde se puede armar una fila ese día.
+
+    No filtra por profesional activo, a propósito: lo que se ofrece tiene que
+    ser exactamente lo que `registrar_llegada` acepta, y el alta no mira eso.
+    Dos criterios distintos dejarían filas que existen y no se ven, o que se
+    ven y no aceptan a nadie.
+    """
+    salas = {c["id"]: c["name"] for c in consultorios.list()}
+    resultado = []
+    for bloque in blocks.espontaneos_del_dia(day):
+        profesional = catalog.get_resource(bloque["resource_id"])
+        resultado.append(BloqueDeLaFila(
+            id=bloque["id"],
+            resource_id=bloque["resource_id"],
+            profesional=profesional.name if profesional else bloque["resource_id"],
+            consultorio_id=bloque["consultorio_id"],
+            consultorio=salas.get(bloque["consultorio_id"], bloque["consultorio_id"]),
+            starts_at=bloque["starts_at"],
+            ends_at=bloque["ends_at"],
+            timezone=zona_del_recurso(catalog, bloque["resource_id"]),
+        ))
+    return resultado
+
+
+@router.get("/walkins/prestaciones", response_model=list[PrestacionDeLaFila])
+def prestaciones_de_la_fila(
+    catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
+):
+    """Las prestaciones que se pueden anotar: sólo las activas.
+
+    Una dada de baja no se ofrece —igual que en el alta de un turno—, pero una
+    llegada vieja que la tenga sigue en la fila con su id: el historial no se
+    reescribe.
+    """
+    return [
+        PrestacionDeLaFila(id=s.id, name=s.name)
+        for s in catalog.list_services() if s.active
+    ]
 
 
 def _bloque_para_la_fila(
