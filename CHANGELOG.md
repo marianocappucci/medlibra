@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- **La Agenda funciona para staff** (ver ADR-039). Pedía `/resources`,
+  `/branches` y `/services`, que son `admin_only`: para el mostrador el primer
+  403 tumbaba la carga entera, y la pantalla decía que no había profesionales y
+  no dejaba dar turnos.
+  - 🔴 Lectura nueva en el router de la agenda, `staff_or_admin`:
+    `GET /agenda/catalogo` → `{profesionales, sedes, prestaciones}`. La sede va
+    sin teléfono ni dirección. Los routers de configuración siguen cerrados para
+    staff.
+
 - **La fila de demanda espontánea tiene pantalla** (ver ADR-038). Cierra lo que
   ADR-031 dejó sin interfaz: hasta hoy se podía configurar un bloque
   `espontanea` y no había dónde anotar a nadie.
