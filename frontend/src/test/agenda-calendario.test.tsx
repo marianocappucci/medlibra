@@ -17,12 +17,26 @@ const LUNES = '2026-07-20'
 const MARTES = '2026-07-21'
 
 const SEDE = {
-  id: 'centro', name: 'Consultorio Centro', active: true,
-  timezone: 'America/Argentina/Buenos_Aires', phone: null, address: null,
+  id: 'centro', name: 'Consultorio Centro', timezone: 'America/Argentina/Buenos_Aires',
 }
 const PROFESIONAL = { id: 'dr-molina', name: 'Dr. Molina', branch_id: 'centro', active: true }
 const OTRO_PROFESIONAL = { id: 'dra-vidal', name: 'Dra. Vidal', branch_id: 'centro', active: true }
 const PRESTACION = { id: 'consulta', name: 'Consulta', duration_minutes: 30, active: true }
+
+/** Lo que sirve `GET /agenda/catalogo` (ADR-039). */
+const CATALOGO = {
+  profesionales: [PROFESIONAL, OTRO_PROFESIONAL],
+  sedes: [SEDE],
+  prestaciones: [PRESTACION],
+}
+
+/** 🔴 Los routers de configuración, que son `admin_only`. El stub les contesta
+ *  403 **siempre**, que es lo que recibe el mostrador: hasta el 2026-09-11 la
+ *  Agenda los pedía, y para staff el primer 403 tumbaba la carga entera. Con el
+ *  stub así, una pantalla que vuelva a pedirlos se pone roja en todo el archivo,
+ *  no sólo en el test que lo mira. */
+const CONFIGURACION = ['/resources', '/branches', '/services']
+const SIN_PERMISO = { detail: 'Not enough permissions' }
 const PACIENTE = {
   id: 'ana', name: 'Ana Gómez', phone: null, email: null, active: true, dni: '30111222',
 }
@@ -78,9 +92,8 @@ function servir(turnos: unknown[], extra: Record<string, unknown> = {}) {
       return Promise.resolve(json(u.includes('/resources/dr-molina/') ? turnos : []))
     }
     if (u.includes('/medios-pago')) return Promise.resolve(json(MEDIOS_PAGO))
-    if (u.includes('/resources')) return Promise.resolve(json([PROFESIONAL, OTRO_PROFESIONAL]))
-    if (u.includes('/branches')) return Promise.resolve(json([SEDE]))
-    if (u.includes('/services')) return Promise.resolve(json([PRESTACION]))
+    if (u === '/agenda/catalogo') return Promise.resolve(json(CATALOGO))
+    if (CONFIGURACION.includes(u)) return Promise.resolve(json(SIN_PERMISO, 403))
     if (u.includes('/patients')) return Promise.resolve(json([PACIENTE]))
     return Promise.resolve(json([]))
   })
@@ -105,9 +118,8 @@ function conCompletarQuePideMedio(turnos: unknown[]) {
     if (u.includes('/agenda?')) {
       return Promise.resolve(json(u.includes('/resources/dr-molina/') ? turnos : []))
     }
-    if (u.includes('/resources')) return Promise.resolve(json([PROFESIONAL, OTRO_PROFESIONAL]))
-    if (u.includes('/branches')) return Promise.resolve(json([SEDE]))
-    if (u.includes('/services')) return Promise.resolve(json([PRESTACION]))
+    if (u === '/agenda/catalogo') return Promise.resolve(json(CATALOGO))
+    if (CONFIGURACION.includes(u)) return Promise.resolve(json(SIN_PERMISO, 403))
     if (u.includes('/patients')) return Promise.resolve(json([PACIENTE]))
     return Promise.resolve(json([]))
   }
@@ -260,13 +272,34 @@ describe('la agenda como calendario', () => {
   })
 
   it('sin profesionales activos lo dice y manda a Configuración', async () => {
-    fetchMock.mockImplementation((url: string) => {
-      const u = String(url)
-      if (u.includes('/resources')) return Promise.resolve(json([]))
-      return Promise.resolve(json([]))
-    })
+    servir([], { '/agenda/catalogo': { ...CATALOGO, profesionales: [] } })
     montar()
     expect(await screen.findByText(/Cargá uno en Configuración/)).toBeInTheDocument()
+  })
+
+  describe('el mostrador (staff), que no ve la configuración', () => {
+    it('🔴 arma la agenda aunque la configuración le conteste 403', async () => {
+      // Hasta el 2026-09-11 este era el síntoma: el cartel de "no hay
+      // profesionales", el error del catálogo arriba y "Nuevo turno" apagado,
+      // en una instancia que tenía profesionales, sedes y prestaciones.
+      servir([DE_MANANA])
+      montar()
+      await waitFor(() => expect(screen.getByText('Ana Gómez')).toBeInTheDocument())
+      expect(within(columna(LUNES)).getByText('Ana Gómez')).toBeInTheDocument()
+      expect(screen.queryByText(/Cargá uno en Configuración/)).not.toBeInTheDocument()
+      expect(screen.queryByText(SIN_PERMISO.detail)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Nuevo turno/ })).toBeEnabled()
+    })
+
+    it('🔴 no le pide nada a los routers de configuración', async () => {
+      servir([])
+      montar()
+      await waitFor(() => expect(
+        pedidos.some((p) => p.url === '/agenda/catalogo'),
+      ).toBe(true))
+      await waitFor(() => expect(document.querySelectorAll('[data-columna]')).toHaveLength(7))
+      expect(pedidos.map((p) => p.url).filter((u) => CONFIGURACION.includes(u))).toEqual([])
+    })
   })
 
   describe('el medio de pago al completar', () => {

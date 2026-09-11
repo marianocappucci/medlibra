@@ -23,7 +23,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sumarDias } from 'libra-ui/agenda'
-import { api, ApiError, type Appointment, type Branch, type Resource } from '../../api'
+import { api, ApiError, type Appointment, type Resource, type SedeDeLaAgenda } from '../../api'
 
 /** Un turno con el profesional que lo atiende pegado encima.
  *
@@ -69,7 +69,7 @@ export function enHoraDePared(iso: string, zona: string): string {
 /** El huso de la sede de cada profesional. `UTC` si no cuelga de ninguna, que
  *  es lo mismo que decide el backend (`husos.SIN_SUCURSAL`). */
 export function zonaPorProfesional(
-  profesionales: Resource[], sedes: Branch[],
+  profesionales: Resource[], sedes: SedeDeLaAgenda[],
 ): Record<string, string> {
   const porSede = Object.fromEntries(sedes.map((s) => [s.id, s.timezone]))
   return Object.fromEntries(profesionales.map((r) => [
@@ -78,7 +78,7 @@ export function zonaPorProfesional(
 }
 
 export function useAgendaRango(
-  profesionales: Resource[], sedes: Branch[], desde: string, dias: number,
+  profesionales: Resource[], sedes: SedeDeLaAgenda[], desde: string, dias: number,
 ): AgendaRango {
   const [porDia, setPorDia] = useState<Record<string, TurnoConProfesional[]>>({})
   const [cargando, setCargando] = useState(false)
