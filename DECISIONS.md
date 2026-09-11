@@ -2006,3 +2006,50 @@ Las dos quedan bajo `staff_or_admin` porque el router ya lo estaba.
 ### Consecuencias
 
 - 7 tests nuevos de backend y 13 de frontend, verificados por mutación.
+
+## ADR-039 — La Agenda lee su catálogo por el router de la agenda, no por los de configuración
+
+**Fecha**: 2026-09-11
+**Estado**: Aceptada
+
+### Contexto
+
+`pages/Agenda.tsx` cargaba el catálogo con un solo `Promise.all` sobre
+`/resources`, `/branches`, `/services`, `/patients` y `/medios-pago`. Los tres
+primeros son `admin_only`. Para el mostrador —staff, que es quien atiende el
+teléfono y da los turnos— el primer 403 rechazaba el `Promise.all` entero: la
+pantalla mostraba el error arriba, el cartel *"No hay profesionales activos.
+Cargá uno en Configuración."* y "Nuevo turno" apagado, en una instancia que sí
+tenía profesionales. Verificado el 2026-09-11 contra `origin/develop`
+(`dc5019c`): staff recibe 403 en los tres, 200 en `/patients`, `/medios-pago` y
+`/resources/{id}/agenda`.
+
+Se había visto de pasada al cerrar ADR-038, que resolvió el mismo problema para
+la fila de demanda espontánea.
+
+### Decisión
+
+Mismo criterio que ADR-038: **una lectura recortada en un router que ya es
+`staff_or_admin`**, y no `staff` sobre los routers de configuración —que le
+darían también el alta, la edición y el borrado de profesionales, sedes y
+prestaciones—.
+
+- `GET /agenda/catalogo`, en `app/routers/agenda.py`, devuelve
+  `{profesionales, sedes, prestaciones}` en **una** llamada.
+- **La sede viaja sin teléfono ni dirección**: la Agenda sólo usa el nombre y el
+  huso (ADR-028).
+- **Trae también los dados de baja, con su `active`.** La pantalla ya filtraba
+  los activos para ofrecer y para dibujar carriles; filtrar en el backend haría
+  que un turno viejo con una prestación dada de baja mostrara el id en vez del
+  nombre.
+- La Agenda deja de pedir `/resources`, `/branches` y `/services`.
+
+### Consecuencias
+
+- Los routers de configuración quedan como estaban: el test
+  `test_el_catalogo_sigue_cerrado_para_staff` recorre `GET`/`POST`/`PUT`/`DELETE`
+  de los tres y exige 403 para staff.
+- En el test de la Agenda, el stub contesta **403 siempre** a los routers de
+  configuración, como el backend real a staff: una pantalla que vuelva a
+  pedirlos se pone roja en todo el archivo, no sólo en el test que lo mira.
+- Tests nuevos verificados por mutación.

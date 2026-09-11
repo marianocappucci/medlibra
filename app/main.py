@@ -439,6 +439,9 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(clinical_documents.router, dependencies=staff_or_admin)
     app.include_router(consents.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)
+    # La agenda trae su propia lectura del catálogo (`GET /agenda/catalogo`):
+    # profesionales, sedes y prestaciones, sin abrirle a staff los routers de
+    # configuración de arriba, que son el alta y el borrado (ADR-039).
     app.include_router(agenda.router, dependencies=staff_or_admin)
     # La fila por orden de llegada va con los turnos y NO con la configuración:
     # armar el bloque de agenda es tarea de quien parametriza (admin), pero

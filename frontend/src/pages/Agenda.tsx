@@ -42,8 +42,9 @@ import {
 import {
   api, ApiError, STATUS_LABELS,
   opcionesPaciente, opcionesServicio,
-  type AppointmentStatus, type Branch, type CompleteAppointmentResponse,
-  type EnvioAContalibra, type MedioPago, type Patient, type Resource, type Service,
+  type AppointmentStatus, type CatalogoDeLaAgenda, type CompleteAppointmentResponse,
+  type EnvioAContalibra, type MedioPago, type Patient, type Resource,
+  type SedeDeLaAgenda, type Service,
 } from '../api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -107,7 +108,7 @@ type TurnoFormValues = z.infer<typeof turnoSchema>
 export function Agenda() {
   const [params, setParams] = useSearchParams()
   const [resources, setResources] = useState<Resource[]>([])
-  const [branches, setBranches] = useState<Branch[]>([])
+  const [branches, setBranches] = useState<SedeDeLaAgenda[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null)
@@ -143,19 +144,22 @@ export function Agenda() {
   }
 
   useEffect(() => {
+    // 🔴 El catálogo sale de `/agenda/catalogo` y NO de `/resources`,
+    // `/branches` y `/services`: esos son `admin_only`, y para el mostrador
+    // —staff, que es quien opera esta pantalla— el primer 403 tumbaba el
+    // `Promise.all` entero. La Agenda decía que no había profesionales y no
+    // dejaba dar un turno. Ver ADR-039.
     Promise.all([
-      api.get<Resource[]>('/resources'),
-      api.get<Branch[]>('/branches'),
-      api.get<Service[]>('/services'),
+      api.get<CatalogoDeLaAgenda>('/agenda/catalogo'),
       api.get<Patient[]>('/patients'),
       api.get<MedioPago[]>('/medios-pago'),
-    ]).then(([r, b, s, p, m]) => {
+    ]).then(([c, p, m]) => {
       // `Array.isArray` y no confiar en el tipo: un cuerpo truncado o un `{}`
       // es truthy, y el `.filter()` de más abajo tumbaría la pantalla entera
       // con un TypeError en vez de mostrar de menos.
-      setResources(Array.isArray(r) ? r : [])
-      setBranches(Array.isArray(b) ? b : [])
-      setServices(Array.isArray(s) ? s : [])
+      setResources(Array.isArray(c?.profesionales) ? c.profesionales : [])
+      setBranches(Array.isArray(c?.sedes) ? c.sedes : [])
+      setServices(Array.isArray(c?.prestaciones) ? c.prestaciones : [])
       setPatients(Array.isArray(p) ? p : [])
       setMediosPago(Array.isArray(m) ? m : [])
     }).catch((err) => setErrorCatalogo(describirError(err)))

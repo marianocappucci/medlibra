@@ -80,6 +80,22 @@ export type Service = {
   active: boolean
 }
 
+/** Una sede como la ve la Agenda: sin teléfono ni dirección. */
+export type SedeDeLaAgenda = Pick<Branch, 'id' | 'name' | 'timezone'>
+
+/** Lo que sirve `GET /agenda/catalogo` (ADR-039).
+ *
+ *  🔴 **La Agenda no lee `/resources`, `/branches` ni `/services`.** Son
+ *  `admin_only`, y el mostrador —que es quien opera la Agenda— recibía 403: la
+ *  carga entera se caía y la pantalla decía que no había profesionales. Esta es
+ *  una lectura recortada desde el router de la agenda, que es `staff_or_admin`.
+ *  Trae también los dados de baja, con su `active`: se filtra en la pantalla. */
+export type CatalogoDeLaAgenda = {
+  profesionales: Resource[]
+  sedes: SedeDeLaAgenda[]
+  prestaciones: Service[]
+}
+
 /** La sala física donde se atiende. **No es un `Resource`**: el motor asocia el
  *  turno a un solo recurso —el profesional— y la ocupación de la sala la valida
  *  MedLibra aparte (ADR-030). */
