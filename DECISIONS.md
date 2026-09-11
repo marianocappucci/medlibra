@@ -1937,3 +1937,72 @@ inventaron el mismo medio por separado. Tirando de ahí, la lista estaba declara
     encontrar nada, no por el filtro.
 - El `EnvioOut` suma `medio_del_saldo`: quien dispara un reintento tiene derecho
   a ver con qué se va a mandar antes de mandarlo.
+
+## ADR-038 — La fila de demanda espontánea tiene su pantalla, y el mostrador la lee por su propio router
+
+**Fecha**: 2026-09-11
+**Estado**: Aceptada
+**Cierra el pendiente de**: ADR-031 (*"Todavía no tiene pantalla"*)
+
+### Contexto
+
+ADR-031 dejó la fila por orden de llegada entera en el backend —registrar,
+listar, llamar, completar, cancelar— y **ninguna forma de usarla desde la
+pantalla**. La parametrización de ADR-032 sumó el alta de bloques con modalidad
+`espontanea`, así que el producto dejaba **configurar** una agenda por demanda
+espontánea y no **operarla**: la secretaria podía armar el bloque del lunes y el
+lunes no tenía dónde anotar a nadie.
+
+### Decisión
+
+Una pantalla propia, `/demanda-espontanea`, en el menú junto a la Agenda y **sin
+`adminOnly`**: la opera el mostrador, igual que los turnos. Se elige el día
+(`?dia=`, ISO) y el bloque (`?bloque=`), se ve la fila en orden de llegada, se
+anota una llegada y cada llegada avanza con los botones de su estado.
+
+🔴 **Dos lecturas nuevas en el router de la fila, y no `staff` sobre los routers
+de configuración.** La pantalla necesita saber qué bloques de demanda
+espontánea rigen ese día y qué prestaciones se pueden anotar, y
+`/agenda-blocks` y `/services` son `admin_only`: el mostrador recibe 403 en los
+dos. Abrirlos a `staff` le habría dado también el alta, la edición y el borrado
+de la agenda y del catálogo. En cambio:
+
+- `GET /walkins/bloques?day=` — los bloques `espontanea` que rigen ese día, de
+  todos los profesionales, con el nombre del profesional y del consultorio ya
+  resueltos y **el huso de la sede**.
+- `GET /walkins/prestaciones` — sólo las activas, sólo `id` y `name`.
+
+Las dos quedan bajo `staff_or_admin` porque el router ya lo estaba.
+
+- **La lista usa el mismo criterio que el alta** (`_bloque_para_la_fila`): día
+  de la semana, vigencia y modalidad. Un bloque ofrecido que el alta rechazara
+  sería una fila en la que anotar da siempre 409. Por eso tampoco filtra por
+  profesional activo: el alta no lo mira.
+- **La hora de llegada es la de la sede**, no la del navegador ni la de
+  Argentina (ADR-028): `created_at` viaja en UTC y se pasa por `enHoraDePared`
+  con el huso del bloque antes del helper de fechas.
+- **"Sigue" es el primero que espera, no el N° 1.** El número es histórico y no
+  se renumera (ADR-031), así que quién sigue se calcula por estado.
+- **Los botones son la tabla `TRANSICIONES` vista desde la pantalla**: esperando
+  → Llamar o Sacar de la fila; en atención → Atendido o Sacar de la fila;
+  atendido y fuera de la fila, ninguno. Un botón que el backend rechaza siempre
+  enseña a ignorar los errores.
+- **La llegada se anota en el día de la pantalla**, no en el de hoy: el backend
+  lo pide explícito justamente para no adivinarlo con su reloj.
+- La fila se vuelve a pedir cada 30 s: la operan dos puntas a la vez —el
+  mostrador anota, el consultorio llama— y ninguna ve a la otra si la pantalla
+  no se refresca sola.
+
+### Lo que queda abierto
+
+- **La espera se ve sólo para quien espera.** No se guarda cuándo lo llamaron
+  (`walkins` tiene `created_at` y nada más), así que "cuánto esperó" el ya
+  atendido no se puede decir. Sumarlo es una columna y una migración.
+- **No hay estado "ausente"**: la máquina de ADR-031 no tiene `no_show` a
+  propósito. "Se fue" es `cancelled` y conserva su número.
+- **La fila sólo anota pacientes existentes** (`client_id` es FK). El alta de
+  uno nuevo se hace en Pacientes; la pantalla lo dice y enlaza.
+
+### Consecuencias
+
+- 7 tests nuevos de backend y 13 de frontend, verificados por mutación.
