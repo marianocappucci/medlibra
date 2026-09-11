@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Agenda } from './pages/Agenda'
+import { DemandaEspontanea } from './pages/DemandaEspontanea'
 import { Pacientes } from './pages/Pacientes'
 import { PacienteFicha } from './pages/PacienteFicha'
 import { Dashboard } from './pages/Dashboard'
@@ -37,6 +38,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Agenda />
+          </ProtectedRoute>
+        }
+      />
+      {/* Staff y admin, igual que el router de la fila en el backend: la
+          opera el mostrador todas las mañanas (ADR-031). */}
+      <Route
+        path="/demanda-espontanea"
+        element={
+          <ProtectedRoute>
+            <DemandaEspontanea />
           </ProtectedRoute>
         }
       />

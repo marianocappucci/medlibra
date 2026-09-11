@@ -119,6 +119,52 @@ export type BloqueDeAgenda = {
   modality: 'turnos' | 'espontanea'
 }
 
+/** Un bloque de demanda espontánea que rige un día, tal como lo sirve
+ *  `GET /walkins/bloques`. Trae los nombres ya resueltos porque el mostrador no
+ *  puede leer `/resources` ni `/consultorios` (son de admin), y el huso de la
+ *  sede para mostrar las horas de llegada en la hora de pared de ese lugar. */
+export type BloqueDeLaFila = {
+  id: string
+  resource_id: string
+  profesional: string
+  consultorio_id: string
+  consultorio: string
+  starts_at: string
+  ends_at: string
+  timezone: string
+}
+
+/** Los estados de alguien en la fila. **Más chicos que los de un turno**: no hay
+ *  `pending` ni `confirmed` —quien está en la fila ya llegó— ni `no_show`. Ver
+ *  `app/services/walkins.py`. */
+export type EstadoLlegada = 'waiting' | 'in_progress' | 'completed' | 'cancelled'
+
+export const ESTADO_LLEGADA_LABELS: Record<EstadoLlegada, string> = {
+  waiting: 'Esperando',
+  in_progress: 'En atención',
+  completed: 'Atendido',
+  cancelled: 'Salió de la fila',
+}
+
+/** Una llegada a la fila. `arrival_order` es **histórico**: no se renumera al
+ *  sacar a alguien, así que quién sigue se calcula por estado, no por número. */
+export type Llegada = {
+  id: string
+  block_id: string
+  day: string
+  client_id: string
+  service_id: string
+  arrival_order: number
+  status: EstadoLlegada
+  /** Instante en UTC (`...Z`): la hora de llegada. */
+  created_at: string
+}
+
+export type PrestacionDeLaFila = {
+  id: string
+  name: string
+}
+
 /** Lo que el backend ofrece elegir. **Sale de la API y no de una constante acá**:
  *  la lista de duraciones es la que el alta valida, y dos copias divergen — la
  *  pantalla terminaría ofreciendo un valor que el alta rechaza con 422. */
