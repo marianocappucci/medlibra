@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 
@@ -143,7 +144,7 @@ def reschedule_appointment(
 
 
 @router.post("/appointments/{appointment_id}/complete")
-async def complete_appointment(
+def complete_appointment(
     appointment_id: str,
     data: CompleteRequest = CompleteRequest(),
     service: AppointmentService = Depends(get_appointment_service),
@@ -173,7 +174,15 @@ async def complete_appointment(
 
     La validacion del medio de pago (requerido si hay saldo) corre ANTES de
     completar el turno -- si faltara, el turno quedaría completado, sin cobrar y
-    sin forma de reintentar."""
+    sin forma de reintentar.
+
+    🔴 **`def` y no `async def`, a propósito.** Casi todo lo que hace esta ruta
+    es sincrónico —los repositorios de la base, y registrar el envío—, y uvicorn
+    corre con **un solo proceso**: como `async def`, cada una de esas llamadas
+    frenaba el loop entero, y mientras se completaba un turno la instancia no le
+    contestaba a nadie, `/health` incluido. Como `def`, FastAPI la corre en el
+    threadpool. Lo único asincrónico de verdad es el envío a Contalibra, y eso
+    lo resuelve `_mandar`."""
     current = service.appointments.get(appointment_id)
     if current is None:
         raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
@@ -216,7 +225,7 @@ async def complete_appointment(
         # hay forma de que salgan dos comprobantes por una consulta.
         medio_del_saldo = data.medio_pago or "efectivo"
         if contalibra.destino():
-            enviado_a_contalibra = await _mandar(
+            enviado_a_contalibra = _mandar(
                 envios, appointment_id, current, patient,
                 price_row["price"],
                 contalibra.pagos_del_turno(
@@ -253,7 +262,7 @@ async def complete_appointment(
     }
 
 
-async def _mandar(
+def _mandar(
     envios: contalibra.EnvioRepository, appointment_id: str, turno,
     patient: dict, importe, pagos: list[dict], *,
     medio_del_saldo: str | None = None, iva_rate=None,
@@ -266,9 +275,17 @@ async def _mandar(
     puede terminar en una consulta que no se facturó y de la que nadie se
     entera: por eso el error queda en `envios_a_contalibra`, se lista en
     `GET /facturacion-externa` y se puede reintentar.
+
+    🔴 **`asyncio.run` en este hilo, y no un `await` en el loop.** Esto corre en
+    el hilo del threadpool que atiende a `complete_appointment`, así que el envío
+    —`httpx` asincrónico— va en un loop propio de ese hilo, y el registro de
+    abajo —la base— bloquea a este hilo y a nadie más. `enviar_consulta` no
+    cambia de firma: el reintento de `/facturacion-externa` la usa igual. Las
+    excepciones salen de `asyncio.run` tal cual, así que el `except` ve lo mismo
+    que antes.
     """
     try:
-        respuesta = await contalibra.enviar_consulta(
+        respuesta = asyncio.run(contalibra.enviar_consulta(
             appointment_id=appointment_id,
             fecha=turno.starts_at.date().isoformat(),
             descripcion=turno.service_id,
@@ -276,7 +293,7 @@ async def _mandar(
             pagos=pagos,
             paciente=patient,
             iva_rate=iva_rate,
-        )
+        ))
     except Exception as exc:  # noqa: BLE001 — cualquier fallo se registra igual
         logger.exception("No se pudo mandar la consulta %s a Contalibra", appointment_id)
         # 🔴 El medio se guarda **también cuando falla**, que es cuando hace

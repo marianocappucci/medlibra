@@ -9,6 +9,7 @@ El reintento es seguro: Contalibra es idempotente por `(sistema, referencia)`,
 así que mandar de nuevo una consulta que sí había llegado devuelve la misma
 venta y la misma factura, no una segunda.
 """
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -72,7 +73,7 @@ def listar(
 
 
 @router.post("/{appointment_id}/reintentar", response_model=EnvioOut)
-async def reintentar(
+def reintentar(
     appointment_id: str,
     envios: contalibra.EnvioRepository = Depends(get_envio_contalibra_repository),
     service: AppointmentService = Depends(get_appointment_service),
@@ -97,6 +98,12 @@ async def reintentar(
     **reintroducía en el reintento el mismo defecto que se está arreglando**: un
     saldo cobrado por transferencia entraba a la caja de Contalibra como
     efectivo.
+
+    🔴 **`def` y no `async def`, a propósito.** Todo lo que hace esta ruta salvo
+    el envío es sincrónico —los repositorios de la base y el registro del
+    intento—, y uvicorn corre con **un solo proceso**: como `async def` frenaba
+    el loop entero mientras duraba. Como `def` corre en el threadpool, y el envío
+    —`httpx` asincrónico— va con `asyncio.run` en un loop propio de este hilo.
     """
     if not contalibra.destino():
         raise HTTPException(
@@ -126,7 +133,7 @@ async def reintentar(
     sena = deposits.get_by_appointment(appointment_id)
     pagada = sena is not None and sena.status is DepositStatus.PAID
     try:
-        respuesta = await contalibra.enviar_consulta(
+        respuesta = asyncio.run(contalibra.enviar_consulta(
             appointment_id=appointment_id,
             fecha=_dia(turno.starts_at),
             descripcion=turno.service_id,
@@ -139,7 +146,7 @@ async def reintentar(
             iva_rate=iva_rates.resolve(
                 turno.service_id, business.get()["default_iva_rate"],
             ),
-        )
+        ))
     except Exception as exc:  # noqa: BLE001 — el fallo se registra, no se propaga
         return envios.registrar(appointment_id, contalibra.ERROR, error=str(exc))
     venta = (respuesta or {}).get("venta") or {}
