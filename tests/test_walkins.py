@@ -211,3 +211,93 @@ def test_solo_activos_deja_afuera_a_los_atendidos(consultorio: TestClient):
     assert [w["client_id"] for w in _fila(consultorio, bloque, solo_activos=True)] == ["p-2"]
     # 🔴 El control: el historial del día sigue completo.
     assert len(_fila(consultorio, bloque)) == 2
+
+
+# ── Lo que la pantalla lee para operar la fila ─────────────────────────────
+#
+# La pantalla tiene que ofrecer DÓNDE anotar a alguien, y el mostrador no puede
+# leer `/agenda-blocks` (es de configuración, admin). Lo que se prueba es que lo
+# que se ofrece es exactamente lo que el alta acepta: ni un bloque de turnos, ni
+# uno de otro día de la semana, ni uno vencido.
+
+def _bloques(client: TestClient, dia=LUNES) -> list[dict]:
+    respuesta = client.get("/walkins/bloques", params={"day": dia})
+    assert respuesta.status_code == 200, respuesta.text
+    return respuesta.json()
+
+
+def test_los_bloques_del_dia_son_los_espontaneos(consultorio: TestClient):
+    """🔴 Un bloque de turnos el mismo día NO se ofrece: anotar gente ahí es
+    justamente lo que `registrar_llegada` rechaza con 409."""
+    espontaneo = _bloque(consultorio)
+    _bloque(consultorio, modality="turnos", starts_at="14:00:00", ends_at="18:00:00")
+
+    bloques = _bloques(consultorio)
+    assert [b["id"] for b in bloques] == [espontaneo]
+    # Los nombres van resueltos: quien pide esto no puede leer `/resources` ni
+    # `/consultorios`. Y el huso es el de la sede, para la hora de llegada.
+    assert bloques[0] | {"id": None} == {
+        "id": None, "resource_id": "dr-molina", "profesional": "Dr. Molina",
+        "consultorio_id": "cons-1", "consultorio": "Consultorio 1",
+        "starts_at": "09:00:00", "ends_at": "13:00:00",
+        "timezone": "America/Argentina/Buenos_Aires",
+    }
+
+
+def test_un_dia_que_el_bloque_no_atiende_no_ofrece_fila(consultorio: TestClient):
+    _bloque(consultorio, weekday=0)
+    assert _bloques(consultorio, MARTES) == []
+    # 🔴 El control: el lunes sí. Sin esto, "no devolver nunca nada" pasaría.
+    assert len(_bloques(consultorio, LUNES)) == 1
+
+
+def test_fuera_de_la_vigencia_no_se_ofrece(consultorio: TestClient):
+    _bloque(consultorio, valid_to=LUNES)
+    assert len(_bloques(consultorio, LUNES)) == 1
+    assert _bloques(consultorio, LUNES_SIGUIENTE) == []
+
+
+def test_antes_de_que_empiece_no_se_ofrece(consultorio: TestClient):
+    _bloque(consultorio, valid_from=LUNES_SIGUIENTE)
+    assert _bloques(consultorio, LUNES) == []
+    assert len(_bloques(consultorio, LUNES_SIGUIENTE)) == 1
+
+
+def test_todo_lo_que_se_ofrece_acepta_una_llegada(consultorio: TestClient):
+    """🔴 La propiedad de fondo: la lista y el alta usan el mismo criterio. Si
+    divergieran, la secretaria vería una fila en la que anotar da siempre 409."""
+    _bloque(consultorio)
+    _bloque(consultorio, starts_at="14:00:00", ends_at="18:00:00")
+    _bloque(consultorio, modality="turnos", starts_at="19:00:00", ends_at="20:00:00")
+    ofrecidos = _bloques(consultorio)
+    assert len(ofrecidos) == 2
+    for bloque in ofrecidos:
+        assert _llega(consultorio, bloque["id"]).status_code == 201
+
+
+def test_las_prestaciones_de_la_fila_son_las_activas(consultorio: TestClient):
+    consultorio.post("/services", json={
+        "id": "vieja", "name": "Prestación dada de baja",
+        "duration_minutes": 20, "active": False,
+    })
+    ids = [p["id"] for p in consultorio.get("/walkins/prestaciones").json()]
+    assert "consulta" in ids
+    assert "vieja" not in ids
+
+
+def test_el_mostrador_puede_operar_la_fila_entera(
+    consultorio: TestClient, staff_client: TestClient,
+):
+    """🔴 Es para quien existe la pantalla. Staff no lee `/agenda-blocks` ni
+    `/services` —y no tiene por qué: son el alta y el borrado de la agenda—, así
+    que sin estas dos lecturas la pantalla le quedaría vacía."""
+    bloque = _bloque(consultorio)
+    # El control: por esto hacen falta las lecturas de acá.
+    assert staff_client.get("/agenda-blocks").status_code == 403
+    assert staff_client.get("/services").status_code == 403
+
+    assert [b["id"] for b in _bloques(staff_client)] == [bloque]
+    assert staff_client.get("/walkins/prestaciones").status_code == 200
+    llegada = _llega(staff_client, bloque)
+    assert llegada.status_code == 201
+    assert staff_client.post(f"/walkins/{llegada.json()['id']}/llamar").status_code == 200

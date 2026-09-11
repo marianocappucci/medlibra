@@ -228,6 +228,32 @@ class AgendaBlockRepository:
                 if row.valid_to is None or row.valid_to >= dia
             ]
 
+    def espontaneos_del_dia(self, dia: date) -> list[dict]:
+        """Los bloques `espontanea` de **todos** los profesionales que rigen ese día.
+
+        Es lo que la pantalla de la fila necesita para ofrecer dónde anotar a
+        quien llega: el mismo filtro que `vigentes()` —día de la semana y
+        vigencia— con la modalidad al revés y sin profesional, porque el
+        mostrador anota para cualquiera que atienda por orden de llegada.
+
+        🔴 **Es el mismo criterio con el que `registrar_llegada` acepta o
+        rechaza** (`_bloque_para_la_fila` en el router). Si la lista ofreciera
+        un bloque que el alta después rechaza, la secretaria vería una fila en
+        la que anotar a alguien da siempre 409.
+        """
+        with self.session_factory() as session:
+            rows = session.scalars(
+                select(AgendaBlockRow).where(
+                    AgendaBlockRow.weekday == dia.weekday(),
+                    AgendaBlockRow.modality == "espontanea",
+                    AgendaBlockRow.valid_from <= dia,
+                ).order_by(AgendaBlockRow.starts_at, AgendaBlockRow.resource_id)
+            ).all()
+            return [
+                _to_dict(row) for row in rows
+                if row.valid_to is None or row.valid_to >= dia
+            ]
+
     def ventanas_vigentes(self, resource_id: str, dia: date) -> list[Availability]:
         """Los bloques de ese día, con la forma que el motor entiende."""
         return [

@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+- **La Agenda funciona para staff** (ver ADR-039). Pedía `/resources`,
+  `/branches` y `/services`, que son `admin_only`: para el mostrador el primer
+  403 tumbaba la carga entera, y la pantalla decía que no había profesionales y
+  no dejaba dar turnos.
+  - 🔴 Lectura nueva en el router de la agenda, `staff_or_admin`:
+    `GET /agenda/catalogo` → `{profesionales, sedes, prestaciones}`. La sede va
+    sin teléfono ni dirección. Los routers de configuración siguen cerrados para
+    staff.
+
+- **La fila de demanda espontánea tiene pantalla** (ver ADR-038). Cierra lo que
+  ADR-031 dejó sin interfaz: hasta hoy se podía configurar un bloque
+  `espontanea` y no había dónde anotar a nadie.
+  - `/demanda-espontanea`, en el menú junto a la Agenda, para staff y admin: el
+    día y el bloque, la fila en orden de llegada con la hora de llegada
+    (`dd-mm-aaaa HH:MM`, en la hora de la sede) y la espera de quien espera,
+    anotar una llegada y llamar / atendido / sacar de la fila.
+  - 🔴 Dos lecturas nuevas en el router de la fila, `staff_or_admin`:
+    `GET /walkins/bloques?day=` y `GET /walkins/prestaciones`. El mostrador
+    recibe 403 en `/agenda-blocks` y `/services`, y abrírselos le habría dado
+    también el alta y el borrado de la agenda.
+  - La lista de bloques usa el mismo criterio que el alta de una llegada: lo que
+    se ofrece es exactamente lo que se acepta.
+
 - **Copia externa del backup: el enlace con la nube del cliente, como add-on**
   (`resguardo_externo`, LibraCore v1.93.0). Se monta
   `build_resguardo_enlace_router` bajo `/api/config/resguardo-externo/enlace`,

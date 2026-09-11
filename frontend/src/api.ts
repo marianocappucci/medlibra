@@ -80,6 +80,22 @@ export type Service = {
   active: boolean
 }
 
+/** Una sede como la ve la Agenda: sin teléfono ni dirección. */
+export type SedeDeLaAgenda = Pick<Branch, 'id' | 'name' | 'timezone'>
+
+/** Lo que sirve `GET /agenda/catalogo` (ADR-039).
+ *
+ *  🔴 **La Agenda no lee `/resources`, `/branches` ni `/services`.** Son
+ *  `admin_only`, y el mostrador —que es quien opera la Agenda— recibía 403: la
+ *  carga entera se caía y la pantalla decía que no había profesionales. Esta es
+ *  una lectura recortada desde el router de la agenda, que es `staff_or_admin`.
+ *  Trae también los dados de baja, con su `active`: se filtra en la pantalla. */
+export type CatalogoDeLaAgenda = {
+  profesionales: Resource[]
+  sedes: SedeDeLaAgenda[]
+  prestaciones: Service[]
+}
+
 /** La sala física donde se atiende. **No es un `Resource`**: el motor asocia el
  *  turno a un solo recurso —el profesional— y la ocupación de la sala la valida
  *  MedLibra aparte (ADR-030). */
@@ -117,6 +133,52 @@ export type BloqueDeAgenda = {
   valid_to: string | null
   slot_minutes: number
   modality: 'turnos' | 'espontanea'
+}
+
+/** Un bloque de demanda espontánea que rige un día, tal como lo sirve
+ *  `GET /walkins/bloques`. Trae los nombres ya resueltos porque el mostrador no
+ *  puede leer `/resources` ni `/consultorios` (son de admin), y el huso de la
+ *  sede para mostrar las horas de llegada en la hora de pared de ese lugar. */
+export type BloqueDeLaFila = {
+  id: string
+  resource_id: string
+  profesional: string
+  consultorio_id: string
+  consultorio: string
+  starts_at: string
+  ends_at: string
+  timezone: string
+}
+
+/** Los estados de alguien en la fila. **Más chicos que los de un turno**: no hay
+ *  `pending` ni `confirmed` —quien está en la fila ya llegó— ni `no_show`. Ver
+ *  `app/services/walkins.py`. */
+export type EstadoLlegada = 'waiting' | 'in_progress' | 'completed' | 'cancelled'
+
+export const ESTADO_LLEGADA_LABELS: Record<EstadoLlegada, string> = {
+  waiting: 'Esperando',
+  in_progress: 'En atención',
+  completed: 'Atendido',
+  cancelled: 'Salió de la fila',
+}
+
+/** Una llegada a la fila. `arrival_order` es **histórico**: no se renumera al
+ *  sacar a alguien, así que quién sigue se calcula por estado, no por número. */
+export type Llegada = {
+  id: string
+  block_id: string
+  day: string
+  client_id: string
+  service_id: string
+  arrival_order: number
+  status: EstadoLlegada
+  /** Instante en UTC (`...Z`): la hora de llegada. */
+  created_at: string
+}
+
+export type PrestacionDeLaFila = {
+  id: string
+  name: string
 }
 
 /** Lo que el backend ofrece elegir. **Sale de la API y no de una constante acá**:

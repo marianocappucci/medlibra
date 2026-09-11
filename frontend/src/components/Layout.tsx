@@ -1,7 +1,9 @@
 // Shim sobre libra-ui/Layout (extraído 2026-07-26, era idéntico en
 // Gestiolibra/MedLibra/VentaLibra salvo NAV_ITEMS/branding -- ver
 // wiki/analyses/auditoria-duplicacion-familia-libra.md).
-import { CalendarDays, LayoutDashboard, ScrollText, Settings, UserCog, Users } from 'lucide-react'
+import {
+  CalendarDays, LayoutDashboard, ListOrdered, ScrollText, Settings, UserCog, Users,
+} from 'lucide-react'
 import { createLayout } from 'libra-ui/Layout'
 import { LOGO, WORDMARK } from '@/branding'
 
@@ -26,6 +28,9 @@ export const Layout = createLayout({
   wordmarkClassName: `${WORDMARK} text-[15px]/[21px]`,
   navItems: [
     { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+    // Junto a la Agenda y sin `adminOnly`: la fila la opera el mostrador, igual
+    // que los turnos (el router del backend es `staff_or_admin`, ADR-031).
+    { to: '/demanda-espontanea', label: 'Demanda espontánea', icon: ListOrdered },
     { to: '/pacientes', label: 'Pacientes', icon: Users },
     { to: '/reportes', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
     // 🔴 Facturación NO está: sale de la vista por pedido del humano
