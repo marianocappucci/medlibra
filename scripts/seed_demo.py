@@ -551,6 +551,60 @@ def _cargar_logo(api, nombre: str, inicial: str, color: tuple, contar) -> None:
         print(f"  -- logo: {e}")
 
 
+def iniciar_sesion(api: Api, usuario: str, password: str) -> None:
+    """Loguea resolviendo antes el captcha ALTCHA del login.
+
+    Desde libraauth v0.40.0 el login exige la solución de un desafío
+    (`captcha=True` en app/routers/auth.py): sin ella contesta 400. El seed hace
+    lo mismo que el widget del navegador — pide `GET /auth/captcha`, lo
+    resuelve y manda el payload en el campo `captcha`.
+
+    `altcha` se importa acá y no arriba: viene con libraauth, así que existe en
+    el entorno del producto pero no en un `python3` pelado del sistema.
+
+    🔴 **Si la instancia no emite desafío, loguea sin captcha, como antes.** El
+    cron de la demo corre el seed del checkout contra la imagen desplegada, y
+    entre el merge y el deploy las dos pueden no coincidir: una imagen vieja
+    contesta 404 a `/auth/captcha` (o el catch-all de la SPA, HTML). Cortar ahí
+    dejaría la demo vacía esa noche. Otro error de esa ruta sí se propaga.
+    """
+    credenciales = {"username": usuario, "password": password}
+    desafio = _desafio_captcha(api)
+    if desafio is None:
+        api.post("/auth/login", credenciales)
+        return
+
+    try:
+        from altcha import Challenge, Payload, solve_challenge
+    except ImportError:
+        raise SystemExit(
+            "ERROR: falta el paquete `altcha`, que el login necesita para resolver "
+            "el captcha. Correr el seed con el Python del producto: dentro del "
+            "contenedor (`python3`, que es el de /opt/venv) o, desde el checkout, "
+            "con `.venv-scripts/bin/python`."
+        ) from None
+
+    ch = Challenge.from_dict(desafio)
+    captcha = Payload(ch, solve_challenge(ch)).to_base64()
+    api.post("/auth/login", {**credenciales, "captcha": captcha})
+
+
+def _desafio_captcha(api: Api) -> dict | None:
+    """El desafío de `GET /auth/captcha`, o `None` si la instancia no lo emite
+    (404, o una respuesta que no es JSON o no tiene la forma de un desafío)."""
+    try:
+        desafio = api.get("/auth/captcha")
+    except ValueError:  # no es JSON: el catch-all de la SPA devuelve HTML
+        return None
+    except RuntimeError as e:
+        if "-> 404" in str(e):
+            return None
+        raise
+    if isinstance(desafio, dict) and "parameters" in desafio and "signature" in desafio:
+        return desafio
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -570,7 +624,7 @@ def main() -> int:
         return 2
 
     api = Api(args.url)
-    api.post("/auth/login", {"username": args.usuario, "password": args.password})
+    iniciar_sesion(api, args.usuario, args.password)
     sembrar(api)
     return 0
 

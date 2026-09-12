@@ -67,7 +67,7 @@ dependencies = [
     # v1.51.0 la trajo `develop` en paralelo (las varias cadenas de migraciones).
     # Se queda la mas alta: contiene a v1.50.0 -- verificado con
     # `git merge-base --is-ancestor`, y que `medios_pago.py` este en el tag.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.94.0",
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.95.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
@@ -77,7 +77,12 @@ dependencies = [
     # v0.11.0, si las unicas columnas que cambiaban estaban ocultas, la edicion
     # no se registraba en absoluto. Como aca TODO el contenido clinico esta
     # oculto, corregir una nota o una receta no iba a dejar ningun rastro.
-    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.38.0",
+    #
+    # v0.38.0 -> v0.40.0 (2026-09-12): el captcha ALTCHA del login y del
+    # forgot-password (`captcha=True` en app/routers/auth.py, ADR-014 de
+    # libraauth; trae `altcha` como dependencia). v0.39.0, incluida, arregla
+    # ademas la IP con la que cuenta el bloqueo por intentos fallidos.
+    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.40.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",

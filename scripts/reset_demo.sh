@@ -255,6 +255,11 @@ fi
 # --- 2. Sembrar -----------------------------------------------------------
 # Por la API y desde adentro del contenedor: la contrasena sale de su propio
 # entorno y nunca pasa por la linea de comandos del host.
+#
+# El seed resuelve el captcha ALTCHA del login (libraauth v0.40.0) y necesita
+# el paquete `altcha`. Adentro del contenedor `python3` es el de /opt/venv (el
+# PATH de la imagen), que lo trae con libraauth. NO cambiarlo por
+# `$REPO/.venv-scripts/bin/python`: esa ruta es del host y aca no existe.
 docker cp "$SEED_LOCAL" "$CONTENEDOR:/tmp/seed.py"
 docker exec -i "$CONTENEDOR" sh -c '
   python3 /tmp/seed.py \

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 
 // Lo único que un unitario no puede ver: que la SPA construida, servida por la
 // app real, deje entrar y muestre una pantalla de dominio. Si el bundle quedó
@@ -10,12 +10,39 @@ import { expect, test } from '@playwright/test'
 // botón «Mostrar contraseña», y el nombre del producto es un wordmark, no un
 // heading accesible. La primera pantalla se reconoce por el sidebar de libra-ui
 // (`data-sidebar="sidebar"`) y por su título.
+
+/** Tilda «No soy un robot» y espera a que el widget resuelva el desafío.
+ *
+ *  El backend monta el router con `captcha=True` (libraauth v0.40.0), así que
+ *  sin esto «Ingresar» queda deshabilitado. Se resuelve el desafío real que
+ *  emite la app, como el humano: es lo único que prueba que el worker del
+ *  widget carga bajo la CSP. `click()` y no `check()`: la casilla queda tildada
+ *  recién cuando termina la prueba de trabajo (~1 s), y `check()` exige que el
+ *  estado cambie en el acto. Lo que se espera es el botón habilitado.
+ *
+ *  🔴 `force: true` porque el widget dibuja la tilde (un `<svg>` absoluto)
+ *  ENCIMA del centro de la casilla, y la comprobación de accionabilidad de
+ *  Playwright se niega a clickear ("svg intercepts pointer events"): el smoke
+ *  del PR #223 se colgaba ahí 30 s. No saltea nada que vea el humano: el clic
+ *  sigue siendo de mouse en el centro, cae en el svg y el widget lo toma
+ *  (medido en Chromium: queda `verified` y se habilita «Ingresar»).
+ */
+async function tildarCaptcha(page: Page) {
+  await page.getByRole('checkbox', { name: /No soy un robot/ }).click({ force: true })
+  await expect(page.getByRole('button', { name: 'Ingresar' })).toBeEnabled({ timeout: 30_000 })
+}
+
 test('entra por /login, acepta los Términos y ve la primera pantalla', async ({ page }) => {
   await page.goto('/login')
   await expect(page.getByRole('button', { name: 'Ingresar' })).toBeVisible()
 
   await page.locator('#username').fill(process.env.SMOKE_USER ?? 'admin')
   await page.locator('#password').fill(process.env.SMOKE_PASSWORD ?? '')
+  // El captcha está prendido de verdad: aparece el recuadro y, hasta tildarlo,
+  // no se puede ingresar.
+  await expect(page.getByRole('checkbox', { name: /No soy un robot/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ingresar' })).toBeDisabled()
+  await tildarCaptcha(page)
   await page.getByRole('button', { name: 'Ingresar' }).click()
   await expect(page).toHaveURL(/\/agenda/)
 
@@ -38,6 +65,9 @@ test('una credencial mala no entra (control)', async ({ page }) => {
   await page.goto('/login')
   await page.locator('#username').fill('admin')
   await page.locator('#password').fill('esta-no-es')
+  // Con el captcha resuelto: si no, el rechazo sería el 400 del captcha y el
+  // control no probaría nada sobre la credencial.
+  await tildarCaptcha(page)
   await page.getByRole('button', { name: 'Ingresar' }).click()
   await expect(page).toHaveURL(/\/login/)
   await expect(page.locator('p.text-destructive')).toBeVisible()

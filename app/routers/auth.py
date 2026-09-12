@@ -19,4 +19,11 @@ from libraauth.session_auth import build_json_api_auth_router
 # registra unicamente si la instancia ademas tiene `DEMO_MODE` y
 # `DEMO_USERNAME` puestas. En las instancias de cliente la ruta no existe —
 # es un 404, no un 403. Ver `_demo_username` en libraauth.
-router = build_json_api_auth_router(incluir_verify=True, incluir_password_reset=True, incluir_demo=True)
+#
+# `captcha=True` (libraauth v0.40.0, ADR-014): agrega `GET /auth/captcha`, el
+# desafio ALTCHA, y vuelve obligatoria su solucion en el login y en el
+# forgot-password. Va SIEMPRE, no recien despues de N fallos: decision del
+# humano (2026-09-11). Va junto con el bloqueo por IP, no en su lugar.
+router = build_json_api_auth_router(
+    incluir_verify=True, incluir_password_reset=True, incluir_demo=True, captcha=True,
+)
