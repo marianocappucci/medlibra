@@ -19,9 +19,16 @@ import { expect, type Page, test } from '@playwright/test'
  *  widget carga bajo la CSP. `click()` y no `check()`: la casilla queda tildada
  *  recién cuando termina la prueba de trabajo (~1 s), y `check()` exige que el
  *  estado cambie en el acto. Lo que se espera es el botón habilitado.
+ *
+ *  🔴 `force: true` porque el widget dibuja la tilde (un `<svg>` absoluto)
+ *  ENCIMA del centro de la casilla, y la comprobación de accionabilidad de
+ *  Playwright se niega a clickear ("svg intercepts pointer events"): el smoke
+ *  del PR #223 se colgaba ahí 30 s. No saltea nada que vea el humano: el clic
+ *  sigue siendo de mouse en el centro, cae en el svg y el widget lo toma
+ *  (medido en Chromium: queda `verified` y se habilita «Ingresar»).
  */
 async function tildarCaptcha(page: Page) {
-  await page.getByRole('checkbox', { name: /No soy un robot/ }).click()
+  await page.getByRole('checkbox', { name: /No soy un robot/ }).click({ force: true })
   await expect(page.getByRole('button', { name: 'Ingresar' })).toBeEnabled({ timeout: 30_000 })
 }
 
