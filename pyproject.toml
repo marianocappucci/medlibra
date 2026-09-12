@@ -77,7 +77,12 @@ dependencies = [
     # v0.11.0, si las unicas columnas que cambiaban estaban ocultas, la edicion
     # no se registraba en absoluto. Como aca TODO el contenido clinico esta
     # oculto, corregir una nota o una receta no iba a dejar ningun rastro.
-    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.38.0",
+    #
+    # v0.38.0 -> v0.40.0 (2026-09-12): el captcha ALTCHA del login y del
+    # forgot-password (`captcha=True` en app/routers/auth.py, ADR-014 de
+    # libraauth; trae `altcha` como dependencia). v0.39.0, incluida, arregla
+    # ademas la IP con la que cuenta el bloqueo por intentos fallidos.
+    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.40.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",

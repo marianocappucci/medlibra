@@ -5,5 +5,8 @@ import { createForgotPassword, createResetPassword } from 'libra-ui/PasswordRese
 
 const branding = { productName: 'MedLibra', productInitial: 'M' }
 
-export const ForgotPassword = createForgotPassword(branding)
+// El forgot-password lleva el mismo captcha que el login (captcha=True en
+// app/routers/auth.py): sin él, el endpoint manda correos a pedido de
+// cualquiera. El reset-password no lo lleva: ya exige el token del correo.
+export const ForgotPassword = createForgotPassword({ ...branding, captchaPath: '/auth/captcha' })
 export const ResetPassword = createResetPassword(branding)

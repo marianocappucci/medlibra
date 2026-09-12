@@ -15,6 +15,7 @@ import { AuthProvider } from '../context/AuthContext'
 const RUTA_PROTEGIDA = '/agenda'
 const PRODUCTO = 'MedLibra'
 const RUTA_SESION = '/auth/me'
+const RUTA_CAPTCHA = '/auth/captcha'
 
 let fetchMock: ReturnType<typeof vi.fn>
 
@@ -29,9 +30,24 @@ function json(body: unknown, status = 200) {
   })
 }
 
-/** Sin sesion: la ruta de sesion responde 401, como con la cookie vencida. */
+/** Sin sesion: la ruta de sesion responde 401, como con la cookie vencida.
+ *
+ * La sonda del captcha contesta 404 y no 401: el api-client de libra-ui toma
+ * un 401 como sesion vencida y navega, y en jsdom eso es un error de consola.
+ * El servidor real nunca le da 401 a esa ruta (es publica). Con 404 el login
+ * se dibuja sin el recuadro, que es lo que hace libra-ui si no hay desafio. */
 function sinSesion() {
-  fetchMock.mockImplementation(() => Promise.resolve(json({ detail: 'No autenticado' }, 401)))
+  fetchMock.mockImplementation((url: string) =>
+    Promise.resolve(
+      String(url).includes(RUTA_CAPTCHA)
+        ? json({ detail: 'Not Found' }, 404)
+        : json({ detail: 'No autenticado' }, 401),
+    ),
+  )
+}
+
+function consulto(ruta: string) {
+  return fetchMock.mock.calls.some(([u]) => String(u).includes(ruta))
 }
 
 /** Con sesion: devuelve un usuario; el resto de las llamadas, vacio. */
@@ -75,6 +91,24 @@ describe('arranque', () => {
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([u]) => String(u).includes(RUTA_SESION))).toBe(true),
     )
+  })
+})
+
+describe('el captcha «No soy un robot»', () => {
+  // Va de la mano con captcha=True en app/routers/auth.py: sin el
+  // `captchaPath`, el login no pide el desafio, no manda la solucion y el
+  // servidor contesta 400 a cualquier intento. Lo que se fija aca es el
+  // cableado; el widget y el boton deshabilitado los prueba libra-ui.
+  it('el login consulta /auth/captcha', async () => {
+    sinSesion()
+    montar('/login')
+    await waitFor(() => expect(consulto(RUTA_CAPTCHA)).toBe(true))
+  })
+
+  it('/forgot-password tambien lo consulta', async () => {
+    sinSesion()
+    montar('/forgot-password')
+    await waitFor(() => expect(consulto(RUTA_CAPTCHA)).toBe(true))
   })
 })
 
