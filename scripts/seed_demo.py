@@ -551,6 +551,32 @@ def _cargar_logo(api, nombre: str, inicial: str, color: tuple, contar) -> None:
         print(f"  -- logo: {e}")
 
 
+def iniciar_sesion(api: Api, usuario: str, password: str) -> None:
+    """Loguea resolviendo antes el captcha ALTCHA del login.
+
+    Desde libraauth v0.40.0 el login exige la solución de un desafío
+    (`captcha=True` en app/routers/auth.py): sin ella contesta 400. El seed hace
+    lo mismo que el widget del navegador — pide `GET /auth/captcha`, lo
+    resuelve y manda el payload en el campo `captcha`.
+
+    `altcha` se importa acá y no arriba: viene con libraauth, así que existe en
+    el entorno del producto pero no en un `python3` pelado del sistema.
+    """
+    try:
+        from altcha import Challenge, Payload, solve_challenge
+    except ImportError:
+        raise SystemExit(
+            "ERROR: falta el paquete `altcha`, que el login necesita para resolver "
+            "el captcha. Correr el seed con el Python del producto: dentro del "
+            "contenedor (`python3`, que es el de /opt/venv) o, desde el checkout, "
+            "con `.venv-scripts/bin/python`."
+        ) from None
+
+    desafio = Challenge.from_dict(api.get("/auth/captcha"))
+    captcha = Payload(desafio, solve_challenge(desafio)).to_base64()
+    api.post("/auth/login", {"username": usuario, "password": password, "captcha": captcha})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -570,7 +596,7 @@ def main() -> int:
         return 2
 
     api = Api(args.url)
-    api.post("/auth/login", {"username": args.usuario, "password": args.password})
+    iniciar_sesion(api, args.usuario, args.password)
     sembrar(api)
     return 0
 

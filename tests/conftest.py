@@ -12,9 +12,15 @@ _time.tzset()
 
 import pytest
 from fastapi.testclient import TestClient
+from libraauth import session_auth
+from libraauth.captcha import Captcha
 from motor_de_test import destino_libracore, fresh_database_url
 
 from app.main import create_app
+
+#: La funcion real con la que el router de auth obtiene el captcha. Se guarda
+#: para que `test_captcha_login.py` pueda volver a ponerla.
+CAPTCHA_DE_ORIGINAL = session_auth._captcha_de
 
 
 @pytest.fixture(autouse=True)
@@ -156,5 +162,46 @@ def _terminos_ya_aceptados(request):
     # VentaLibra, que era el unico de las seis suites que llama `undo()`.
     mp = pytest.MonkeyPatch()
     mp.setattr(TerminosRepository, "esta_aceptada", lambda self: True)
+    yield
+    mp.undo()
+
+
+# ── Captcha ALTCHA: resuelto para el resto de la suite ──────────────────────
+
+
+class _CaptchaQueSiemprePasa:
+    """Emite desafios de verdad (baratos) y da por buena cualquier solucion."""
+
+    def __init__(self):
+        self._real = Captcha("clave-de-prueba", costo=1, contador_min=1, contador_rango=5)
+
+    def emitir(self) -> dict:
+        return self._real.emitir()
+
+    def verificar(self, payload: str) -> bool:
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _captcha_resuelto():
+    """Desde `captcha=True` (libraauth v0.40.0) el login y el forgot-password
+    contestan 400 sin la solucion de un desafio ALTCHA. La suite postea al
+    login en muchos lugares --los fixtures de sesion, los tests de auth, de
+    usuarios, de password reset, el seed de la demo-- y resolver una prueba de
+    trabajo en cada uno no mide nada de este producto: **el captcha lo prueba
+    libraauth; aca solo se cablea**. Por eso se reemplaza la funcion con la que
+    el router obtiene el captcha por un doble que acepta cualquier cosa.
+
+    El cableado real tiene su propio archivo, `test_captcha_login.py`, que
+    vuelve a poner `CAPTCHA_DE_ORIGINAL`. Si alguien sacara `captcha=True` del
+    router, eso es lo unico que se pondria rojo.
+
+    `MonkeyPatch()` propio y no el fixture, por lo mismo que explica
+    `_terminos_ya_aceptados`: un `monkeypatch.undo()` en un test no tiene que
+    llevarse este parche.
+    """
+    doble = _CaptchaQueSiemprePasa()
+    mp = pytest.MonkeyPatch()
+    mp.setattr(session_auth, "_captcha_de", lambda request: doble)
     yield
     mp.undo()
