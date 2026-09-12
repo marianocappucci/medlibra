@@ -98,3 +98,41 @@ def test_el_seed_de_la_demo_resuelve_el_captcha_y_entra(app):
     with https_client(app) as cliente:
         iniciar_sesion(_ApiDeTest(cliente), "admin", "admin")
         assert cliente.get("/auth/me").status_code == 200
+
+
+class _ApiSinCaptcha(Api):
+    """Una instancia con la imagen de antes: `/auth/captcha` no existe."""
+
+    def __init__(self, respuesta_captcha):
+        self.respuesta_captcha = respuesta_captcha
+        self.logins = []
+
+    def _pedir(self, metodo, ruta, cuerpo=None):
+        if ruta == "/auth/captcha":
+            if isinstance(self.respuesta_captcha, Exception):
+                raise self.respuesta_captcha
+            return self.respuesta_captcha
+        self.logins.append(cuerpo)
+        return {"ok": True}
+
+
+@pytest.mark.parametrize("respuesta", [
+    RuntimeError('GET /auth/captcha -> 404: {"detail":"Not Found"}'),
+    ValueError("el catch-all de la SPA devolvio HTML"),
+    [],
+])
+def test_si_la_instancia_no_emite_captcha_el_seed_loguea_como_antes(respuesta):
+    """🔴 Entre el merge y el deploy, el seed nuevo puede correr contra la
+    imagen vieja: tiene que loguear igual, sin captcha, y no dejar la demo
+    vacia esa noche."""
+    api = _ApiSinCaptcha(respuesta)
+    iniciar_sesion(api, "admin", "admin")
+    assert api.logins == [{"username": "admin", "password": "admin"}]
+
+
+def test_otro_error_del_captcha_no_se_traga():
+    """Un 500 no es "la instancia no tiene captcha": se propaga."""
+    api = _ApiSinCaptcha(RuntimeError("GET /auth/captcha -> 500: boom"))
+    with pytest.raises(RuntimeError, match="500"):
+        iniciar_sesion(api, "admin", "admin")
+    assert api.logins == []

@@ -561,7 +561,19 @@ def iniciar_sesion(api: Api, usuario: str, password: str) -> None:
 
     `altcha` se importa acá y no arriba: viene con libraauth, así que existe en
     el entorno del producto pero no en un `python3` pelado del sistema.
+
+    🔴 **Si la instancia no emite desafío, loguea sin captcha, como antes.** El
+    cron de la demo corre el seed del checkout contra la imagen desplegada, y
+    entre el merge y el deploy las dos pueden no coincidir: una imagen vieja
+    contesta 404 a `/auth/captcha` (o el catch-all de la SPA, HTML). Cortar ahí
+    dejaría la demo vacía esa noche. Otro error de esa ruta sí se propaga.
     """
+    credenciales = {"username": usuario, "password": password}
+    desafio = _desafio_captcha(api)
+    if desafio is None:
+        api.post("/auth/login", credenciales)
+        return
+
     try:
         from altcha import Challenge, Payload, solve_challenge
     except ImportError:
@@ -572,9 +584,25 @@ def iniciar_sesion(api: Api, usuario: str, password: str) -> None:
             "con `.venv-scripts/bin/python`."
         ) from None
 
-    desafio = Challenge.from_dict(api.get("/auth/captcha"))
-    captcha = Payload(desafio, solve_challenge(desafio)).to_base64()
-    api.post("/auth/login", {"username": usuario, "password": password, "captcha": captcha})
+    ch = Challenge.from_dict(desafio)
+    captcha = Payload(ch, solve_challenge(ch)).to_base64()
+    api.post("/auth/login", {**credenciales, "captcha": captcha})
+
+
+def _desafio_captcha(api: Api) -> dict | None:
+    """El desafío de `GET /auth/captcha`, o `None` si la instancia no lo emite
+    (404, o una respuesta que no es JSON o no tiene la forma de un desafío)."""
+    try:
+        desafio = api.get("/auth/captcha")
+    except ValueError:  # no es JSON: el catch-all de la SPA devuelve HTML
+        return None
+    except RuntimeError as e:
+        if "-> 404" in str(e):
+            return None
+        raise
+    if isinstance(desafio, dict) and "parameters" in desafio and "signature" in desafio:
+        return desafio
+    return None
 
 
 def main() -> int:
