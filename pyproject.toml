@@ -82,7 +82,15 @@ dependencies = [
     # forgot-password (`captcha=True` en app/routers/auth.py, ADR-014 de
     # libraauth; trae `altcha` como dependencia). v0.39.0, incluida, arregla
     # ademas la IP con la que cuenta el bloqueo por intentos fallidos.
-    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.40.0",
+    #
+    # v0.40.0 -> v0.43.0 (2026-09-13, ADR-018): `libraauth.usuarios.
+    # build_users_router()`, el router de usuarios unico de la familia --
+    # reemplaza la copia propia de `app/routers/users.py` (ver ese archivo).
+    # Trae ademas la sesion de 8h con renovacion deslizante (ADR-017): llega
+    # sola con este bump porque `app/auth.py` re-exporta las dependencias de
+    # `libraauth.session_auth` sin envolverlas (verificado, no hace falta
+    # sumarles el parametro `response` a mano).
+    "libraauth @ git+https://github.com/marianocappucci/libraauth.git@v0.43.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",

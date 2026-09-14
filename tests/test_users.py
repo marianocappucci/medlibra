@@ -1,28 +1,62 @@
 from conftest import https_client
 from fastapi.testclient import TestClient
+from libraauth.testing import verificar_contrato_de_usuarios
 
 
-def test_admin_can_create_list_and_get_a_staff_user(admin_client: TestClient):
-    client = admin_client
-    created = client.post("/users", json={
+# ── Contrato compartido (ADR-018, libraauth v0.43.0) ────────────────────────
+#
+# El ciclo completo (listar → alta → editar → releer → resetear contraseña →
+# borrar) que ejerce el backoffice ya no se prueba a mano acá: lo corre
+# `libraauth.testing`, con los MISMOS modelos públicos que usa la factory, así
+# que este test y `build_users_router()` no pueden divergir entre sí. Antes
+# vivía repartido en `test_admin_can_create_list_and_get_a_staff_user` y
+# `test_delete_user`, que se sacaron de acá por quedar redundantes con esto.
+#
+# Lo que el helper NO prueba -- las reglas de negocio de la factory (rol
+# inválido, username duplicado, protecciones del único admin) -- se prueban
+# UNA sola vez en la suite de `libraauth`, no en cada producto (ver el
+# docstring de `verificar_contrato_de_usuarios`). Lo que sigue abajo es sólo
+# lo propio de MedLibra: que la tupla `roles=("admin","staff")` con la que se
+# armó el router acá es la correcta, la integración con el login/sesión de
+# este producto, y el correo, que este archivo ya cubría antes de la factory.
+def test_contrato_de_usuarios(admin_client: TestClient):
+    verificar_contrato_de_usuarios(admin_client, "/users", role="staff")
+
+
+def test_create_response_never_leaks_the_password(admin_client: TestClient):
+    """`verificar_contrato_de_usuarios` no lo mira -- comparte los mismos
+    modelos públicos que el router, así que un campo que la factory agregara
+    al modelo de salida se colaría en los dos lados por igual. Esto es lo que
+    ya probaba `test_admin_can_create_list_and_get_a_staff_user` antes de la
+    migración; se preserva la aserción, no el resto del test (redundante con
+    el contrato de arriba)."""
+    body = admin_client.post("/users", json={
         "username": "staff-1", "name": "Dr. Perez",
         "password": "s3cret", "role": "staff",
-    })
-    assert created.status_code == 201
-    body = created.json()
-    assert body["username"] == "staff-1"
-    assert body["name"] == "Dr. Perez"
-    assert body["role"] == "staff"
-    assert body["active"] is True
+    }).json()
     assert "password" not in body
     assert "password_hash" not in body
 
-    listed = client.get("/users").json()
-    assert {item["username"] for item in listed} == {"admin", "staff-1"}
 
-    fetched = client.get(f"/users/{body['id']}")
-    assert fetched.status_code == 200
-    assert fetched.json()["role"] == "staff"
+def test_update_user_rejects_invalid_role_returns_422_not_500(admin_client: TestClient):
+    """El caso que motivó la migración según la ADR-018 -- pero medido, no
+    heredado del README: con el router VIEJO de este archivo esto YA daba 422
+    y no 500, porque `UserUpdate.role` estaba tipado `Literal["admin",
+    "staff"]` y pydantic lo rechazaba antes de que el handler (que no
+    atrapaba el `ValueError` de `UserRepository.update()`) llegara a correr.
+    Se corrió este mismo test contra el router viejo, con Postgres real,
+    antes de tocar nada: pasó (422), no lo tumbó ninguna mutación. Queda igual
+    como regresión -- la fuente de la validación cambió (de un tipo fijo del
+    modelo a la tupla `roles` de la factory) y este test es lo que nota si
+    alguna vuelve a dejar escapar el `ValueError`."""
+    created = admin_client.post("/users", json={
+        "username": "staff-1", "name": "Dr. Perez",
+        "password": "s3cret", "role": "staff",
+    }).json()
+    response = admin_client.put(f"/users/{created['id']}", json={
+        "name": "Dr. Perez", "role": "owner", "active": True,
+    })
+    assert response.status_code == 422
 
 
 def test_create_user_rejects_invalid_role(admin_client: TestClient):
@@ -99,16 +133,6 @@ def test_update_password_then_login_with_new_password(admin_client: TestClient):
     ).status_code == 200
 
 
-def test_delete_user(admin_client: TestClient):
-    client = admin_client
-    created = client.post("/users", json={
-        "username": "staff-1", "name": "Dr. Perez",
-        "password": "s3cret", "role": "staff",
-    }).json()
-    assert client.delete(f"/users/{created['id']}").status_code == 204
-    assert client.get(f"/users/{created['id']}").status_code == 404
-
-
 def test_delete_user_not_found_returns_404(admin_client: TestClient):
     assert admin_client.delete("/users/missing").status_code == 404
 
@@ -153,22 +177,37 @@ def test_update_password_rejects_an_empty_password(admin_client: TestClient):
     ).status_code == 200
 
 
-def test_update_password_has_no_minimum_length(admin_client: TestClient):
-    """Deliberado, y por eso tiene test: este endpoint existe para destrabar a
-    alguien que quedó afuera, y un mínimo que el administrador no puede cumplir
-    en el momento lo manda de vuelta a la base de datos. Si algún día se agrega
-    una política de complejidad, que sea una decisión y no un descuido."""
+def test_update_password_now_requires_a_minimum_of_six(admin_client: TestClient):
+    """🔴 Cambio de comportamiento visible (ADR-018, libraauth v0.43.0).
+
+    Hasta la adopción de la factory este test se llamaba
+    `test_update_password_has_no_minimum_length` y afirmaba justo lo
+    contrario: que una contraseña de un solo caracter SÍ se aceptaba en el
+    reset de otro usuario, a propósito ("este endpoint existe para destrabar
+    a alguien que quedó afuera"). La factory unifica el mínimo de 6
+    caracteres (`MIN_PASSWORD_LENGTH`) para el alta Y el reset -- antes sólo
+    se exigía en el alta, acá tampoco. Sigue sin haber política de
+    complejidad, sólo longitud."""
     created = admin_client.post("/users", json={
         "username": "staff-1", "name": "Empleada",
         "password": "old-pass", "role": "staff",
     }).json()
 
-    assert admin_client.put(
-        f"/users/{created['id']}/password", json={"password": "x"},
-    ).status_code == 204
+    response = admin_client.put(
+        f"/users/{created['id']}/password", json={"password": "abcde"},
+    )
+    assert response.status_code == 422
+
     other = https_client(admin_client.app)
     assert other.post(
-        "/auth/login", json={"username": "staff-1", "password": "x"},
+        "/auth/login", json={"username": "staff-1", "password": "old-pass"},
+    ).status_code == 200
+
+    assert admin_client.put(
+        f"/users/{created['id']}/password", json={"password": "abcdef"},
+    ).status_code == 204
+    assert other.post(
+        "/auth/login", json={"username": "staff-1", "password": "abcdef"},
     ).status_code == 200
 
 
