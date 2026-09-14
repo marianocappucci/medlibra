@@ -16,6 +16,7 @@ importa fijar aca es el borde:
 import pytest
 from conftest import https_client
 from libraauth.session_auth import SERVICE_TOKEN_ENV, SERVICE_TOKEN_HEADER
+from libraauth.testing import verificar_contrato_de_usuarios
 from motor_de_test import fresh_database_url
 
 from app.main import create_app
@@ -68,6 +69,18 @@ def test_el_token_puede_dar_de_alta_un_usuario(sin_sesion, monkeypatch):
         json={"username": "ana", "name": "Ana", "password": "clave-inicial", "role": "staff"},
     )
     assert r.status_code == 201
+
+
+def test_contrato_de_usuarios_via_token_de_servicio(sin_sesion, monkeypatch):
+    """Es EXACTAMENTE así como entra el backoffice real -- sin sesión, sólo
+    con el header. `admin_guard` de `build_users_router()` acepta esta
+    identidad (`SERVICE_USER`, `id: None`) igual que la de una sesión admin;
+    este test corre el mismo ciclo de contrato que `test_contrato_de_usuarios`
+    de `test_users.py` pero por esta otra puerta."""
+    monkeypatch.setenv(SERVICE_TOKEN_ENV, TOKEN)
+    verificar_contrato_de_usuarios(
+        sin_sesion, RUTA_USERS, role="staff", headers={SERVICE_TOKEN_HEADER: TOKEN},
+    )
 
 
 def _rutas_de_control(client) -> list[str]:

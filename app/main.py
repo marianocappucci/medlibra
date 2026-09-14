@@ -44,7 +44,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
-from .auth import build_session_auth, require_admin, require_admin_o_servicio, require_staff
+from .auth import build_session_auth, require_admin, require_staff
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
@@ -408,7 +408,10 @@ def create_app(database_url: str) -> FastAPI:
     # exigiendo sesion de un usuario del producto. El backoffice no tiene por
     # que poder tocar el resto del dominio, y colgar la dependencia de
     # `admin_only` seria ampliar el permiso sin necesidad.
-    app.include_router(users_router.router, dependencies=[Depends(require_admin_o_servicio)])
+    #
+    # El guard ya NO se pasa acá (ADR-018, libraauth v0.43.0): vive dentro
+    # del router que arma `build_users_router()` en `app/routers/users.py`.
+    app.include_router(users_router.router)
     # Recordatorios, señas, facturación y dashboard son módulos gateables
     # por plan (ver plans.py) -- el resto del dominio clínico y turnos
     # nunca se gatean (ver ADR-018).
