@@ -28,13 +28,15 @@ from pathlib import Path
 import pytest
 
 RAIZ = Path(__file__).resolve().parent.parent
-#: Las TRES cadenas, en orden. La del medio entró el 2026-08-25: el schema de
+#: Las CUATRO cadenas, en orden. `libraauth-migrar` entró el 2026-09-16 (la
+#: adopción de la cadena de auth). `libracore-migrar` entró el 2026-08-25: el schema de
 #: LibraCore de este producto vive en `medlibra_core`, una base aparte, y su
 #: cadena no la corría nadie porque las migraciones del motor no viajaban en el
 #: wheel. `libracore-migrar` la resuelve por la variable de la instancia y NO
 #: por `DATABASE_URL`, que apunta al dominio.
 ESPERADO = (
     ("libragenda-migrar", "upgrade"),
+    ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "core"),
     ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
     ("alembic", "upgrade", "head"),
 )
@@ -63,7 +65,7 @@ def _config_de(script: str):
 
 
 @pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])
-def test_los_dos_scripts_declaran_LAS_TRES_cadenas(script):
+def test_los_dos_scripts_declaran_LAS_CUATRO_cadenas(script):
     assert _config_de(script) == ESPERADO
 
 
@@ -80,16 +82,17 @@ def test_el_orden_de_las_cadenas_es_el_que_importa():
       libre, pero fijarla evita que el `==` de arriba sea la unica afirmacion.
     """
     comandos = _config_de("panel_admin")
-    assert len(comandos) == 3, f"esperaba las tres cadenas, llegaron {comandos}"
+    assert len(comandos) == 4, f"esperaba las cuatro cadenas, llegaron {comandos}"
     assert comandos[0][0] == "libragenda-migrar"
-    assert comandos[1][0] == "libracore-migrar"
+    assert comandos[1][0] == "libraauth-migrar"
+    assert comandos[2][0] == "libracore-migrar"
     assert comandos[-1][:2] == ("alembic", "upgrade")
 
     # 🔑 El `--prefijo` es lo que hace que `libracore-migrar` NO tome
     # `DATABASE_URL` --- que en este contenedor apunta al dominio --- sino la
     # variable de la base del core. Sin el, migraria la base equivocada y
     # devolveria exito.
-    assert "--prefijo" in comandos[1], (
+    assert "--prefijo" in comandos[2], (
         "sin `--prefijo`, `libracore-migrar` cae a DATABASE_URL, que aca es la "
         "base del DOMINIO y no la del core")
 
@@ -196,3 +199,20 @@ def test_la_imagen_lleva_con_que_correrlas():
         lineas = [l.strip() for l in ignore.read_text(encoding="utf-8").splitlines()]
         for prohibido in ("migrations", "migrations/", "alembic.ini"):
             assert prohibido not in lineas, f".dockerignore excluye {prohibido}"
+
+
+def test_libraauth_migra_la_base_de_LIBRACORE_y_no_la_del_dominio():
+    """🔴 `--base core`, y no por prolijidad.
+
+    Las seis tablas de auth de este producto viven en la base de LibraCore
+    (`medlibra_core`): medido el 2026-09-16 en la demo y en dev, **6/6 ahi y 0/6
+    en la del dominio**. Con `--base dominio` la cadena migraria la base vacia
+    —crearia las seis tablas al lado de las del dominio y registraria la
+    version— **sin fallar**, y la base real quedaria sin adoptar. Es la misma
+    trampa que la guarda del `--prefijo` de arriba, del lado de LibraAuth.
+    """
+    comando = next(c for c in _config_de("panel_admin") if c[0] == "libraauth-migrar")
+    assert "--base" in comando, "sin --base, libraauth-migrar se niega a correr con --prefijo"
+    assert comando[comando.index("--base") + 1] == "core", (
+        f"las tablas de auth de medlibra viven en la base de LibraCore: --base core, "
+        f"no {comando[comando.index('--base') + 1]!r}")
