@@ -124,6 +124,35 @@ def test_el_adaptador_de_turnos_acompana_el_pin_de_libragenda():
             "`_TurnosEnHoraLocal`; sin el, los altas de turno se caen en runtime")
 
 
+def test_el_adaptador_de_turnos_implementa_TODO_el_puerto_de_libragenda():
+    """El guard de arriba, pero sin una lista de metodos escrita a mano.
+
+    El de arriba nombra `reserve`, asi que cubre el metodo que existia el dia
+    que se escribio y **ninguno** de los que el motor agregue despues. Ya pasó
+    una vez: LibraGenda sumo `relocate` --el `reserve` de reagendar, con el
+    mismo lock-- y nada en este repo lo habria exigido al subir el pin; el
+    sintoma habria sido un `AttributeError` en runtime, al mover un turno.
+
+    Este mira el puerto **instalado** y pide que el adaptador ofrezca todo lo
+    que declare. Cuando el pin sube, el guard se actualiza solo: no hay que
+    acordarse de venir a agregar el nombre nuevo.
+    """
+    from libragenda.repositories import AppointmentRepository
+
+    from app.services.appointments import _TurnosEnHoraLocal
+
+    del_puerto = {n for n in dir(AppointmentRepository) if not n.startswith("_")}
+    # Contraprueba: sobre un puerto vacio el `set()` de abajo da vacio y el test
+    # pasaria sin mirar nada.
+    assert "reserve" in del_puerto, del_puerto
+
+    faltan = sorted(n for n in del_puerto if not hasattr(_TurnosEnHoraLocal, n))
+    assert not faltan, (
+        f"el puerto `AppointmentRepository` de la libragenda instalada declara "
+        f"{sorted(del_puerto)}, y `_TurnosEnHoraLocal` no implementa {faltan}. "
+        f"Sin esos metodos el motor se cae con AttributeError en runtime.")
+
+
 def test_el_pin_de_libracore_trae_el_comando_que_se_declara():
     """El pin y la declaracion viajan juntos, y el minimo subio dos veces.
 
