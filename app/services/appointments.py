@@ -162,6 +162,32 @@ class _TurnosEnHoraLocal:
         guardado = self._base.reserve(self._a_utc(appointment), validador_utc)
         return self._a_local(guardado)
 
+    def relocate(
+        self,
+        appointment: Appointment,
+        validator: Callable[[Iterable[Appointment]], Appointment],
+    ) -> Appointment:
+        """El `relocate` atomico que pide LibraGenda para reagendar.
+
+        Mismo borde y misma traduccion que `reserve` --y por las mismas
+        razones--, sobre la otra operacion: mover un turno que ya existe.
+        Reagendar tambien es leer, validar el choque y escribir sobre un hueco
+        que los demas se estan disputando, asi que va adentro de una sola
+        transaccion con el mismo lock; hacerlo con `save()` despues de validar
+        dejaba entrar dos reagendados al mismo hueco.
+        """
+
+        def validador_utc(existentes_utc: Iterable[Appointment]) -> Appointment:
+            existentes_local = tuple(
+                self._a_local(turno)
+                for turno in existentes_utc
+                if turno.resource_id == self._resource_id
+            )
+            return self._a_utc(validator(existentes_local))
+
+        guardado = self._base.relocate(self._a_utc(appointment), validador_utc)
+        return self._a_local(guardado)
+
 
 class AppointmentService:
     def __init__(
