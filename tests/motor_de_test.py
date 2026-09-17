@@ -143,6 +143,14 @@ def _preparar_libracore() -> None:
         conexion.execute("DROP SCHEMA IF EXISTS public CASCADE")
         conexion.execute("CREATE SCHEMA public")
 
+    # Las seis tablas de auth viven en ESTA base (`--base core`) y desde
+    # libraauth v0.45.0 el arranque exige su cadena en vez de crearlas. Se corre
+    # acá, antes de `create_app()`: es el mismo orden que el deploy, donde
+    # `libraauth-migrar` va antes de `libracore-migrar`.
+    from libraauth.testing import crear_schema_de_auth
+
+    crear_schema_de_auth(url_libracore())
+
 
 def destino_libracore(ruta_sqlite) -> str:
     """El destino de la base de LIBRACORE (facturacion, caja, ARCA).

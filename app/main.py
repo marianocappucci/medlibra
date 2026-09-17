@@ -14,6 +14,7 @@ from libraauth.auditoria import (
 from libraauth.auth_events import AuthEventRepository
 from libraauth.bootstrap import ensure_demo_user
 from libraauth.demo_codigos import DemoCodigoRepository
+from libraauth.migrar import exigir_schema_al_dia
 from libraauth.models import Base as AuthBase
 from libraauth.password_reset import PasswordResetService
 from libraauth.session_auth import (
@@ -207,7 +208,13 @@ def create_app(database_url: str) -> FastAPI:
         auth_engine = create_engine(
             f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
         )
-    AuthBase.metadata.create_all(auth_engine)
+    # 🔴 Las tablas de auth las crea la cadena de LibraAuth (`libraauth-migrar
+    # upgrade --prefijo medlibra --base core`, declarada en `scripts/panel_admin.py`),
+    # no el arranque. Desde libraauth v0.45.0 (2026-09-17) el arranque la EXIGE: si
+    # no corrió, la app no levanta y el error dice el comando. Hasta ese día acá
+    # había un `AuthBase.metadata.create_all(auth_engine)` que tapaba cualquier
+    # camino que se olvidara de migrar.
+    exigir_schema_al_dia(auth_engine, prefijo="medlibra", base="core")
     auth_sessions = sessionmaker(bind=auth_engine)
 
     sessions = get_session_factory()
