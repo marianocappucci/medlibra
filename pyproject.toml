@@ -90,7 +90,7 @@ dependencies = [
     # sola con este bump porque `app/auth.py` re-exporta las dependencias de
     # `libraauth.session_auth` sin envolverlas (verificado, no hace falta
     # sumarles el parametro `response` a mano).
-    "libraauth[migrations] @ git+https://github.com/marianocappucci/libraauth.git@v0.44.0",
+    "libraauth[migrations] @ git+https://github.com/marianocappucci/libraauth.git@v0.45.1",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",
