@@ -1,6 +1,7 @@
 """MedLibra app factory: wires LibraGenda plus MedLibra's own patient and
 clinical-note extensions, and mounts the routers."""
 
+import logging
 import os
 
 from fastapi import Depends, FastAPI
@@ -17,6 +18,7 @@ from libraauth.demo_codigos import DemoCodigoRepository
 from libraauth.migrar import exigir_schema_al_dia
 from libraauth.models import Base as AuthBase
 from libraauth.password_reset import PasswordResetService
+from libraauth.secretos import SecretosRepository
 from libraauth.session_auth import (
     build_demo_codigos_router,
     build_smtp_settings_router,
@@ -170,6 +172,40 @@ def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
     )
 
 
+_log = logging.getLogger(__name__)
+
+
+def migrar_secretos() -> dict:
+    """Saca de `config.json` los secretos que quedaron en claro. Idempotente.
+
+    Corre en cada arranque (dentro de `create_app()`, ver mas abajo), asi la
+    migracion de una instancia viva **es su deploy**. Loguea NOMBRES de
+    claves, nunca valores: un log con el secreto lo muda del archivo a una
+    superficie peor, porque los logs se copian y se mandan.
+
+    Si cifrar falla, el `config.json` **no se toca** -la instancia sigue
+    cobrando con la credencial que tiene- y se loguea como error, que es lo
+    que despues ve la sonda `auditar_secretos.py`.
+    """
+    informe = config_manager.migrar_secretos_al_almacen()
+    if informe["migradas"]:
+        _log.warning(
+            "secretos movidos de config.json al almacen cifrado: %s",
+            ", ".join(informe["migradas"]),
+        )
+    if informe["ya_estaban"]:
+        _log.warning(
+            "config.json tenia una copia vieja de %s; se vacio (el almacen manda)",
+            ", ".join(informe["ya_estaban"]),
+        )
+    if informe["fallaron"]:
+        _log.error(
+            "no se pudieron cifrar y QUEDAN EN CLARO en config.json: %s",
+            ", ".join(f"{k} ({v})" for k, v in informe["fallaron"].items()),
+        )
+    return informe
+
+
 def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     configure(database_url)
@@ -217,6 +253,26 @@ def create_app(database_url: str) -> FastAPI:
     exigir_schema_al_dia(auth_engine, prefijo="medlibra", base="core")
     auth_sessions = sessionmaker(bind=auth_engine)
 
+    # 🔴 Los secretos de terceros de `config.json` -el access token y la firma
+    # de webhook de MercadoPago, y la contrasena SMTP- dejan de vivir en texto
+    # plano (libracore v1.108.0 + libraauth v0.46.0, 2026-09-17). Se enchufa
+    # ACA, justo despues de `auth_sessions`: es el session factory que apunta a
+    # la base de LIBRACORE, donde -a diferencia de Contalibra- viven las tablas
+    # de libraauth en este producto (ver el comentario de `usuarios` mas
+    # arriba). La tabla `secretos_instancia` la crea la revision `0002` de la
+    # cadena de libraauth -no un `create_all`-, y `exigir_schema_al_dia()` ya
+    # corrio dos lineas arriba, asi que esa revision esta garantizada.
+    #
+    # LibraCore no importa libraauth: recibe el almacen. Por eso el enganche es
+    # del producto, que es el unico que tiene los dos paquetes.
+    #
+    # Desde aca, `config_manager.load()` sigue devolviendo el secreto en claro
+    # a sus consumidores, pero lo trae de la base cifrada y no del archivo. La
+    # migracion de lo que ya estaba en el JSON corre mas abajo, en el mismo
+    # `create_app()`: ver `migrar_secretos()`.
+    _secretos = SecretosRepository(auth_sessions)
+    config_manager.usar_almacen_de_secretos(_secretos)
+
     sessions = get_session_factory()
 
     # Log de actividad (libraauth v0.11.0). Va contra el engine del DOMINIO
@@ -258,6 +314,16 @@ def create_app(database_url: str) -> FastAPI:
     # no alcanza — la ruta y la siembra las conecta el producto, cada una por
     # su lado.
     ensure_demo_user(user_repository)
+
+    # Saca de `config.json` los secretos que quedaron en claro (2026-09-17).
+    # Va DESPUES de `exigir_schema_al_dia` (dos pantallas mas arriba): la
+    # tabla `secretos_instancia` es de la revision `0002` de libraauth, y
+    # escribir en ella antes de saber que existe convertiria un schema viejo
+    # en un 500 en vez del error que dice el comando. Este producto no tiene
+    # un hook de `startup` separado -todo `create_app()` corre sincronico en
+    # el arranque-, asi que la llamada va aca, al mismo tiempo que el resto
+    # del cableado de auth. Idempotente: la segunda vez no hace nada.
+    migrar_secretos()
 
     app = FastAPI(title="MedLibra")
 
