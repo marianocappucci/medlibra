@@ -25,6 +25,10 @@
    motor las genere. */
 @source "../node_modules/libra-ui";
 
+/* El tema de la suite (libra-ui, ADR-007): las variables de color que el backoffice puede cambiar y la regla del ítem activo del menú
+   lateral (fondo #ECFDF5, borde #5EE9B5). Va después de Tailwind y antes de las variables del producto. */
+@import "libra-ui/tema.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
