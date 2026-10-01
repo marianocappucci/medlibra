@@ -14,6 +14,16 @@ tenía cuando se creó el paquete); **sin este flag el `/docs/` de la landing
 deja de poder validar credenciales**.
 """
 from libraauth.session_auth import build_json_api_auth_router
+from libracore import config_manager
+
+
+def _empresa_nombre(_request) -> str | None:
+    """El nombre del negocio de esta instancia, para el subtítulo del sidebar (debajo del nombre del producto).
+
+    Sale de la config de LibraCore —la que edita Configuración > Datos de empresa—, igual que LibraDesk. Se lee en cada
+    request: cambiarlo se ve en el próximo login. Vacío = `None`, y el sidebar no dibuja un subtítulo en blanco."""
+    return (config_manager.load().get("empresa_nombre") or "").strip() or None
+
 
 # `incluir_demo=True` NO enciende nada por si solo: `POST /auth/demo` se
 # registra unicamente si la instancia ademas tiene `DEMO_MODE` y
@@ -26,4 +36,5 @@ from libraauth.session_auth import build_json_api_auth_router
 # humano (2026-09-11). Va junto con el bloqueo por IP, no en su lugar.
 router = build_json_api_auth_router(
     incluir_verify=True, incluir_password_reset=True, incluir_demo=True, captcha=True,
+    get_empresa_nombre=_empresa_nombre,
 )
