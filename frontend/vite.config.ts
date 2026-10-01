@@ -12,6 +12,8 @@ const API_PATHS = [
   '/auth', '/branches', '/resources', '/services', '/patients',
   '/business', '/users', '/reminders', '/deposits', '/config',
   '/dashboard', '/appointments', '/health',
+  // El tema de la suite (libra-ui ADR-008): `cargarTema()` lo pide al arrancar, tiene que llegar al backend también en desarrollo.
+  '/api/tema',
 ]
 
 // Las claves del proxy se emiten como regex (Vite trata como RegExp toda

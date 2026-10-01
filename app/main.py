@@ -37,6 +37,7 @@ from libracore.resguardo_enlace import build_resguardo_enlace_router
 from libracore.respaldo import Instancia
 from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
+from libracore.tema_router import build_tema_admin_router, build_tema_router
 from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
@@ -47,7 +48,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
-from .auth import build_session_auth, require_admin, require_staff
+from .auth import build_session_auth, require_admin, require_admin_o_servicio, require_staff
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
@@ -544,6 +545,12 @@ def create_app(database_url: str) -> FastAPI:
     # de la lectura que haya que dejar abierto.
     app.include_router(build_empresa_router(), dependencies=admin_only)
     app.include_router(build_empresa_admin_router(), dependencies=admin_only)
+
+    # El tema de la suite (libracore ADR-012, libra-ui ADR-007/008): los colores que el backoffice de la suite empuja a esta instancia. La
+    # lectura es PÚBLICA a propósito (el login también va con los colores de la suite y no expone nada sensible). La escritura es del admin O
+    # del token de servicio del backoffice: 🔴 con `require_admin` a secas el backoffice NO entraría (esa guarda no conoce el token).
+    app.include_router(build_tema_router())
+    app.include_router(build_tema_admin_router(), dependencies=[Depends(require_admin_o_servicio)])
 
     # 🔴 DOS bases, y las dos tienen que entrar al backup: `usuarios` vive en
     # la de LibraCore, separada de la del dominio. Un backup de una sola no se
