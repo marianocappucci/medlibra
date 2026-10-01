@@ -7,6 +7,7 @@ import {
 import { createLayout, type NavSection } from 'libra-ui/Layout'
 import { LOGO, WORDMARK } from '@/branding'
 
+// 🔴 Facturación NO está: sale de la vista por pedido del humano (2026-08-22); pasa a Contalibra (ADR-034).
 // Menú en dos niveles (sección + ítems), la forma de Contalibra y VentaLibra (ADR-054 de VentaLibra, 2026-10-01).
 const NAV_SECCIONES: NavSection<{ role?: string; name?: string }>[] = [
   { items: [{ to: '/reportes', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true }] },
@@ -14,6 +15,9 @@ const NAV_SECCIONES: NavSection<{ role?: string; name?: string }>[] = [
     label: 'Atención',
     items: [
       { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+      // Junto a la Agenda y sin `adminOnly`: la fila la opera el mostrador, igual que los turnos (el router del backend es
+      // `staff_or_admin`, ADR-031).
+      { to: '/demanda-espontanea', label: 'Demanda espontánea', icon: ListOrdered },
       { to: '/pacientes', label: 'Pacientes', icon: Users },
     ],
   },
