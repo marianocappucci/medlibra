@@ -570,7 +570,7 @@ function Excepciones({ resourceId }: { resourceId: string }) {
                 <span className="tabular-nums">
                   {e.starts_at.slice(0, 5)} – {e.ends_at.slice(0, 5)}
                 </span>
-                <span className={e.available ? 'text-emerald-600' : 'text-destructive'}>
+                <span className={e.available ? 'text-exito' : 'text-destructive'}>
                   {e.available ? 'abre' : 'cierra'}
                 </span>
                 <Button
