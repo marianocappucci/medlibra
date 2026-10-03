@@ -43,7 +43,7 @@ admin/
 # venv de los scripts de provisioning
 .venv-scripts/
 # datos, .env y compose de cada instancia
-/clientes/
+/clientes
 # base de desarrollo local
 dev-data/
 # credenciales de Nginx Proxy Manager
