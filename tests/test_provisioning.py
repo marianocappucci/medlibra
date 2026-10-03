@@ -215,3 +215,26 @@ def test_la_instancia_de_dev_declara_el_SMTP_que_el_motor_va_a_buscar():
     # un patrón mal escrito daría la lista vacía y el test pasaría siempre.
     assert re.search(r"^\s+- LIBRAAUTH_SMTP_HOST=", bloque, re.MULTILINE)
     assert not re.search(r"^\s+- LIBRAAUTH_SMTP_INVENTADA=", bloque, re.MULTILINE)
+
+
+@pytest.mark.parametrize("script", ["nuevo_cliente", "panel_admin"])
+def test_el_directorio_de_clientes_sale_del_motor_y_respeta_el_override(script, monkeypatch, tmp_path):
+    """`CLIENTES_DIR` de los scripts es `get_config().clientes_dir`, no una ruta propia.
+
+    Hasta libracore v1.123.0 cada script recomponía `REPO_ROOT / "clientes"` y el
+    directorio de datos no se podía mover sin tocar el código
+    (wiki: sacar-clientes-del-arbol-del-repo, etapa 1). El default tiene que seguir
+    siendo `<repo>/clientes`, y `LIBRA_CLIENTES_DIR` tiene que mandar.
+    """
+    from libracore.provisioning import get_config
+
+    repo = pathlib.Path(__file__).resolve().parent.parent
+    modulo = importlib.import_module(f"scripts.{script}")
+
+    monkeypatch.delenv("LIBRA_CLIENTES_DIR", raising=False)
+    modulo = importlib.reload(modulo)
+    assert modulo.CLIENTES_DIR == get_config().clientes_dir == repo / "clientes"
+
+    monkeypatch.setenv("LIBRA_CLIENTES_DIR", str(tmp_path))
+    modulo = importlib.reload(modulo)
+    assert modulo.CLIENTES_DIR == get_config().clientes_dir == tmp_path

@@ -175,7 +175,7 @@ if es_postgres "$URL_DOMINIO"; then
   # Corren con la app PARADA y en un contenedor efimero, igual que
   # `cmd_actualizar`: si la app arrancara antes, su `create_all()` dejaria las
   # tablas puestas y la cadena de LibraGenda volveria a chocar.
-  COMPOSE="$REPO/clientes/demo/docker-compose.yml"
+  COMPOSE="${CLIENTES_DIR:-${LIBRA_CLIENTES_DIR:-$REPO/clientes}}/demo/docker-compose.yml"
   [ -f "$COMPOSE" ] || { log "ABORTA: no encontre $COMPOSE."; docker start "$CONTENEDOR" >/dev/null; exit 11; }
 
   CADENAS=$("$REPO/.venv-scripts/bin/python" - <<PY || true
