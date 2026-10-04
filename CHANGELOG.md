@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **libracore `v1.124.0`** (2026-10-04; antes `v1.123.0`). La guarda del CUIT del receptor (`arca_wsfe.problema_del_receptor`, que `solicitar_cae` corre antes de llamar a ARCA): CUIT de 11 digitos en clase A y FCE, y verificador valido en toda clase. El endpoint de notas no lo monta este producto. Sin migración.
+
 - **libracore `v1.109.0` y libra-ui `v0.73.2`** (2026-09-17). La copia externa
   del backup sale cifrada con `rclone crypt`, o no sale —eso corre en el host y
   ya está desplegado ahí—. Lo que llega con este pin: la pantalla *Datos /
