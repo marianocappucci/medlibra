@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **libracore `v1.126.0`** (2026-10-04; antes `v1.124.0`). Suma el nucleo `libracore.notas_de_credito` (este producto todavia no lo usa); la guarda del CUIT del receptor deja de bloquear las notas (ARCA autoriza la nota de credito a un CUIT que no cierra, igual que la factura), e incluye v1.125.0 (los routers de libracore rechazan booleanos en los campos numericos). Sin migración.
+
 - **libracore `v1.124.0`** (2026-10-04; antes `v1.123.0`). La guarda del CUIT del receptor (`arca_wsfe.problema_del_receptor`, que `solicitar_cae` corre antes de llamar a ARCA): CUIT de 11 digitos en clase A y FCE, y verificador valido en toda clase. El endpoint de notas no lo monta este producto. Sin migración.
 
 - **libracore `v1.109.0` y libra-ui `v0.73.2`** (2026-09-17). La copia externa
