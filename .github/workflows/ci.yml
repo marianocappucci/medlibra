@@ -180,6 +180,14 @@ jobs:
       # `--cov` sin argumento toma el paquete de [tool.coverage.run] del
       # pyproject. El piso (fail_under) tambien esta ahi: es un trinquete
       # fijado 2 puntos debajo de lo medido el 2026-07-31, no una meta.
+      #
+      # `-n 4` (pytest-xdist): cuatro workers, cada uno con SU base de dominio y
+      # SU base de LibraCore, que los tests con `admin_client` restauran por test
+      # desde una plantilla -- ver `tests/motor_de_test.py` y
+      # `libracore.testing.pg_por_worker`. Con mas
+      # workers que vCPU compiten con el PostgreSQL del servicio (reglas/ci.md
+      # del wiki). `--cov` se queda: el piso de arriba sigue valiendo.
+      #
       # Una sola corrida, contra el motor real. Hasta el 2026-08-25 habia dos:
       # esta --- SIN la variable, o sea SQLite --- y otra despues. El guard de
       # `tests/motor_de_test.py` ahora hace imposible la primera.
@@ -187,7 +195,7 @@ jobs:
         if: steps.cambios.outputs.backend == 'true'
         env:
           MEDLIBRA_TEST_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
-        run: pytest -v --cov --cov-report=term-missing
+        run: pytest -n 4 -v --cov --cov-report=term-missing
 
       # La misma suite contra el motor de destino. Sin `--cov`: la cobertura ya
       # se midio arriba y es la misma, y el trinquete no tiene por que contarse

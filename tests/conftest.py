@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from libraauth import session_auth
 from libraauth.captcha import Captcha
-from motor_de_test import destino_libracore, fresh_database_url
+from motor_de_test import destino_libracore, fresh_database_url, limpiar_entre_tests
 
 from app.main import create_app
 
@@ -24,7 +24,75 @@ CAPTCHA_DE_ORIGINAL = session_auth._captcha_de
 
 
 @pytest.fixture(autouse=True)
-def _dev_env(monkeypatch, tmp_path):
+def _sin_almacen_de_secretos_colgado():
+    """El almacen de secretos de `config_manager` no se filtra entre tests.
+
+    `create_app()` llama a `config_manager.usar_almacen_de_secretos(...)`
+    (libracore v1.108.0) con un repositorio atado a la base de ESE test, y es un
+    global del proceso. Ahora que la base de un test con `admin_client` se BORRA
+    (`FORCE`, ver `motor_de_test.py`) y no se vacia, el almacen queda apuntando a
+    conexiones que el servidor ya cerro, y el primer test posterior que llame a
+    `config_manager.load()` sin levantar su propia app muere con `AdminShutdown`,
+    lejisimos de su causa. Sin almacen, `config_manager` lee el JSON.
+
+    Antes y despues: antes por si un test anterior lo dejo puesto, despues para
+    no ensuciar al que viene. Mismo arreglo que VentaLibra.
+    """
+    from libracore import config_manager
+
+    config_manager.usar_almacen_de_secretos(None)
+    yield
+    config_manager.usar_almacen_de_secretos(None)
+
+
+def _construir_armada(url_dominio: str, url_core: str) -> None:
+    """Deja las dos bases como las deja `admin_client` antes de loguear: `create_app()` sobre ellas.
+
+    Es la plantilla "armada" (ver `motor_de_test.py`). Se corre una vez por
+    worker, con el mismo entorno que `_dev_env` le pone a cada test, y no deja
+    nada vivo: ni conexiones (las termina `motor_de_test`), ni el engine de
+    LibraGenda, ni el pool del engine de auth, ni el almacen de secretos, ni la
+    configuracion de `libracore.db.core`, que son globales del proceso. Los
+    archivos (documentos, `config.json`, logos) van a una carpeta que se borra.
+    """
+    import shutil
+    import tempfile
+
+    from libracore import config_manager
+    from libracore.db import core as libracore_core
+    from libragenda.database import reset as soltar_engine
+
+    carpeta = tempfile.mkdtemp(prefix="medlibra-plantilla-")
+    mp = pytest.MonkeyPatch()
+    try:
+        mp.setenv("ENV", "development")
+        mp.setenv("MEDLIBRA_DOCUMENTS_DIR", f"{carpeta}/medlibra_documents")
+        mp.setenv("MEDLIBRA_LIBRACORE_DB_PATH", url_core)
+        mp.setattr(config_manager, "CONFIG_PATH", f"{carpeta}/config.json")
+        mp.setattr(config_manager, "LOGO_DIR", f"{carpeta}/logos")
+        # `create_app()` apunta `libracore.db.core` a la base de la plantilla; el
+        # `setattr` con el mismo valor es para que `undo()` lo deje como estaba.
+        mp.setattr(libracore_core, "_db_path", libracore_core._db_path)
+        mp.setattr(libracore_core, "_database_url", libracore_core._database_url)
+        app = create_app(url_dominio)
+        app.state.auth_engine.dispose()
+    finally:
+        soltar_engine()
+        mp.undo()
+        config_manager.usar_almacen_de_secretos(None)
+        shutil.rmtree(carpeta, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def _dev_env(request, monkeypatch, tmp_path):
+    # Bases nuevas por TEST (ver `motor_de_test.py`): la ARMADA, restaurada de una
+    # plantilla, para los tests que usan `admin_client` (`staff_client` lo arrastra
+    # en `fixturenames`); la VACIA (dominio sin tablas, LibraCore con solo la
+    # cadena de auth, como siempre) para el resto, que arma su app o prueba
+    # migraciones desde cero. Antes de tocar el entorno: `_construir_armada` pone
+    # el suyo.
+    usa_admin_client = "admin_client" in request.fixturenames
+    limpiar_entre_tests(_construir_armada if usa_admin_client else None)
     # SessionAuth's SECRET_KEY resolution and the admin bootstrap both
     # fail closed unless ENV=development -- see app/auth.py and
     # app/services/users.py::ensure_default_admin.
