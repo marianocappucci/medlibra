@@ -670,8 +670,8 @@ migrations = [
 
 [[package]]
 name = "libracore"
-version = "1.132.0"
-source = { git = "https://github.com/marianocappucci/libracore.git?rev=v1.132.0#d8369fb891636c36568fb24484ff534db5e85b47" }
+version = "1.134.0"
+source = { git = "https://github.com/marianocappucci/libracore.git?rev=v1.134.0#7d0326aea59b3ecdc82f6d8f0ce9748aa7342fb9" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
@@ -810,7 +810,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.111,<1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27,<1" },
     { name = "libraauth", extras = ["migrations"], git = "https://github.com/marianocappucci/libraauth.git?rev=v0.46.0" },
-    { name = "libracore", git = "https://github.com/marianocappucci/libracore.git?rev=v1.132.0" },
+    { name = "libracore", git = "https://github.com/marianocappucci/libracore.git?rev=v1.134.0" },
     { name = "libragenda", git = "https://github.com/marianocappucci/libragenda.git?rev=v0.11.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6" },
