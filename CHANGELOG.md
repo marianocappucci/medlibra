@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **libracore `v1.131.0`** (2026-10-05; antes `v1.127.0`). Trae la **nota de crédito parcial** con tope acumulado (v1.130.0: `{"importe": ...}` en `POST /api/facturas/{id}/nota-credito`; sin él, la total de siempre), la marca de cada nota en la cuenta corriente (v1.128.0), `build_nota_de_credito_router` (v1.129.0) y la nota total de una FCE frenada antes de ir a ARCA (v1.131.0). Cambia sólo `notas_de_credito` y `facturas_router`. Sin migración.
+
 - **libracore `v1.126.0`** (2026-10-04; antes `v1.124.0`). Suma el nucleo `libracore.notas_de_credito` (este producto todavia no lo usa); la guarda del CUIT del receptor deja de bloquear las notas (ARCA autoriza la nota de credito a un CUIT que no cierra, igual que la factura), e incluye v1.125.0 (los routers de libracore rechazan booleanos en los campos numericos). Sin migración.
 
 - **libracore `v1.124.0`** (2026-10-04; antes `v1.123.0`). La guarda del CUIT del receptor (`arca_wsfe.problema_del_receptor`, que `solicitar_cae` corre antes de llamar a ARCA): CUIT de 11 digitos en clase A y FCE, y verificador valido en toda clase. El endpoint de notas no lo monta este producto. Sin migración.
