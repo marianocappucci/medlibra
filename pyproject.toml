@@ -79,7 +79,7 @@ dependencies = [
     # desplegar: ver el CHANGELOG de libracore.
     # v1.123.0 -> v1.124.0 (2026-10-04): la guarda del CUIT del receptor (`arca_wsfe.problema_del_receptor`, que `solicitar_cae` corre antes de llamar a ARCA): CUIT de 11 digitos en clase A y FCE, y verificador valido en toda clase. El endpoint de notas no lo monta este producto. Sin migracion.
     # v1.124.0 -> v1.126.0 (2026-10-04): suma el nucleo `libracore.notas_de_credito` (este producto todavia no lo usa); la guarda del CUIT del receptor deja de bloquear las notas (ARCA autoriza la nota de credito a un CUIT que no cierra, igual que la factura), e incluye v1.125.0 (los routers de libracore rechazan booleanos en los campos numericos). Sin migracion.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.139.0",
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.140.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
