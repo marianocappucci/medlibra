@@ -2,15 +2,14 @@
 // Gestiolibra/MedLibra/VentaLibra salvo branding/redirectTo -- ver
 // wiki/analyses/auditoria-duplicacion-familia-libra.md).
 import { createLogin } from 'libra-ui/Login'
-import { LOGO, WORDMARK } from '@/branding'
+import { WORDMARK } from '@/branding'
 
 export const Login = createLogin({
   productName: 'MedLibra',
   productInitial: 'M',
-  // El logo y el nombre en Montserrat Bold (libra-ui v0.23.0). `productInitial`
-  // sigue arriba porque es el fallback del motor: si el asset no resuelve, la
-  // pantalla muestra la inicial en vez de un hueco.
-  logo: { src: LOGO, className: 'h-[72px] w-[72px]' },
+  // La marca (ícono + color del producto) la dibuja libra-ui con `producto` (ADR-033) y el nombre va en Montserrat Bold (libra-ui v0.23.0).
+  // `productInitial` sigue arriba porque es el fallback del motor.
+  producto: 'medlibra',
   wordmarkClassName: `${WORDMARK} text-[22px]`,
   redirectTo: '/agenda',
   // Enlace "¿Olvidaste tu contraseña?" -- va de la mano con
