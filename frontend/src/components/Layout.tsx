@@ -5,7 +5,7 @@ import {
   CalendarDays, LayoutDashboard, ListOrdered, ScrollText, Settings, UserCog, Users,
 } from 'lucide-react'
 import { createLayout, type NavSection } from 'libra-ui/Layout'
-import { LOGO, WORDMARK } from '@/branding'
+import { WORDMARK } from '@/branding'
 
 // 🔴 Facturación NO está: sale de la vista por pedido del humano (2026-08-22); pasa a Contalibra (ADR-034).
 // Menú en dos niveles (sección + ítems), la forma de Contalibra y VentaLibra (ADR-054 de VentaLibra, 2026-10-01).
@@ -34,22 +34,15 @@ const NAV_SECCIONES: NavSection<{ role?: string; name?: string }>[] = [
 export const Layout = createLayout({
   productName: 'MedLibra',
   productInitial: 'M',
-  // El logo y el nombre en Montserrat Bold. Las clases salen de `@/branding`,
-  // el mismo archivo que usa el login: es lo que garantiza que las dos
-  // pantallas escriban "MedLibra" igual.
-  //
-  // El override de colapsado NO es decorativo: con la sidebar en modo icono el
-  // ancho util son 32 px y sin bajarlo el logo de 36 se sale de la barra.
-  logo: {
-    src: LOGO,
-    className: 'h-9 w-9 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8',
-  },
-  // 🔴 El interlineado va PEGADO al tamano (`/[21px]`) y no como `leading-*`
+  // La marca (ícono + color del producto) la dibuja libra-ui con `producto` (ADR-033) y el nombre va en Montserrat Bold. Las clases del
+  // nombre salen de `@/branding`, el mismo archivo que usa el login: es lo que garantiza que las dos pantallas escriban "MedLibra" igual.
+  producto: 'medlibra',
+  // 🔴 El interlineado va PEGADO al tamano (`/[17px]`) y no como `leading-*`
   // aparte: en Tailwind v4 una utilidad de tamano emite tambien `line-height`,
   // asi que el `leading-none` que libra-ui pone por defecto perderia contra
   // este `text-[15px]` y el nombre se quedaria con 22,5 px de caja.
-  // 21 = 36 (el alto del logo) menos los 15 de la linea de la empresa.
-  wordmarkClassName: `${WORDMARK} text-[15px]/[21px]`,
+  // 17 = 32 (el alto de `MarcaProducto`) menos los 15 de la linea de la empresa.
+  wordmarkClassName: `${WORDMARK} text-[15px]/[17px]`,
   navSections: NAV_SECCIONES,
   // El nombre del negocio, debajo del nombre del producto (viene de Configuración > Datos de empresa, vía `/auth/me`).
   getUserSubtitle: (u) => (u as { empresa_nombre?: string }).empresa_nombre,

@@ -1,13 +1,13 @@
-// La identidad visual de MedLibra: el logo y como se escribe el nombre.
+// La identidad visual de MedLibra: como se escribe el nombre.
 //
 // Vive en un archivo propio porque lo usan las DOS superficies que lo muestran
 // -- el login y la sidebar -- y son shims distintos sobre `libra-ui`. Con la
 // definicion repetida en cada uno, alcanza con tocar una para que las dos
 // pantallas dejen de coincidir, que es el tipo de divergencia que nadie
 // reporta porque nunca se ven juntas.
-import logoProducto from '@/assets/logo-medlibra.png'
-
-export const LOGO = logoProducto
+//
+// El logo ya no está acá: la marca (el ícono blanco sobre un cuadrado del color del producto) la dibuja libra-ui con la prop
+// `producto` de `Layout` y `Login` (ADR-033 del kit).
 
 /**
  * Familia, peso y color del nombre del producto. Igual en los seis productos

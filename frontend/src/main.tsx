@@ -5,10 +5,15 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { cargarTema } from 'libra-ui/tema'
+import { aplicarIdentidad } from 'libra-ui/identidad'
 
 // El tema de la suite (libra-ui ADR-007/008): aplica lo último guardado de inmediato y pide los colores a esta misma instancia. No espera
 // ni puede fallar: sin red o con un error, la app arranca con los colores de siempre.
 void cargarTema()
+
+// La identidad del producto (libra-ui ADR-033): su acento (`--primary`, `--ring`, `--sidebar-*`, en claro y en oscuro) y el `theme-color`.
+// Va en un `<style>`, así que el acento que el backoffice elige por instancia (`cargarTema`, en línea) sigue ganando.
+aplicarIdentidad('medlibra')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
