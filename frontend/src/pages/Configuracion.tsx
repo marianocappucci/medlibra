@@ -41,15 +41,14 @@
  *  diferencia de la agenda y los pacientes, que se usan todos los días.
  */
 import { createConfiguracion } from 'libra-ui/Configuracion'
-import { CalendarClock, DoorClosed, MapPin, Settings, Stethoscope } from 'lucide-react'
+import { CalendarClock, DoorClosed, MapPin, Stethoscope } from 'lucide-react'
 import { SedesCard } from './configuracion/sedes'
 import { ConsultoriosCard } from './configuracion/consultorios'
 import { PrestacionesCard } from './configuracion/prestaciones'
 import { ProfesionalesCard } from './configuracion/profesionales'
 
 export const Configuracion = createConfiguracion({
-  // El icono que el sidebar de este producto le da a /configuracion.
-  icono: Settings,
+  // Sin `icono`: el default del kit es `ICONOS.configuracion` (ADR-035), el mismo que el sidebar de este producto.
   // Sale en el tutorial de Gmail: es el nombre que hay que ponerle a la
   // contraseña de aplicación que se crea en la cuenta de Google.
   producto: 'MedLibra',
