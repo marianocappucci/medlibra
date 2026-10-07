@@ -31,8 +31,9 @@ import { useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { CalendarDays, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { ICONOS } from 'libra-ui/iconos-identidad'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
 import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
 import {
@@ -314,7 +315,7 @@ export function Agenda() {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <TituloPantalla icono={CalendarDays}>Agenda</TituloPantalla>
+          <TituloPantalla icono={ICONOS.agenda}>Agenda</TituloPantalla>
           <p className="text-sm text-muted-foreground">
             Qué tiene cada profesional y dónde queda lugar. Entrá a un turno para
             confirmarlo, cancelarlo o completarlo.
