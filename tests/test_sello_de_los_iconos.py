@@ -46,6 +46,16 @@ def test_el_index_sella_los_iconos_que_enlaza():
         )
 
 
+def test_el_index_sella_el_favicon_svg():
+    """El favicon vectorial vive en `public/` (no en `icons/`) y Chrome lo cachea por URL igual que los PNG."""
+    sello = hashlib.sha256((PUBLICO / "favicon.svg").read_bytes()).hexdigest()[:8]
+    esperado = f'href="/favicon.svg?v={sello}"'
+
+    assert esperado in INDEX.read_text(encoding="utf-8"), (
+        f"el sello de favicon.svg no es el de sus bytes: tiene que decir {esperado}"
+    )
+
+
 def test_el_manifest_sella_sus_iconos():
     """El manifest alimenta el icono de la aplicación instalada, que se cachea
     igual que el de la pestaña y por el mismo motivo."""
@@ -64,6 +74,6 @@ def test_ninguna_url_de_icono_queda_sin_sello():
     que ya están: un `<link>` nuevo sin sellar los deja a los dos en verde."""
     texto = INDEX.read_text(encoding="utf-8") + MANIFEST.read_text(encoding="utf-8")
 
-    sin_sello = re.findall(r"/icons/[\w.-]+\.png(?!\?v=)", texto)
+    sin_sello = re.findall(r"(?:/icons/[\w.-]+\.png|/favicon\.svg)(?!\?v=)", texto)
 
     assert not sin_sello, f"URLs de icono sin sello: {sin_sello}"
