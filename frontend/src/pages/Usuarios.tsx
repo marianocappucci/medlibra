@@ -13,13 +13,11 @@
 // `usuarioActualId` sale del contexto de auth: oculta el botón en la fila
 // propia, que el backend rechaza igual pero mejor no ofrecer.
 
-import { UserCog } from 'lucide-react'
 import { Usuarios as Compartida } from 'libra-ui/Usuarios'
 import { useAuth } from '../context/AuthContext'
 
-/** El icono se pasa acá y no en el router: es un dato de ESTE producto —el que
- *  su propio sidebar le da a `/usuarios`— y el paquete no puede saberlo. */
+/** Sin `icono`: el default del kit es `ICONOS.usuarios` (ADR-035), el mismo que el sidebar de este producto. */
 export function Usuarios() {
   const { user } = useAuth()
-  return <Compartida icono={UserCog} permitirEliminar usuarioActualId={user?.id} />
+  return <Compartida permitirEliminar usuarioActualId={user?.id} />
 }

@@ -21,8 +21,8 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { ICONOS } from 'libra-ui/iconos-identidad'
 import { fechaHora } from '@/lib/fechas'
 
 function describeError(err: unknown): string {
@@ -928,7 +928,7 @@ export function PacienteFicha() {
         <Button asChild variant="outline" size="sm">
           <Link to="/pacientes">← Pacientes</Link>
         </Button>
-        <TituloPantalla icono={Users}>{patient?.name ?? 'Cargando…'}</TituloPantalla>
+        <TituloPantalla icono={ICONOS.clientes}>{patient?.name ?? 'Cargando…'}</TituloPantalla>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { LayoutDashboard } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { ICONOS } from 'libra-ui/iconos-identidad'
 import { hoyISO } from 'libra-ui/fechas'
 
 export function Dashboard() {
@@ -43,7 +43,7 @@ export function Dashboard() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <TituloPantalla icono={LayoutDashboard}>Dashboard</TituloPantalla>
+        <TituloPantalla icono={ICONOS.dashboard}>Dashboard</TituloPantalla>
         <div className="flex items-end gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="date-from">Desde</Label>
