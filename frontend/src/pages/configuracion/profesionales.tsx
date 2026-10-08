@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { SelectBuscable } from 'libra-ui/SelectBuscable'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -41,8 +42,7 @@ import {
   CampoActivo, ListaDelCatalogo, PieDeFormulario, comoIdentificador, describirError,
 } from './catalogo'
 
-const SIN_SEDE = '__ninguna__'
-const VACIO = { id: '', name: '', branch_id: SIN_SEDE, active: true }
+const VACIO = { id: '', name: '', branch_id: '', active: true }
 
 function pesos(valor: string | number): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
@@ -91,7 +91,7 @@ export function ProfesionalesCard() {
     setEditando(true)
     setForm({
       id: r.id, name: r.name,
-      branch_id: r.branch_id ?? SIN_SEDE, active: r.active,
+      branch_id: r.branch_id ?? '', active: r.active,
     })
   }
 
@@ -107,7 +107,7 @@ export function ProfesionalesCard() {
     setError(null)
     const cuerpo = {
       name: form.name, active: form.active,
-      branch_id: form.branch_id === SIN_SEDE ? null : form.branch_id,
+      branch_id: form.branch_id === '' ? null : form.branch_id,
     }
     try {
       if (editando) {
@@ -186,18 +186,15 @@ export function ProfesionalesCard() {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="prof-sede">Sede</Label>
-                <Select
+                <SelectBuscable
+                  id="prof-sede"
                   value={form.branch_id}
-                  onValueChange={(v) => setForm({ ...form, branch_id: v })}
-                >
-                  <SelectTrigger id="prof-sede"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SIN_SEDE}>Sin sede</SelectItem>
-                    {sedes.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setForm({ ...form, branch_id: v })}
+                  opciones={[
+                    { value: '', label: 'Sin sede' },
+                    ...sedes.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                />
               </div>
             </div>
             <CampoActivo
