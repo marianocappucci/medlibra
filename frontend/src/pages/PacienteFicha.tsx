@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { fechaHora } from '@/lib/fechas'
+import { CampoArchivo } from 'libra-ui/CampoArchivo'
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.detail
@@ -592,6 +593,8 @@ function DocumentsSection({ patientId, isAdmin }: { patientId: string; isAdmin: 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [file, setFile] = useState<File | null>(null)
+  // Falta de archivo: va debajo del campo, no en el aviso general de la pestaña.
+  const [fileError, setFileError] = useState<string | null>(null)
 
   const form = useForm<DocumentFormValues>({
     resolver: zodResolver(documentSchema),
@@ -615,7 +618,7 @@ function DocumentsSection({ patientId, isAdmin }: { patientId: string; isAdmin: 
 
   async function handleSubmit(values: DocumentFormValues) {
     if (!file) {
-      setError('Elegí un archivo para subir.')
+      setFileError('Elegí un archivo para subir.')
       return
     }
     setSaving(true)
@@ -691,12 +694,14 @@ function DocumentsSection({ patientId, isAdmin }: { patientId: string; isAdmin: 
               />
               <div className="grid gap-1.5">
                 <Label htmlFor="document-file">Archivo (PDF/PNG/JPG, máx. 20MB)</Label>
-                <input
+                <CampoArchivo
                   id="document-file"
-                  type="file"
+                  archivo={file}
+                  onChange={(f) => { setFile(f); setFileError(null) }}
                   accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  className="text-sm"
+                  disabled={saving}
+                  error={fileError ?? undefined}
+                  className="w-64"
                 />
               </div>
               <Button type="submit" disabled={saving} className="mt-6">
