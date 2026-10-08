@@ -313,36 +313,40 @@ export function Agenda() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <TituloPantalla icono={ICONOS.agenda}>Agenda</TituloPantalla>
-          <p className="text-sm text-muted-foreground">
-            Qué tiene cada profesional y dónde queda lugar. Entrá a un turno para
-            confirmarlo, cancelarlo o completarlo.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-2">
-            <Label htmlFor="filtro-profesional">Profesional</Label>
-            <Select
-              value={filtro}
-              onValueChange={(v) => setParams(con({ profesional: v }))}
-            >
-              <SelectTrigger id="filtro-profesional" className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS}>Todos los profesionales</SelectItem>
-                {activos.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={abrirAlta} disabled={activos.length === 0}>
-            <Plus />Nuevo turno
-          </Button>
-        </div>
+      <div>
+        <TituloPantalla
+          icono={ICONOS.agenda}
+          acciones={
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="filtro-profesional">Profesional</Label>
+                <Select
+                  value={filtro}
+                  onValueChange={(v) => setParams(con({ profesional: v }))}
+                >
+                  <SelectTrigger id="filtro-profesional" className="w-52">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODOS}>Todos los profesionales</SelectItem>
+                    {activos.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={abrirAlta} disabled={activos.length === 0}>
+                <Plus />Nuevo turno
+              </Button>
+            </div>
+          }
+        >
+          Agenda
+        </TituloPantalla>
+        <p className="text-sm text-muted-foreground">
+          Qué tiene cada profesional y dónde queda lugar. Entrá a un turno para
+          confirmarlo, cancelarlo o completarlo.
+        </p>
       </div>
 
       <NavegadorCalendario vista={vista} dia={dia} hoy={hoy} href={href}>

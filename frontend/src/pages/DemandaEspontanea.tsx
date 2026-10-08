@@ -250,52 +250,56 @@ export function DemandaEspontanea() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <TituloPantalla icono={ListOrdered}>Demanda espontánea</TituloPantalla>
-          <p className="text-sm text-muted-foreground">
-            La fila por orden de llegada de los bloques sin turnos. Anotá a quien
-            llega y llamalo cuando le toque.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-2">
-            <Label htmlFor="fila-dia">Día</Label>
-            <Input
-              id="fila-dia" type="date" className="w-40"
-              value={dia}
-              onChange={(e) => {
-                if (DIA_ISO.test(e.target.value)) {
-                  setParams(con({ dia: e.target.value, bloque: '' }))
-                }
-              }}
-            />
-          </div>
-          <Button
-            variant="outline" disabled={dia === hoy}
-            onClick={() => setParams(con({ dia: '', bloque: '' }))}
-          >
-            Hoy
-          </Button>
-          {bloques && bloques.length > 0 && (
-            <div className="grid gap-2">
-              <Label htmlFor="fila-bloque">Bloque</Label>
-              <Select
-                value={bloqueId ?? ''}
-                onValueChange={(v) => setParams(con({ bloque: v }))}
+      <div>
+        <TituloPantalla
+          icono={ListOrdered}
+          acciones={
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="fila-dia">Día</Label>
+                <Input
+                  id="fila-dia" type="date" className="w-40"
+                  value={dia}
+                  onChange={(e) => {
+                    if (DIA_ISO.test(e.target.value)) {
+                      setParams(con({ dia: e.target.value, bloque: '' }))
+                    }
+                  }}
+                />
+              </div>
+              <Button
+                variant="outline" disabled={dia === hoy}
+                onClick={() => setParams(con({ dia: '', bloque: '' }))}
               >
-                <SelectTrigger id="fila-bloque" className="w-80">
-                  <SelectValue placeholder="Bloque…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bloques.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{describirBloque(b)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Hoy
+              </Button>
+              {bloques && bloques.length > 0 && (
+                <div className="grid gap-2">
+                  <Label htmlFor="fila-bloque">Bloque</Label>
+                  <Select
+                    value={bloqueId ?? ''}
+                    onValueChange={(v) => setParams(con({ bloque: v }))}
+                  >
+                    <SelectTrigger id="fila-bloque" className="w-80">
+                      <SelectValue placeholder="Bloque…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bloques.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>{describirBloque(b)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          }
+        >
+          Demanda espontánea
+        </TituloPantalla>
+        <p className="text-sm text-muted-foreground">
+          La fila por orden de llegada de los bloques sin turnos. Anotá a quien
+          llega y llamalo cuando le toque.
+        </p>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
