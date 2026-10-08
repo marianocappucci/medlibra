@@ -183,12 +183,14 @@ export function Pacientes() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between">
-        <TituloPantalla icono={ICONOS.clientes}>Pacientes</TituloPantalla>
-        {editingId === null && (
+      <TituloPantalla
+        icono={ICONOS.clientes}
+        acciones={editingId === null && (
           <Button onClick={startCreate}>+ Nuevo paciente</Button>
         )}
-      </div>
+      >
+        Pacientes
+      </TituloPantalla>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

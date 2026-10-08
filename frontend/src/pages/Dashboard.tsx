@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, STATUS_LABELS, type DashboardSummary } from '../api'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TarjetaIndicador } from 'libra-ui/TarjetaIndicador'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { hoyISO } from 'libra-ui/fechas'
@@ -42,19 +42,23 @@ export function Dashboard() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex items-center justify-between">
-        <TituloPantalla icono={ICONOS.dashboard}>Dashboard</TituloPantalla>
-        <div className="flex items-end gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="date-from">Desde</Label>
-            <Input id="date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+      <TituloPantalla
+        icono={ICONOS.dashboard}
+        acciones={
+          <div className="flex items-end gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="date-from">Desde</Label>
+              <Input id="date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="date-to">Hasta</Label>
+              <Input id="date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+            </div>
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="date-to">Hasta</Label>
-            <Input id="date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
-          </div>
-        </div>
-      </div>
+        }
+      >
+        Dashboard
+      </TituloPantalla>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -68,51 +72,39 @@ export function Dashboard() {
 
       {summary && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardDescription>Turnos</CardDescription>
-              <CardTitle className="text-3xl">{summary.turnos.total_en_periodo}</CardTitle>
-              <CardDescription>en el rango — {summary.turnos.hoy} hoy</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                {Object.entries(summary.turnos.por_estado)
-                  .filter(([, count]) => count > 0)
-                  .map(([status, count]) => (
-                    <li key={status} className="flex justify-between">
-                      <span>{STATUS_LABELS[status as keyof typeof STATUS_LABELS] ?? status}</span>
-                      <span className="font-medium text-foreground">{count}</span>
-                    </li>
-                  ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <TarjetaIndicador
+            concepto="turnos" etiqueta="Turnos" valor={summary.turnos.total_en_periodo}
+            ayuda={`en el rango — ${summary.turnos.hoy} hoy`}
+          >
+            <ul className="space-y-1">
+              {Object.entries(summary.turnos.por_estado)
+                .filter(([, count]) => count > 0)
+                .map(([status, count]) => (
+                  <li key={status} className="flex justify-between">
+                    <span>{STATUS_LABELS[status as keyof typeof STATUS_LABELS] ?? status}</span>
+                    <span className="font-medium text-foreground">{count}</span>
+                  </li>
+                ))}
+            </ul>
+          </TarjetaIndicador>
 
-          <Card>
-            <CardHeader>
-              <CardDescription>Pacientes</CardDescription>
-              <CardTitle className="text-3xl">{summary.pacientes.total_activos}</CardTitle>
-              <CardDescription>activos — {summary.pacientes.nuevos_en_periodo} nuevos en el rango</CardDescription>
-            </CardHeader>
-          </Card>
+          <TarjetaIndicador
+            concepto="pacientes" etiqueta="Pacientes" valor={summary.pacientes.total_activos}
+            ayuda={`activos — ${summary.pacientes.nuevos_en_periodo} nuevos en el rango`}
+          />
 
-          <Card>
-            <CardHeader>
-              <CardDescription>Recordatorios y señas</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li className="flex justify-between">
-                  <span>Recordatorios enviados</span>
-                  <span className="font-medium text-foreground">{summary.recordatorios_enviados_en_periodo}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Señas pendientes</span>
-                  <span className="font-medium text-foreground">{summary.senas_pendientes}</span>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
+          <TarjetaIndicador concepto="recordatorios" etiqueta="Recordatorios y señas">
+            <ul className="space-y-1">
+              <li className="flex justify-between">
+                <span>Recordatorios enviados</span>
+                <span className="font-medium text-foreground">{summary.recordatorios_enviados_en_periodo}</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Señas pendientes</span>
+                <span className="font-medium text-foreground">{summary.senas_pendientes}</span>
+              </li>
+            </ul>
+          </TarjetaIndicador>
         </div>
       )}
     </div>
