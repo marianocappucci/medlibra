@@ -21,6 +21,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { ListOrdered } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { EncabezadoDePantalla } from 'libra-ui/acciones'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
 import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
 import { hoyISO } from 'libra-ui/fechas'
@@ -33,9 +34,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form'
@@ -250,57 +248,52 @@ export function DemandaEspontanea() {
 
   return (
     <div className="grid gap-4">
-      <div>
-        <TituloPantalla
-          icono={ListOrdered}
-          acciones={
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="grid gap-2">
-                <Label htmlFor="fila-dia">Día</Label>
-                <Input
-                  id="fila-dia" type="date" className="w-40"
-                  value={dia}
-                  onChange={(e) => {
-                    if (DIA_ISO.test(e.target.value)) {
-                      setParams(con({ dia: e.target.value, bloque: '' }))
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                variant="outline" disabled={dia === hoy}
-                onClick={() => setParams(con({ dia: '', bloque: '' }))}
-              >
-                Hoy
-              </Button>
-              {bloques && bloques.length > 0 && (
-                <div className="grid gap-2">
-                  <Label htmlFor="fila-bloque">Bloque</Label>
-                  <Select
-                    value={bloqueId ?? ''}
-                    onValueChange={(v) => setParams(con({ bloque: v }))}
-                  >
-                    <SelectTrigger id="fila-bloque" className="w-80">
-                      <SelectValue placeholder="Bloque…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bloques.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>{describirBloque(b)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+      <EncabezadoDePantalla
+        className="items-end"
+        titulo={
+          <div>
+            <TituloPantalla icono={ListOrdered}>Demanda espontánea</TituloPantalla>
+            <p className="text-sm text-muted-foreground">
+              La fila por orden de llegada de los bloques sin turnos. Anotá a quien
+              llega y llamalo cuando le toque.
+            </p>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="grid gap-2">
+            <Label htmlFor="fila-dia">Día</Label>
+            <Input
+              id="fila-dia" type="date" className="w-40"
+              value={dia}
+              onChange={(e) => {
+                if (DIA_ISO.test(e.target.value)) {
+                  setParams(con({ dia: e.target.value, bloque: '' }))
+                }
+              }}
+            />
+          </div>
+          <Button
+            variant="outline" disabled={dia === hoy}
+            onClick={() => setParams(con({ dia: '', bloque: '' }))}
+          >
+            Hoy
+          </Button>
+          {bloques && bloques.length > 0 && (
+            <div className="grid gap-2">
+              <Label htmlFor="fila-bloque">Bloque</Label>
+              <SelectBuscable
+                id="fila-bloque" className="w-80"
+                value={bloqueId ?? ''}
+                onChange={(v) => setParams(con({ bloque: v }))}
+                opciones={bloques.map((b) => ({ value: b.id, label: describirBloque(b) }))}
+                placeholder="Bloque…"
+                limpiable={false}
+              />
             </div>
-          }
-        >
-          Demanda espontánea
-        </TituloPantalla>
-        <p className="text-sm text-muted-foreground">
-          La fila por orden de llegada de los bloques sin turnos. Anotá a quien
-          llega y llamalo cuando le toque.
-        </p>
-      </div>
+          )}
+        </div>
+      </EncabezadoDePantalla>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

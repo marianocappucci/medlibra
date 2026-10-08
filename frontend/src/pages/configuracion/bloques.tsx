@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { describirError } from './catalogo'
 import { hoyISO } from 'libra-ui/fechas'
+import { SelectBuscable } from 'libra-ui/SelectBuscable'
 
 const MODALIDAD_LABEL: Record<string, string> = {
   turnos: 'Por turnos',
@@ -219,16 +220,13 @@ export function BloquesDeAgenda({ resourceId, consultorios }: {
           <div className="flex flex-wrap items-end gap-2">
             <div className="grid gap-1.5">
               <Label htmlFor={`blq-cons-${resourceId}`}>Consultorio</Label>
-              <Select value={consultorio} onValueChange={setConsultorio}>
-                <SelectTrigger id={`blq-cons-${resourceId}`} className="w-44">
-                  <SelectValue placeholder="Consultorio…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {consultorios.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectBuscable
+                id={`blq-cons-${resourceId}`} className="w-44"
+                value={consultorio} onChange={setConsultorio}
+                opciones={consultorios.map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Consultorio…"
+                limpiable={false}
+              />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`blq-desde-${resourceId}`}>Desde</Label>
@@ -246,6 +244,7 @@ export function BloquesDeAgenda({ resourceId, consultorios }: {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`blq-modo-${resourceId}`}>Modalidad</Label>
+              {/* select-cerrado: las modalidades son un catálogo cerrado de dos valores (turnos, demanda espontánea) que sirve el backend */}
               <Select value={modalidad} onValueChange={setModalidad}>
                 <SelectTrigger id={`blq-modo-${resourceId}`} className="w-48">
                   <SelectValue />
@@ -263,6 +262,7 @@ export function BloquesDeAgenda({ resourceId, consultorios }: {
             {modalidad === 'turnos' && (
               <div className="grid gap-1.5">
                 <Label htmlFor={`blq-dur-${resourceId}`}>Duración</Label>
+                {/* select-cerrado: las duraciones son la lista corta y fija de minutos que permite el backend (10 a 30) */}
                 <Select value={duracion} onValueChange={setDuracion}>
                   <SelectTrigger id={`blq-dur-${resourceId}`} className="w-32">
                     <SelectValue />

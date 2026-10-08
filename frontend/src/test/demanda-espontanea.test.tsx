@@ -154,6 +154,46 @@ describe('la fila', () => {
   })
 })
 
+describe('el encabezado', () => {
+  it('es el de GestioLibra: título con su descripción a la izquierda y las acciones a la derecha, en una fila', async () => {
+    servir(rutas([]))
+    montar()
+    const titulo = await screen.findByRole('heading', { name: 'Demanda espontánea' })
+    const textos = titulo.parentElement as HTMLElement
+    expect(textos).toContainElement(screen.getByText(/La fila por orden de llegada/))
+    const fila = textos.parentElement?.parentElement as HTMLElement
+    expect(fila.className).toContain('items-end')
+    const dia = screen.getByLabelText('Día')
+    expect(fila).toContainElement(dia)
+    expect(textos).not.toContainElement(dia)
+  })
+})
+
+describe('elegir el bloque', () => {
+  it('se busca escribiendo y elegir otro bloque pide la fila de ese bloque', async () => {
+    const OTRO = {
+      ...BLOQUE, id: 'b2', resource_id: 'dra-vidal', profesional: 'Dra. Vidal',
+      starts_at: '14:00:00', ends_at: '18:00:00',
+    }
+    servir({
+      ...rutas([]),
+      [`/walkins/bloques?day=${DIA}`]: [BLOQUE, OTRO],
+      [`/agenda-blocks/b2/walkins?day=${DIA}`]: [llegada(1, { block_id: 'b2' })],
+    })
+    montar()
+    const bloque = await screen.findByRole('combobox', { name: 'Bloque' })
+    await waitFor(() => expect(bloque).toHaveValue('Dr. Molina · Consultorio 1 · 09:00 – 13:00'))
+
+    await userEvent.click(bloque)
+    await userEvent.keyboard('{Control>}a{/Control}vidal')
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Dra. Vidal · Consultorio 1 · 14:00 – 18:00'])
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => expect(mandado(`/agenda-blocks/b2/walkins?day=${DIA}`, 'GET')).toBeTruthy())
+    expect(bloque).toHaveValue('Dra. Vidal · Consultorio 1 · 14:00 – 18:00')
+  })
+})
+
 describe('anotar una llegada', () => {
   it('🔴 manda paciente, prestación y el día de la PANTALLA', async () => {
     // El día que se está mirando es 2026-07-20; el reloj de la máquina que

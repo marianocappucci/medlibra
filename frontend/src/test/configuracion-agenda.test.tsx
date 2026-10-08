@@ -156,6 +156,24 @@ describe('Consultorios', () => {
     })
   })
 
+  it('la sede se busca escribiendo, y «Sin sede» (la de siempre) manda branch_id null', async () => {
+    servir({ '/consultorios': [], '/branches': [SEDE, { ...SEDE, id: 'norte', name: 'Norte' }] })
+    montar(<ConsultoriosCard />)
+    await userEvent.type(await screen.findByLabelText('Nombre'), 'Consultorio 3')
+    const sede = screen.getByLabelText('Sede')
+    expect(sede).toHaveValue('Sin sede')
+    await userEvent.click(sede)
+    await userEvent.keyboard('{Control>}a{/Control}nor')
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Norte'])
+    await userEvent.keyboard('{Escape}')
+    expect(sede).toHaveValue('Sin sede')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear' }))
+    await waitFor(() => expect(mandado('/consultorios')).toBeTruthy())
+    expect(mandado('/consultorios')!.cuerpo).toEqual({
+      id: 'consultorio-3', name: 'Consultorio 3', branch_id: null, active: true,
+    })
+  })
+
   it('🔴 sin consultorios lo dice, porque un bloque de agenda necesita uno', async () => {
     servir({ '/consultorios': [], '/branches': [SEDE] })
     montar(<ConsultoriosCard />)
@@ -237,6 +255,35 @@ describe('Profesionales', () => {
     expect(mandado('/resources')!.cuerpo).toEqual({
       id: 'dr-arce', name: 'Dr. Arce', branch_id: 'centro', active: true,
     })
+  })
+
+  it('sin elegir sede el alta manda branch_id null', async () => {
+    servir({ '/resources': [], '/branches': [SEDE], '/consultorios': [CONSULTORIO] })
+    montar(<ProfesionalesCard />)
+    await userEvent.type(await screen.findByLabelText('Nombre'), 'Dr. Arce')
+    expect(screen.getByLabelText('Sede')).toHaveValue('Sin sede')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear' }))
+    await waitFor(() => expect(mandado('/resources')).toBeTruthy())
+    expect(mandado('/resources')!.cuerpo).toEqual({
+      id: 'dr-arce', name: 'Dr. Arce', branch_id: null, active: true,
+    })
+  })
+
+  it('el consultorio del bloque se busca escribiendo y viaja el elegido', async () => {
+    servir({
+      ...RUTAS_DEL_PROFESIONAL,
+      '/consultorios': [CONSULTORIO, { ...CONSULTORIO, id: 'cons-2', name: 'Consultorio Norte' }],
+    })
+    montar(<ProfesionalesCard />)
+    await userEvent.click(await screen.findByText('Dra. Vidal'))
+    await screen.findByText('Agenda')
+    const consultorio = screen.getByLabelText('Consultorio')
+    await userEvent.click(consultorio)
+    await userEvent.keyboard('{Control>}a{/Control}nort{Enter}')
+    expect(consultorio).toHaveValue('Consultorio Norte')
+    await userEvent.click(screen.getByRole('button', { name: /Agregar 5 días/ }))
+    await waitFor(() => expect(todosLosMandados('/agenda-blocks')).toHaveLength(5))
+    expect(todosLosMandados('/agenda-blocks')[0].cuerpo).toMatchObject({ consultorio_id: 'cons-2' })
   })
 
   it('🔴 avisa que sin ningún bloque el profesional no recibe turnos', async () => {

@@ -271,6 +271,64 @@ describe('la agenda como calendario', () => {
     })
   })
 
+  it('el encabezado es el de GestioLibra: título con su descripción a la izquierda y las acciones a la derecha, en una fila', async () => {
+    servir([])
+    montar()
+    const titulo = await screen.findByRole('heading', { name: 'Agenda' })
+    const textos = titulo.parentElement as HTMLElement
+    expect(textos).toContainElement(screen.getByText(/Qué tiene cada profesional/))
+    const fila = textos.parentElement?.parentElement as HTMLElement
+    expect(fila.className).toContain('items-end')
+    const nuevo = screen.getByRole('button', { name: /Nuevo turno/ })
+    expect(fila).toContainElement(nuevo)
+    expect(textos).not.toContainElement(nuevo)
+  })
+
+  // Los desplegables de datos se buscan escribiendo (libra-ui ADR-039): el filtro de profesional y el del alta.
+  it('el filtro de profesional se busca escribiendo, y «Todos» deja la URL limpia (sin centinela)', async () => {
+    servir([])
+    montar()
+    await waitFor(() => expect(document.querySelectorAll('[data-columna]')).toHaveLength(7))
+    const filtro = screen.getByRole('combobox', { name: 'Profesional' })
+    expect(filtro).toHaveValue('Todos los profesionales')
+
+    await userEvent.click(filtro)
+    await userEvent.keyboard('{Control>}a{/Control}vid')
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Dra. Vidal'])
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(urlActual).toContain('profesional=dra-vidal'))
+    expect(filtro).toHaveValue('Dra. Vidal')
+
+    await userEvent.click(filtro)
+    await userEvent.click(await screen.findByRole('option', { name: 'Todos los profesionales' }))
+    await waitFor(() => expect(urlActual).not.toContain('profesional'))
+    expect(urlActual).not.toContain('__todos__')
+  })
+
+  it('en el alta, el profesional se elige escribiendo y viaja su id', async () => {
+    servir([])
+    montar()
+    await waitFor(() => expect(document.querySelectorAll('[data-columna]')).toHaveLength(7))
+    await userEvent.click(screen.getByRole('button', { name: /Nuevo turno/ }))
+    const dialogo = await screen.findByRole('dialog')
+
+    const profesional = within(dialogo).getByLabelText('Profesional')
+    expect(profesional).toHaveValue('Dr. Molina')
+    await userEvent.click(profesional)
+    await userEvent.keyboard('{Control>}a{/Control}vid{Enter}')
+    expect(profesional).toHaveValue('Dra. Vidal')
+    await userEvent.click(within(dialogo).getByLabelText('Prestación'))
+    await userEvent.click(await screen.findByText('Consulta'))
+    await userEvent.click(within(dialogo).getByLabelText('Paciente'))
+    await userEvent.click(await screen.findByText(/Ana Gómez/))
+    await userEvent.click(within(dialogo).getByRole('button', { name: 'Crear turno' }))
+
+    await waitFor(() => {
+      const alta = pedidos.find((p) => p.url === '/appointments' && p.metodo === 'POST')
+      expect(alta?.cuerpo).toMatchObject({ resource_id: 'dra-vidal', service_id: 'consulta', client_id: 'ana' })
+    })
+  })
+
   it('sin profesionales activos lo dice y manda a Configuración', async () => {
     servir([], { '/agenda/catalogo': { ...CATALOGO, profesionales: [] } })
     montar()
@@ -330,6 +388,28 @@ describe('la agenda como calendario', () => {
       // 🔴 Y **no** los que declaraba la pantalla: `Tarjeta` a secas era el
       // medio inventado, y el backend de este stub no lo ofrece.
       expect(screen.queryByRole('option', { name: 'Tarjeta' })).not.toBeInTheDocument()
+    })
+
+    it('el medio se elige escribiendo y el turno se completa con ese medio', async () => {
+      fetchMock.mockImplementation(conCompletarQuePideMedio([DE_NOCHE]))
+      montar(`/agenda?dia=${LUNES}`)
+      await waitFor(() => expect(screen.getByText('Ana Gómez')).toBeInTheDocument())
+      await userEvent.click(screen.getByText('Ana Gómez'))
+      await userEvent.click(await screen.findByRole('button', { name: /^Completar$/ }))
+
+      const medio = await screen.findByRole('combobox', { name: 'Medio de pago' })
+      const completar = screen.getByRole('button', { name: /^Completar$/ })
+      // Sin elegir, no se puede completar.
+      expect(completar).toBeDisabled()
+      await userEvent.click(medio)
+      await userEvent.keyboard('merc{Enter}')
+      expect(medio).toHaveValue('Mercado Pago')
+      await userEvent.click(completar)
+
+      await waitFor(() => {
+        const ultimo = pedidos.filter((p) => p.url.includes('/complete')).at(-1)
+        expect(ultimo?.cuerpo).toMatchObject({ medio_pago: 'mercadopago' })
+      })
     })
 
     it('🔴 se le pide la lista al backend al cargar el catálogo', async () => {
