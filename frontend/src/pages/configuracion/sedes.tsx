@@ -176,6 +176,7 @@ export function SedesCard() {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="sede-huso">Huso horario</Label>
+                {/* select-cerrado: siete husos escritos en el código (HUSOS), una lista corta a propósito: no son las 400 zonas IANA */}
                 <Select
                   value={form.timezone}
                   onValueChange={(v) => setForm({ ...form, timezone: v })}

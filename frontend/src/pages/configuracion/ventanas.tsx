@@ -159,6 +159,7 @@ export function VentanasSemanales({ base, titulo, descripcion, aviso }: {
         <div className="flex flex-wrap items-end gap-2 border-t pt-3">
           <div className="grid gap-1.5">
             <Label htmlFor={`${base}-dia`}>Día</Label>
+            {/* select-cerrado: los siete días de la semana (DIAS_SEMANA), una lista fija del código */}
             <Select value={dia} onValueChange={setDia}>
               <SelectTrigger id={`${base}-dia`} className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>

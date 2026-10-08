@@ -301,6 +301,7 @@ export function Pacientes() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Condición de IVA</FormLabel>
+                      {/* select-cerrado: las cinco condiciones frente al IVA son un catálogo cerrado de ARCA (CONDICIONES_IVA), fijo en el código */}
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger className="w-52">
