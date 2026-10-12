@@ -92,7 +92,8 @@ dependencies = [
     # v1.152.0 -> v1.153.0 (2026-10-10): sucursales contratadas y abono por unidad adicional (`libracore.limites` y `libracore.abono`, ADR-041). Sin dato de sucursales contratadas no limita nada; este producto no lo usa. Sin migracion.
     # v1.153.0 -> v1.154.0 (2026-10-12): `libracore.cuit.solo_digitos` y se retira `cc_resumen` (codigo muerto, nadie lo usaba). Sin migracion.
     # v1.154.0 -> v1.155.0 (2026-10-12): migracion 0024 retira cc_resumenes_enviados y clients.cc_resumen_* (ADR-042). Desplegar el producto ANTES de migrar.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.155.0",
+    # v1.155.0 -> v1.157.0 (2026-10-12): `libracore.auditoria` (ADR-043): las escrituras de clients avisan a un registrador, apagado si el producto no lo configura. v1.156.0 es un tag erroneo, no usar. Sin migracion.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.157.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
@@ -115,7 +116,8 @@ dependencies = [
     # sola con este bump porque `app/auth.py` re-exporta las dependencias de
     # `libraauth.session_auth` sin envolverlas (verificado, no hace falta
     # sumarles el parametro `response` a mano).
-    "libraauth[migrations] @ git+https://github.com/marianocappucci/libraauth.git@v0.48.0",
+    # v0.48.0 -> v0.49.0 (2026-10-12): `registrador_dbapi` y el formato del log en funciones puras (ADR-022). Sin migracion.
+    "libraauth[migrations] @ git+https://github.com/marianocappucci/libraauth.git@v0.49.0",
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.30,<1",
     "alembic>=1.13,<2",
