@@ -34,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
+import { formatoMoneda } from 'libra-ui/formatos'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -45,8 +46,7 @@ import {
 const VACIO = { id: '', name: '', branch_id: '', active: true }
 
 function pesos(valor: string | number): string {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
-    .format(Number(valor))
+  return formatoMoneda(Number(valor))
 }
 
 export function ProfesionalesCard() {
