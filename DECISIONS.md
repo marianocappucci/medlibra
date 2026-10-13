@@ -2053,3 +2053,13 @@ prestaciones—.
   configuración, como el backend real a staff: una pantalla que vuelva a
   pedirlos se pone roja en todo el archivo, no sólo en el test que lo mira.
 - Tests nuevos verificados por mutación.
+
+## ADR-040 — `create_app()` es el arranque de varios procesos: el candado va en la base de LibraCore y el captcha usa `UsadosEnBase` (2026-10-13)
+
+- Estado: aceptada
+- Contexto: el motor quedó listo para `uvicorn --workers N` (ADR-044 de libracore, ADR-023 de libraauth) y MedLibra sigue con **un** proceso (`WEB_CONCURRENCY` por defecto 1; decisión del dueño). Este producto no tiene un hook `startup`: `create_app()` ES el arranque y lo corre cada worker al importar `app.asgi`. Sus «si no existe, crear» (`ModuleRepository.ensure_seeded()`, `ensure_default_admin`, `ensure_demo_user`, `migrar_secretos`, `AuditoriaBase.metadata.create_all`) se contestarían «no existe» en los dos workers antes de que ninguno cree, y el anti-replay del captcha era un `dict` del proceso.
+- Decisión:
+  - Esos pasos van dentro de `una_vez_al_arrancar("medlibra-arranque", destino=libracore_db_path)`. Se pasa `destino` explícito porque el candado es de **una base** y este producto tiene dos (dominio y LibraCore): sirve cualquiera mientras sea la misma para todos los workers, y la de LibraCore es la que `create_app()` ya conoce por nombre antes de sembrar. Cada paso sigue preguntando adentro (idempotente); el candado sólo los ordena.
+  - `app.state.captcha = Captcha(app.state.session_auth.secret_key, usados=UsadosEnBase(auth_sessions))` en `create_app()`: es lo que el router armaría solo con la misma clave, pero con `usados=`. No se pasa `captcha_usados=` al `build_json_api_auth_router` de `app/routers/auth.py` porque ese módulo se construye al importar, antes de que exista el session factory de la instancia.
+  - `pool_pre_ping=True` en el engine de auth y en el del dominio (`libragenda.configure(url, pool_pre_ping=True)` lo pasa a `create_engine`).
+- Consecuencias: con un solo worker no cambia nada observable. **Subir `WEB_CONCURRENCY` es una decisión aparte**; antes hay que releer `docs/varios-procesos.md` de libracore (reiniciar el contenedor tras un restore en caliente, el `config.json` sigue siendo *last write wins*). `tests/test_varios_procesos.py` levanta `uvicorn --workers 2` de verdad y fija que quede un admin y cada módulo una vez.
