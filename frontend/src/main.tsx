@@ -6,6 +6,8 @@ import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { cargarTema } from 'libra-ui/tema'
 import { aplicarIdentidad } from 'libra-ui/identidad'
+import { ErrorBoundary } from 'libra-ui/ErrorBoundary'
+import { instalarReporteDeErrores } from 'libra-ui/errores-del-navegador'
 
 // El tema de la suite (libra-ui ADR-007/008): aplica lo último guardado de inmediato y pide los colores a esta misma instancia. No espera
 // ni puede fallar: sin red o con un error, la app arranca con los colores de siempre.
@@ -15,13 +17,20 @@ void cargarTema()
 // Va en un `<style>`, así que el acento que el backoffice elige por instancia (`cargarTema`, en línea) sigue ganando.
 aplicarIdentidad('medlibra')
 
+// Los errores del navegador que nadie atrapó, al registro de errores de la instancia (libra-ui ADR-053, libracore ADR-045):
+// `POST /api/errores-cliente`. Antes de montar, para que también quede lo que falla al arrancar.
+instalarReporteDeErrores()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    {/* «Algo falló» en vez de la pantalla en blanco cuando un render revienta; afuera de todo, así atrapa también a los providers. */}
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 )
 

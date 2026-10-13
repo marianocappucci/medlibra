@@ -136,3 +136,35 @@ def test_otro_error_del_captcha_no_se_traga():
     with pytest.raises(RuntimeError, match="500"):
         iniciar_sesion(api, "admin", "admin")
     assert api.logins == []
+
+
+# ── Varios procesos (libraauth v0.50.0, ADR-023) ────────────────────────────
+#
+# El anti-replay del captcha era un `dict` del proceso: con `uvicorn --workers N`
+# un desafio resuelto servia una vez POR WORKER. Ahora se anota en la base de
+# `usuarios` (`libraauth_captcha_usados`, migracion `0003`), y lo que es de ESTE
+# producto es el cableado: que `create_app()` arme el `Captcha` con `UsadosEnBase`.
+
+
+def test_el_captcha_del_login_anota_los_desafios_usados_en_la_base(admin_client, monkeypatch):
+    from libraauth.captcha import UsadosEnBase
+    from sqlalchemy import text
+
+    monkeypatch.setattr(session_auth, "_captcha_de", CAPTCHA_DE_ORIGINAL)
+    app = admin_client.app
+    usados = app.state.captcha._usados          # el de `create_app()`, tal cual
+    assert isinstance(usados, UsadosEnBase), "sin esto cada worker lleva su propia memoria de desafios usados"
+
+    # Mismo `usados` que el de `create_app()`, pero barato de resolver (el real cuesta ~1 s de CPU).
+    app.state.captcha = Captcha("clave-de-prueba", costo=1, contador_min=1, contador_rango=5, usados=usados)
+    with https_client(app) as cliente:
+        payload = _resolver(cliente.get("/auth/captcha").json())
+        datos = {**CREDENCIALES, "captcha": payload}
+
+        assert cliente.post("/auth/login", json=datos).status_code == 200
+        # El mismo desafio otra vez (lo que haria otro worker): replay, rebota.
+        repetido = cliente.post("/auth/login", json=datos)
+        assert repetido.status_code == 400, repetido.text
+        assert repetido.json()["detail"] == CAPTCHA_INVALIDO
+    with app.state.auth_engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM libraauth_captcha_usados")).scalar() == 1
