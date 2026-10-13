@@ -14,6 +14,8 @@ const API_PATHS = [
   '/dashboard', '/appointments', '/health',
   // El tema de la suite (libra-ui ADR-008): `cargarTema()` lo pide al arrancar, tiene que llegar al backend también en desarrollo.
   '/api/tema',
+  // El registro de errores del navegador (libra-ui ADR-053): `instalarReporteDeErrores` y `<ErrorBoundary>` postean acá.
+  '/api/errores-cliente',
 ]
 
 // Las claves del proxy se emiten como regex (Vite trata como RegExp toda

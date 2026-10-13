@@ -106,7 +106,10 @@ services:
     # `exec` para que uvicorn quede como PID 1 y `docker stop` le llegue. Si la
     # migración falla el contenedor sale con error, que es mejor que servir
     # código nuevo sobre un esquema viejo.
-    command: sh -c "libragenda-migrar upgrade && libraauth-migrar upgrade --prefijo medlibra --base core && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000"
+    #
+    # `--workers ${WEB_CONCURRENCY:-1}`: el codigo esta listo para varios procesos (libracore ADR-044, libraauth ADR-023)
+    # pero **todo sigue en 1**; subirlo es una decision aparte (`docs/varios-procesos.md` de libracore).
+    command: sh -c "libragenda-migrar upgrade && libraauth-migrar upgrade --prefijo medlibra --base core && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-1}"
     environment:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY es obligatorio tambien en dev (sin default en un repo publico)}
       - TZ=America/Argentina/Buenos_Aires
@@ -148,6 +151,11 @@ services:
       # dejan usar y el que nosotros aceptamos— y compartir el nombre haría que
       # rotar uno rote el otro sin que nadie lo pida.
       - CONTALIBRA_SERVICE_TOKEN=${CONTALIBRA_SERVICE_TOKEN:-}
+      # Que cada linea del registro de errores (`DATA_DIR/errores/errores.jsonl`, ADR-045 de libracore) diga de que
+      # instancia viene. Las de cliente y demo las reciben del panel en cada `actualizar`; esta no pasa por el panel.
+      - LIBRA_ENTORNO=dev
+      - LIBRA_INSTANCIA=medlibra-dev
+      - LIBRA_VERSION=${LIBRA_VERSION:-dev}
     networks:
       - stack-net
       - datos
