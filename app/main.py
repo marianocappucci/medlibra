@@ -35,6 +35,7 @@ from libracore.config_router import (
     build_empresa_router,
 )
 from libracore.db.url_de_instancia import url_de_instancia
+from libracore.docs_api import cerrar_docs_de_la_api
 from libracore.errores import instalar_registro_de_errores
 from libracore.resguardo_enlace import build_resguardo_enlace_router
 from libracore.respaldo import Instancia
@@ -343,6 +344,7 @@ def create_app(database_url: str) -> FastAPI:
         migrar_secretos()
 
     app = FastAPI(title="MedLibra")
+    cerrar_docs_de_la_api(app)
 
     # 🔴 Colgado de la app para poder SOLTARLO. En produccion la app es una y
     # vive lo que vive el proceso, asi que da igual; en la suite cada test arma
