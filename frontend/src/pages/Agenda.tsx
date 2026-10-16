@@ -36,6 +36,7 @@ import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 import { EncabezadoDePantalla } from 'libra-ui/acciones'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
+import { SelectCliente } from 'libra-ui/SelectCliente'
 import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
 import {
   LABEL_VISTA, NavegadorCalendario, ReferenciaDeColores, VISTAS, VistaMes,
@@ -43,7 +44,7 @@ import {
 } from 'libra-ui/agenda'
 import {
   api, ApiError, STATUS_LABELS,
-  opcionesPaciente, opcionesServicio,
+  ALTA_DE_PACIENTE, altaDePaciente, opcionesPaciente, opcionesServicio,
   type AppointmentStatus, type CatalogoDeLaAgenda, type CompleteAppointmentResponse,
   type EnvioAContalibra, type MedioPago, type Patient, type Resource,
   type SedeDeLaAgenda, type Service,
@@ -447,12 +448,14 @@ export function Agenda() {
                   <FormItem>
                     <FormLabel>Paciente</FormLabel>
                     <FormControl>
-                      <SelectBuscable
+                      <SelectCliente
                         value={field.value}
                         onChange={field.onChange}
                         opciones={opcionesPaciente(patients.filter((p) => p.active))}
                         placeholder="Paciente…"
                         ariaLabel="Paciente"
+                        {...ALTA_DE_PACIENTE}
+                        crear={altaDePaciente((p) => setPatients((prev) => [...prev, p]))}
                       />
                     </FormControl>
                     <FormMessage />

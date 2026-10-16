@@ -30,7 +30,8 @@ const CONDICIONES_IVA = [
 ]
 
 const patientSchema = z.object({
-  id: z.string().trim().min(1, 'El ID es obligatorio'),
+  // Opcional: vacío = el backend genera el número (`p-001`, `p-002`...).
+  id: z.string().trim().optional(),
   name: z.string().trim().min(1, 'El nombre es obligatorio'),
   phone: z.string().trim().optional(),
   email: z.string().trim().email('Email inválido').optional().or(z.literal('')),
@@ -121,7 +122,8 @@ export function Pacientes() {
     }
     try {
       if (editingId === 'new') {
-        await api.post('/patients', { id: values.id, ...payload })
+        // Sin `id` (campo vacío) el backend genera el número; con `id` lo respeta.
+        await api.post('/patients', { ...(values.id ? { id: values.id } : {}), ...payload })
       } else if (editingId) {
         await api.put(`/patients/${editingId}`, payload)
       }
@@ -210,8 +212,9 @@ export function Pacientes() {
                       <FormItem>
                         <FormLabel>ID</FormLabel>
                         <FormControl>
-                          <Input {...field} className="w-32" />
+                          <Input {...field} className="w-32" placeholder="Automático" />
                         </FormControl>
+                        <p className="max-w-40 text-xs text-muted-foreground">Se genera solo si lo dejás vacío.</p>
                         <FormMessage />
                       </FormItem>
                     )}
