@@ -12,7 +12,10 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 
 class PatientCreate(BaseModel):
-    id: str
+    # Opcional: sin `id` el backend genera el próximo número (`p-001`, `p-002`...). Con
+    # `id` se respeta tal cual, como siempre. Un `id` vacío no cuenta como ausente: es
+    # un dato inválido y da 422.
+    id: str | None = None
     name: str
     phone: str | None = None
     email: str | None = None
