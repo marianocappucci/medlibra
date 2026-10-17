@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.11.0",
+    # v0.11.0 -> v0.12.0 (2026-10-17): `crear_esquema` serializa el DDL de LibraGenda entre procesos (ADR-015 de libragenda), para `uvicorn --workers N`. Sin migracion.
+    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.12.0",
     # libracore sigue proveyendo facturacion/caja/ARCA. El auth SALIO de aca el
     # 2026-07-30 y ahora lo da libraauth (ver app/auth.py y app/services/users.py).
     #

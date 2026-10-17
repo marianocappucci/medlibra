@@ -690,8 +690,8 @@ dependencies = [
 
 [[package]]
 name = "libragenda"
-version = "0.11.0"
-source = { git = "https://github.com/marianocappucci/libragenda.git?rev=v0.11.0#bdce853d4c4180d58cd38e7f5cdae4ee1c273e10" }
+version = "0.12.0"
+source = { git = "https://github.com/marianocappucci/libragenda.git?rev=v0.12.0#e088ac615970550d66a72474b0375701a6fa717e" }
 dependencies = [
     { name = "alembic" },
     { name = "psycopg", extra = ["binary"] },
@@ -812,7 +812,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27,<1" },
     { name = "libraauth", extras = ["migrations"], git = "https://github.com/marianocappucci/libraauth.git?rev=v0.51.0" },
     { name = "libracore", git = "https://github.com/marianocappucci/libracore.git?rev=v1.173.0" },
-    { name = "libragenda", git = "https://github.com/marianocappucci/libragenda.git?rev=v0.11.0" },
+    { name = "libragenda", git = "https://github.com/marianocappucci/libragenda.git?rev=v0.12.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8" },
