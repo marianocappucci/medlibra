@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.11.0",
+    # v0.11.0 -> v0.12.0 (2026-10-17): `crear_esquema` serializa el DDL de LibraGenda entre procesos (ADR-015 de libragenda), para `uvicorn --workers N`. Sin migracion.
+    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.12.0",
     # libracore sigue proveyendo facturacion/caja/ARCA. El auth SALIO de aca el
     # 2026-07-30 y ahora lo da libraauth (ver app/auth.py y app/services/users.py).
     #
@@ -100,7 +101,8 @@ dependencies = [
     # v1.167.0 -> v1.168.0 (2026-10-15, propuesta; ADR-053 de libracore): `libracore.docs_api.cerrar_docs_de_la_api`: `/docs`, `/redoc` y `/openapi.json` sólo con `ENV=development` (o `LIBRA_DOCS_API=1`); en un cliente real y en la demo dan 404. Sin migracion. `uv.lock` se regenera cuando exista el tag.
     # v1.168.0 -> v1.170.0 (2026-10-15): v1.169.0 suma `fk_de_producto.soltar_fk` (ADR-056; sin efecto en este producto, la usa LibraDesk) y v1.170.0 hace que `delete_client` bloquee la baja de un cliente con cuenta corriente (`cc_pagos`, `cc_debitos`, `recibos` y `cc_asientos` con rol cliente; ADR-057): desactivarlo en vez de borrarlo. Sin migracion.
     # v1.170.0 -> v1.173.0 (2026-10-16): v1.171.0 (ADR-058) no se puede cobrar mas de lo que falta de una factura (409); v1.172.0 (ADR-059 y ADR-060) las notas de credito restan de lo pendiente (resumen y tablero cuentan tambien las cobradas a medias por lo que falta) y cobro por turno; v1.173.0 (ADR-061) una demo no habla con ARCA ni muestra datos fiscales reales (`libracore.demo`). Sin migracion.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.173.0",
+    # v1.173.0 -> v1.176.0 (2026-10-17): v1.174.0 `OpcionesCajas.sucursal_por_defecto` (ADR-062, opt-in); v1.175.0 el pago a cuenta corriente bloquea sus facturas en una transaccion (ADR-063) y la nota de debito tiene tope de cobro (ADR-064, 409 si se cobra de mas); v1.176.0 la NC de una factura al contado cobrada acepta `destino` devolver/a_favor (ADR-065, sin `destino` como antes). Sin migracion.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.176.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log

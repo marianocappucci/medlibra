@@ -42,7 +42,13 @@ from libracore.respaldo import Instancia
 from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
 from libracore.tema_router import build_tema_admin_router, build_tema_router
-from libragenda import DepositManager, ReminderDispatcher, SqlAlchemyDepositRepository, SqlAlchemyReminderRepository
+from libragenda import (
+    DepositManager,
+    ReminderDispatcher,
+    SqlAlchemyDepositRepository,
+    SqlAlchemyReminderRepository,
+    crear_esquema,
+)
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.database import configure, get_engine, get_session_factory
@@ -216,7 +222,9 @@ def create_app(database_url: str) -> FastAPI:
     # `pool_pre_ping` en el engine del dominio tambien (`libragenda.configure` se lo pasa a `create_engine`): mismo motivo
     # que el de auth mas abajo.
     configure(database_url, pool_pre_ping=True)
-    Base.metadata.create_all(get_engine())  # demo only; deploy uses Alembic
+    # De a un proceso por vez (libragenda v0.12.0, ADR-015): con `uvicorn --workers N` el arranque corre N veces y dos
+    # `create_all` a la vez chocan con «already exists».
+    crear_esquema(get_engine())  # demo only; deploy uses Alembic
 
     # `usuarios` (libraauth) vive en la base de LIBRACORE, no en la del dominio.
     #
