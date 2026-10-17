@@ -6,12 +6,14 @@ Not part of LibraGenda's domain -- clinical identity belongs to the
 vertical, same principle as "users" being Gestiolibra's own table instead
 of living in the engine.
 """
+import re
 from datetime import UTC, date, datetime, timezone
 
 from libragenda import Client
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.sqlalchemy_repository import Base
-from sqlalchemy import Date, DateTime, ForeignKey, String, func, select
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
 from .clinical_documents import ClinicalDocumentRow
@@ -30,6 +32,30 @@ class PatientRow(Base):
     cuit: Mapped[str | None] = mapped_column(String(20), nullable=True)
     condicion_iva: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PatientSequenceRow(Base):
+    """El contador del número de paciente: una fila por serie (hoy sólo `patient`).
+
+    Es una tabla y no un `max(id) + 1` por una razón: con el máximo, borrar al último
+    paciente devuelve su número, y el siguiente alta hereda un id que todavía puede
+    estar en un turno, una factura o un mensaje viejo. El contador sólo avanza.
+    """
+    __tablename__ = "patient_sequences"
+
+    name: Mapped[str] = mapped_column(String(20), primary_key=True)
+    last: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+#: La serie de los números de paciente.
+SERIE_PACIENTE = "patient"
+#: `p-001`, `p-002`... el formato de los pacientes de la demo (`scripts/seed_demo.py`).
+#: Pasa de `p-999` a `p-1000` sin truncar.
+PREFIJO_ID = "p-"
+_ID_GENERADO = re.compile(rf"^{re.escape(PREFIJO_ID)}(\d+)$")
+#: Cuántos números ocupados a mano (un `p-007` escrito por una persona) se saltea
+#: antes de rendirse. Cada intento consume un número, así que no es un bucle abierto.
+INTENTOS_DE_ID = 50
 
 
 class PatientHasClinicalNotes(Exception):
@@ -57,18 +83,76 @@ class PatientRepository:
         self.session_factory = session_factory
 
     def create(
-        self, id: str, name: str, phone: str | None, email: str | None, active: bool,
+        self, id: str | None, name: str, phone: str | None, email: str | None, active: bool,
         dni: str | None, birth_date: date | None,
         cuit: str | None = None, condicion_iva: str | None = None,
     ) -> dict:
-        client = Client(id, name, phone, email, active)
-        self.catalog.add_client(client)  # raises IntegrityError on duplicate id
+        """Con `id` lo respeta (y un duplicado levanta `IntegrityError`, como siempre);
+        sin `id` (`None`) genera el próximo número de la serie."""
+        if id is None:
+            client = self._add_with_next_number(name, phone, email, active)
+            id = client.id
+        else:
+            client = Client(id, name, phone, email, active)
+            self.catalog.add_client(client)  # raises IntegrityError on duplicate id
         with self.session_factory.begin() as session:
             session.add(PatientRow(
                 id=id, dni=dni, birth_date=birth_date, cuit=cuit, condicion_iva=condicion_iva,
                 created_at=datetime.now(UTC),
             ))
         return self._to_out(client, dni, birth_date, cuit, condicion_iva)
+
+    def _add_with_next_number(
+        self, name: str, phone: str | None, email: str | None, active: bool,
+    ) -> Client:
+        """Da de alta el cliente con el próximo `p-NNN` libre.
+
+        El número sale de `_next_number()`, que es atómico, así que dos altas
+        simultáneas nunca reciben el mismo. Si el id ya está ocupado es porque alguien
+        lo escribió a mano (`p-007`): se toma el siguiente en vez de fallar el alta.
+        """
+        for _ in range(INTENTOS_DE_ID):
+            client = Client(f"{PREFIJO_ID}{self._next_number():03d}", name, phone, email, active)
+            try:
+                self.catalog.add_client(client)
+            except IntegrityError:
+                continue
+            return client
+        raise IntegrityError("no hay un número de paciente libre", None, Exception())
+
+    def _next_number(self) -> int:
+        """Avanza el contador y devuelve el número, en una sola sentencia.
+
+        `UPDATE ... SET last = last + 1 RETURNING last` toma el candado de la fila: una
+        segunda transacción espera a la primera y recibe el número siguiente, no el mismo.
+        Un `SELECT` seguido de un `UPDATE` dejaría la carrera entre los dos pasos.
+        """
+        paso = update(PatientSequenceRow).where(PatientSequenceRow.name == SERIE_PACIENTE).values(
+            last=PatientSequenceRow.last + 1,
+        ).returning(PatientSequenceRow.last)
+        for _ in range(2):
+            with self.session_factory.begin() as session:
+                numero = session.scalar(paso)
+            if numero is not None:
+                return numero
+            self._start_sequence()
+        raise RuntimeError("no se pudo iniciar la serie de números de paciente")
+
+    def _start_sequence(self) -> None:
+        """Crea el contador la primera vez, partiendo del `p-NNN` más alto que ya exista.
+
+        Sin esto, una instancia con `p-001..p-040` empezaría en 1 y cada alta saltearía
+        a ciegas 40 ids ocupados. Si dos altas llegan juntas, una de las dos pierde la
+        inserción (`IntegrityError`) y usa la fila de la otra.
+        """
+        with self.session_factory() as session:
+            usados = [int(m.group(1)) for i in session.scalars(select(PatientRow.id))
+                      if (m := _ID_GENERADO.match(i))]
+        try:
+            with self.session_factory.begin() as session:
+                session.add(PatientSequenceRow(name=SERIE_PACIENTE, last=max(usados, default=0)))
+        except IntegrityError:
+            pass  # otra alta la creó entre medio
 
     def count_active(self) -> int:
         return sum(1 for client in self.catalog.list_clients() if client.active)

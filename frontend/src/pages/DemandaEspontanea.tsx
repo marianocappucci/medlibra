@@ -15,7 +15,7 @@
  *  y se convierte al mostrar.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -23,10 +23,11 @@ import { ListOrdered } from 'lucide-react'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
 import { EncabezadoDePantalla } from 'libra-ui/acciones'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
+import { SelectCliente } from 'libra-ui/SelectCliente'
 import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
 import { hoyISO } from 'libra-ui/fechas'
 import {
-  ApiError, ESTADO_LLEGADA_LABELS, api, opcionesPaciente,
+  ALTA_DE_PACIENTE, ApiError, ESTADO_LLEGADA_LABELS, altaDePaciente, api, opcionesPaciente,
   type BloqueDeLaFila, type EstadoLlegada, type Llegada, type Patient,
   type PrestacionDeLaFila,
 } from '../api'
@@ -116,6 +117,9 @@ export function DemandaEspontanea() {
   //: del nombre de otro mientras llega la respuesta.
   const [bloquesDe, setBloquesDe] = useState<{ dia: string; lista: BloqueDeLaFila[] } | null>(null)
   const [pacientes, setPacientes] = useState<Patient[]>([])
+  // Con el panel de alta abierto el campo ocupa la fila entera: en los 16 rem del
+  // buscador el formulario de alta no entra.
+  const [altaDePacienteAbierta, setAltaDePacienteAbierta] = useState(false)
   const [prestaciones, setPrestaciones] = useState<PrestacionDeLaFila[]>([])
   const [filaDe, setFilaDe] = useState<{ clave: string; items: Llegada[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -320,16 +324,19 @@ export function DemandaEspontanea() {
                     control={form.control}
                     name="client_id"
                     render={({ field }) => (
-                      <FormItem className="min-w-64">
+                      <FormItem className={altaDePacienteAbierta ? 'min-w-64 basis-full' : 'min-w-64'}>
                         <FormLabel>Paciente</FormLabel>
                         <FormControl>
-                          <SelectBuscable
+                          <SelectCliente
                             value={field.value}
                             onChange={field.onChange}
                             opciones={opcionesPaciente(pacientes.filter((p) => p.active))}
                             placeholder="Paciente…"
                             ariaLabel="Paciente"
-                            className="w-64"
+                            classNameSelect="w-52"
+                            {...ALTA_DE_PACIENTE}
+                            onPanelChange={setAltaDePacienteAbierta}
+                            crear={altaDePaciente((p) => setPacientes((prev) => [...prev, p]))}
                           />
                         </FormControl>
                         <FormMessage />
@@ -361,11 +368,6 @@ export function DemandaEspontanea() {
                   </Button>
                 </form>
               </Form>
-              <p className="text-xs text-muted-foreground">
-                ¿No está cargado? Dalo de alta en{' '}
-                <Link to="/pacientes" className="underline">Pacientes</Link> y
-                volvé: la fila sólo anota pacientes existentes.
-              </p>
             </CardContent>
           </Card>
 

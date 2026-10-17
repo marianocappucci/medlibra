@@ -14,6 +14,7 @@
 // objeto base.
 import { api as baseApi, ApiError, type User } from 'libra-ui/api-client'
 import type { OpcionSelect } from 'libra-ui/SelectBuscable'
+import type { CampoDeAlta, ClienteNuevo } from 'libra-ui/SelectCliente'
 
 export { ApiError, type User }
 
@@ -257,6 +258,47 @@ export function opcionesPaciente(pacientes: Patient[]): OpcionSelect[] {
     hint: [p.dni, p.phone, p.active ? null : 'inactivo']
       .filter(Boolean).join(' · ') || undefined,
   }))
+}
+
+// --- alta de paciente donde se elige uno (libra-ui/SelectCliente, ADR-071) ----
+//
+// Todo campo que elige un paciente (Nuevo turno, Anotar llegada) ofrece darlo de
+// alta ahi mismo, con el mismo control y el mismo POST. Un solo lugar para que
+// las dos pantallas no se separen.
+
+/** Lo que pide el alta rapida: nombre, DNI, telefono y email. El resto (fecha de
+ *  nacimiento, CUIT, condicion frente al IVA) se completa despues en la ficha. */
+export const CAMPOS_ALTA_PACIENTE: CampoDeAlta[] = ['documento', 'telefono', 'email']
+
+/** Lo que `SelectCliente` pide ademas de `crear`/`campos`: el texto del paciente. */
+export const ALTA_DE_PACIENTE: {
+  entidad: string
+  etiquetaDocumento: string
+  campos: CampoDeAlta[]
+} = {
+  entidad: 'paciente',
+  etiquetaDocumento: 'DNI',
+  campos: CAMPOS_ALTA_PACIENTE,
+}
+
+/** El `crear` de `SelectCliente` para pacientes: `POST /patients` **sin `id`**, que el
+ *  backend genera solo (`p-001`, `p-002`...). El DNI se guarda sin puntos ni espacios
+ *  (`30.111.222` y `30111222` son el mismo paciente para la busqueda). Un campo vacio
+ *  viaja como `null`, no como `''`.
+ *
+ *  `alCrear` recibe el paciente tal como lo devolvio el backend: la pantalla lo suma
+ *  a su lista para que el nombre se resuelva en el resto de la pagina. */
+export function altaDePaciente(alCrear?: (paciente: Patient) => void) {
+  return async (d: ClienteNuevo): Promise<OpcionSelect> => {
+    const creado = await api.post<Patient>('/patients', {
+      name: d.nombre,
+      dni: d.documento.replace(/[.\s]/g, '') || null,
+      phone: d.telefono || null,
+      email: d.email || null,
+    })
+    alCrear?.(creado)
+    return opcionesPaciente([creado])[0]
+  }
 }
 
 export function opcionesServicio(servicios: Service[]): OpcionSelect[] {
