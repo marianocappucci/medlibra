@@ -106,7 +106,7 @@ from .routers import (
     walkins as walkins_router,
 )
 from .services import libracore_setup
-from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
+from .services.agenda_blocks import AgendaBlockRepository
 from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
 from .services.branches import BranchRepository
@@ -372,12 +372,11 @@ def create_app(database_url: str) -> FastAPI:
     app.state.business_settings = BusinessSettingsRepository(sessions)
     app.state.consultorios = ConsultorioRepository(sessions)
     app.state.agenda_blocks = AgendaBlockRepository(sessions)
-    app.state.appointment_rooms = AppointmentRoomRepository(sessions)
     app.state.walkins = WalkinRepository(sessions)
     app.state.envios_contalibra = EnvioContalibraRepository(sessions)
     app.state.appointment_service = AppointmentService(
         catalog, appointment_repository, availability_repository, branch_hours_repository,
-        app.state.agenda_blocks, app.state.appointment_rooms,
+        app.state.agenda_blocks,
     )
     app.state.patients = patient_repository
     app.state.clinical_notes = ClinicalNoteRepository(sessions)

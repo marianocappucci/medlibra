@@ -6,7 +6,7 @@ from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from libragenda.repositories import DepositRepository
 
-from .services.agenda_blocks import AgendaBlockRepository, AppointmentRoomRepository
+from .services.agenda_blocks import AgendaBlockRepository
 from .services.appointments import AppointmentService
 from .services.branch_hours import BranchHoursRepository
 from .services.branches import BranchRepository
@@ -41,10 +41,6 @@ def get_consultorio_repository(request: Request) -> ConsultorioRepository:
 
 def get_agenda_block_repository(request: Request) -> AgendaBlockRepository:
     return request.app.state.agenda_blocks
-
-
-def get_appointment_room_repository(request: Request) -> AppointmentRoomRepository:
-    return request.app.state.appointment_rooms
 
 
 def get_walkin_repository(request: Request) -> WalkinRepository:
