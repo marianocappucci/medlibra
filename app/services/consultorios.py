@@ -7,14 +7,27 @@ Consultorio 2 a las 10?"* no se podía ni formular: no había sala que colisiona
 Un consultorio tiene una capacidad de uno y es el recurso más escaso de una
 clínica chica — dos agendas correctas por separado se pisan en la puerta.
 
-**Un consultorio NO es un `Resource` de LibraGenda**, aunque se le parezca. El
-motor asocia un turno a *un solo* recurso y busca choques sobre él
-(`find_conflicts`); modelar la sala como un segundo `Resource` obligaría a un
-turno a ocupar dos, que es justo lo que el motor no hace. La sala vive acá y su
-choque lo valida `AppointmentService` — el reparto que fija LibraGenda es que el
-vertical resuelve lo que el motor no modela, en vez de deformar el motor.
+🔴 **Un consultorio ES un `Resource` de LibraGenda, de recurso secundario**
+(ADR-042, que corrige al ADR-030 de acá y se apoya en el ADR-009 y el ADR-016 del
+motor). Hasta el 2026-10-17 esto decía lo contrario —*"un consultorio NO es un
+`Resource`"*— y la sala se chequeaba en `AppointmentService`, **afuera** de la
+transacción del motor: dos profesionales que reservaban a la vez veían los dos
+la sala libre y entraban los dos. El motor ya sabe ocupar más de un recurso por
+turno y trabarlos juntos; lo que le faltaba a la sala era existir como recurso.
+
+Por eso cada consultorio son **dos filas, la misma identidad**:
+
+- el `Resource` (`resources`), que es lo que el motor traba y compara: nombre,
+  sede y `active` viven ahí también;
+- la `ConsultorioRow` (`consultorios`), la extensión del vertical, con el mismo
+  `id` — el patrón de `PatientRow` sobre `Client`.
+
+`ConsultorioRepository` escribe las dos en la misma transacción, así que no hay
+consultorio sin recurso. **El `Resource` de una sala no es un profesional**: los
+dos listados que arman la agenda (`/resources` y `/agenda/catalogo`) lo sacan
+con `ids()`.
 """
-from libragenda.sqlalchemy_repository import Base
+from libragenda.sqlalchemy_repository import Base, ResourceRow
 from sqlalchemy import Boolean, ForeignKey, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
@@ -45,6 +58,10 @@ class ConsultorioRepository:
         self, id: str, name: str, branch_id: str | None, active: bool,
     ) -> dict:
         with self.session_factory.begin() as session:
+            # El recurso primero: es el que choca contra el id de un profesional
+            # ya cargado, y entonces el `IntegrityError` sale antes de escribir
+            # nada de la sala.
+            session.add(ResourceRow(id=id, name=name, branch_id=branch_id, active=active))
             row = ConsultorioRow(
                 id=id, name=name, branch_id=branch_id, active=active,
             )
@@ -64,6 +81,11 @@ class ConsultorioRepository:
             ).all()
             return [_to_dict(row) for row in rows]
 
+    def ids(self) -> set[str]:
+        """Los ids de las salas: los `Resource` que **no** son profesionales."""
+        with self.session_factory() as session:
+            return set(session.scalars(select(ConsultorioRow.id)).all())
+
     def update(
         self, consultorio_id: str, name: str, branch_id: str | None, active: bool,
     ) -> dict:
@@ -74,6 +96,11 @@ class ConsultorioRepository:
             row.name = name
             row.branch_id = branch_id
             row.active = active
+            recurso = session.get(ResourceRow, consultorio_id)
+            if recurso is not None:
+                recurso.name = name
+                recurso.branch_id = branch_id
+                recurso.active = active
             session.flush()
             return _to_dict(row)
 
@@ -83,3 +110,9 @@ class ConsultorioRepository:
             if row is None:
                 raise KeyError(consultorio_id)
             session.delete(row)
+            # Con turnos colgando el `IntegrityError` sale de acá (el turno
+            # referencia al recurso) o del bloque de agenda (referencia a la
+            # sala): el router lo traduce igual.
+            recurso = session.get(ResourceRow, consultorio_id)
+            if recurso is not None:
+                session.delete(recurso)

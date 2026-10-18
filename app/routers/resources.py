@@ -4,7 +4,8 @@ from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
-from ..dependencies import get_catalog_repository
+from ..dependencies import get_catalog_repository, get_consultorio_repository
+from ..services.consultorios import ConsultorioRepository
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
@@ -52,8 +53,15 @@ def create_resource(
 
 
 @router.get("", response_model=list[ResourceOut])
-def list_resources(catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository)):
-    return [_to_out(item) for item in catalog.list_resources()]
+def list_resources(
+    catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
+    consultorios: ConsultorioRepository = Depends(get_consultorio_repository),
+):
+    """Los profesionales. Los consultorios también son `Resource` del motor
+    (recurso secundario del turno, ADR-042) y **no** se listan acá: se piden por
+    `/consultorios`."""
+    salas = consultorios.ids()
+    return [_to_out(item) for item in catalog.list_resources() if item.id not in salas]
 
 
 @router.get("/{resource_id}", response_model=ResourceOut)

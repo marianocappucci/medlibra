@@ -288,3 +288,112 @@ def test_reprogramar_encima_de_otro_de_la_misma_sala_se_rechaza(
     })
     assert choque.status_code == 409
     assert "consultorio" in choque.json()["detail"].lower()
+
+
+# ── La sala es un recurso secundario del turno (ADR-042) ───────────────────
+
+def _sala_del_turno(client: TestClient, turno_id: str) -> tuple[str, ...]:
+    """Qué recursos secundarios tiene el turno guardado: la sala, si la hay."""
+    return client.app.state.appointment_service.appointments.get(turno_id).secondary_resource_ids
+
+
+def test_el_turno_guarda_su_sala_como_recurso_secundario(consultorio: TestClient):
+    _bloque(consultorio, consultorio_id="cons-2")
+    creado = _turno(consultorio)
+    assert creado.status_code == 201
+
+    assert _sala_del_turno(consultorio, creado.json()["id"]) == ("cons-2",)
+
+
+def test_un_turno_sin_bloque_no_ocupa_ninguna_sala(consultorio: TestClient):
+    """El camino viejo (disponibilidad semanal): no hay sala que declarar."""
+    client = consultorio
+    client.post("/resources/dr-molina/availability", json={
+        "weekday": 0, "starts_at": "09:00:00", "ends_at": "13:00:00",
+    })
+    creado = _turno(client)
+    assert creado.status_code == 201, creado.text
+
+    assert _sala_del_turno(client, creado.json()["id"]) == ()
+
+
+def test_el_mismo_profesional_dos_veces_es_horario_ocupado_y_no_consultorio(consultorio: TestClient):
+    """Si el profesional está ocupado, manda su horario: es lo primero que hay
+    que mirar. "Consultorio ocupado" es para cuando la sala es lo único que choca."""
+    client = consultorio
+    _bloque(client)
+    assert _turno(client, paciente="p-1").status_code == 201
+
+    repetido = _turno(client, paciente="p-2")
+
+    assert repetido.status_code == 409
+    assert "horario ya está ocupado" in repetido.json()["detail"]
+    assert "consultorio" not in repetido.json()["detail"].lower()
+
+
+def test_reprogramar_cambia_de_consultorio_con_el_bloque_que_cubre_el_horario(consultorio: TestClient):
+    client = consultorio
+    _bloque(client, starts_at="09:00:00", ends_at="11:00:00", consultorio_id="cons-1")
+    _bloque(client, starts_at="11:00:00", ends_at="13:00:00", consultorio_id="cons-2")
+    turno_id = _turno(client, hora="10:00").json()["id"]
+    assert _sala_del_turno(client, turno_id) == ("cons-1",)
+
+    movido = client.post(f"/appointments/{turno_id}/reschedule", json={"starts_at": f"{LUNES}T12:00:00"})
+
+    assert movido.status_code == 200, movido.text
+    assert _sala_del_turno(client, turno_id) == ("cons-2",)
+
+
+def test_reprogramar_a_la_sala_nueva_ocupada_se_rechaza_y_el_turno_queda_donde_estaba(
+    consultorio: TestClient,
+):
+    """🔴 La sala NUEVA es la que se valida, no la vieja."""
+    client = consultorio
+    _bloque(client, resource_id="dr-molina", starts_at="09:00:00", ends_at="11:00:00", consultorio_id="cons-1")
+    _bloque(client, resource_id="dr-molina", starts_at="11:00:00", ends_at="13:00:00", consultorio_id="cons-2")
+    _bloque(client, resource_id="dra-vidal", starts_at="11:00:00", ends_at="13:00:00", consultorio_id="cons-2")
+    molina = _turno(client, hora="10:00", profesional="dr-molina", paciente="p-1").json()["id"]
+    assert _turno(client, hora="12:00", profesional="dra-vidal", paciente="p-2").status_code == 201
+
+    choque = client.post(f"/appointments/{molina}/reschedule", json={"starts_at": f"{LUNES}T12:00:00"})
+
+    assert choque.status_code == 409
+    assert "consultorio" in choque.json()["detail"].lower()
+    assert _sala_del_turno(client, molina) == ("cons-1",)
+
+
+def test_reprogramar_a_un_horario_sin_bloque_libera_la_sala(consultorio: TestClient):
+    client = consultorio
+    _bloque(client, starts_at="09:00:00", ends_at="11:00:00")
+    client.post("/resources/dr-molina/availability", json={
+        "weekday": 0, "starts_at": "14:00:00", "ends_at": "16:00:00",
+    })
+    turno_id = _turno(client, hora="10:00").json()["id"]
+    assert _sala_del_turno(client, turno_id) == ("cons-1",)
+
+    movido = client.post(f"/appointments/{turno_id}/reschedule", json={"starts_at": f"{LUNES}T14:30:00"})
+
+    assert movido.status_code == 200, movido.text
+    assert _sala_del_turno(client, turno_id) == ()
+    # Y la sala quedó libre para otro profesional a la hora vieja.
+    _bloque(client, resource_id="dra-vidal", starts_at="09:00:00", ends_at="11:00:00")
+    assert _turno(client, hora="10:00", profesional="dra-vidal", paciente="p-2").status_code == 201
+
+
+def test_la_sala_se_comparte_entre_sedes_de_husos_distintos(consultorio: TestClient):
+    """🔴 El instante manda. Dos profesionales de sedes con distinto huso piden la
+    misma sala al mismo INSTANTE: 10:00 en Buenos Aires (UTC-3) y 09:00 en Nueva
+    York (UTC-4 en julio) son las 13:00 UTC. Si el choque comparara horas de pared,
+    no lo vería."""
+    client = consultorio
+    client.post("/branches", json={"id": "sede-ny", "name": "Sede NY", "timezone": "America/New_York"})
+    client.post("/resources", json={"id": "dr-smith", "name": "Dr. Smith", "branch_id": "sede-ny"})
+    _bloque(client, resource_id="dr-molina", consultorio_id="cons-1")
+    _bloque(client, resource_id="dr-smith", consultorio_id="cons-1")
+
+    assert _turno(client, hora="10:00", profesional="dr-molina", paciente="p-1").status_code == 201
+    choque = _turno(client, hora="09:00", profesional="dr-smith", paciente="p-2")
+    assert choque.status_code == 409
+    assert "consultorio" in choque.json()["detail"].lower()
+    # El control: a la misma hora de PARED (10:00 en NY = 14:00 UTC) ya no chocan.
+    assert _turno(client, hora="10:00", profesional="dr-smith", paciente="p-2").status_code == 201

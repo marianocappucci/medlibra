@@ -41,7 +41,9 @@ AUDITABLES: dict[str, str] = {
     "ResourceRow": "profesional",
     "ConsultorioRow": "consultorio",
     "AgendaBlockRow": "bloque de agenda",
-    "AppointmentRoomRow": "sala del turno",
+    # La sala del turno es una fila de `appointment_resources` (recurso secundario
+    # del motor, ADR-009 de libragenda); en MedLibra todo recurso secundario es una sala.
+    "AppointmentResourceRow": "sala del turno",
     "WalkinRow": "llegada",
     "EnvioAContalibraRow": "envio a Contalibra",
     "BranchRow": "sede",
