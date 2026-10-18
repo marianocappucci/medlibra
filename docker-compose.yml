@@ -122,6 +122,14 @@ services:
     command: sh -c "libragenda-migrar upgrade && libraauth-migrar upgrade --prefijo medlibra --base core && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-1}"
     environment:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY es obligatorio tambien en dev (sin default en un repo publico)}
+      # Token de servicio de ESTA instancia (libracore v1.183.0, ADR-071: uno por
+      # instancia, nunca el de otra). Con default vacío a propósito: libraauth trata
+      # el vacío como «no definido» y `require_admin_o_servicio` se comporta como
+      # `require_admin`; no ponerlo no abre nada.
+      - LIBRA_SERVICE_TOKEN=${LIBRA_SERVICE_TOKEN:-}
+      # Rotación sin corte (libraauth v0.52.0): mientras está definida, la
+      # instancia acepta el token nuevo y el anterior. Vacía no vale nada.
+      - LIBRA_SERVICE_TOKEN_ANTERIOR=${LIBRA_SERVICE_TOKEN_ANTERIOR:-}
       - TZ=America/Argentina/Buenos_Aires
       - MEDLIBRA_ADMIN_USERNAME=${MEDLIBRA_ADMIN_USERNAME:-admin}
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
