@@ -17,9 +17,15 @@ from libragenda.catalog_repository import SqlAlchemyCatalogRepository
 from pydantic import BaseModel
 
 from .. import mensajes_agenda as mensajes
-from ..dependencies import get_appointment_service, get_branch_repository, get_catalog_repository
+from ..dependencies import (
+    get_appointment_service,
+    get_branch_repository,
+    get_catalog_repository,
+    get_consultorio_repository,
+)
 from ..services.appointments import AppointmentService
 from ..services.branches import BranchRepository
+from ..services.consultorios import ConsultorioRepository
 from ._instantes import InstanteUTC
 
 router = APIRouter(tags=["agenda"])
@@ -59,19 +65,25 @@ class CatalogoDeLaAgenda(BaseModel):
 def catalogo_de_la_agenda(
     catalog: SqlAlchemyCatalogRepository = Depends(get_catalog_repository),
     branches: BranchRepository = Depends(get_branch_repository),
+    consultorios: ConsultorioRepository = Depends(get_consultorio_repository),
 ):
     """Profesionales, sedes y prestaciones, **también los dados de baja**.
+
+    Los consultorios son `Resource` del motor (ADR-042) pero no profesionales:
+    no se dibujan como carril de la agenda.
 
     No se filtra acá, a propósito: la pantalla filtra los activos para ofrecer
     y para dibujar carriles, pero un turno viejo con una prestación dada de baja
     tiene que seguir mostrando su nombre y no el id.
     """
+    salas = consultorios.ids()
     return CatalogoDeLaAgenda(
         profesionales=[
             ProfesionalDeLaAgenda(
                 id=r.id, name=r.name, branch_id=r.branch_id, active=r.active,
             )
             for r in catalog.list_resources()
+            if r.id not in salas
         ],
         sedes=[
             SedeDeLaAgenda(id=b["id"], name=b["name"], timezone=b["timezone"])

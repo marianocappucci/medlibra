@@ -1242,7 +1242,13 @@ sede, que es la misma cuenta que hace el backend al filtrar.
 ## ADR-030 — El consultorio es una entidad, y la agenda se arma por bloques
 
 **Fecha**: 2026-08-23
-**Estado**: Aceptada
+**Estado**: Aceptada — **en parte reemplazada por ADR-042** (2026-10-17)
+
+> ⚠️ **Dos afirmaciones de este ADR dejaron de valer.** «Un consultorio no es un
+> `Resource`» y «en qué sala ocurre un turno va en `appointment_rooms`» se
+> reemplazaron por ADR-042: la sala es un `Resource` y un recurso secundario del
+> turno, y `appointment_rooms` se migró y se borró. El resto (bloques de agenda,
+> duración, vigencia, modalidad) sigue como está escrito.
 
 ### Contexto
 
@@ -2075,3 +2081,20 @@ prestaciones—.
   - **Migración `0021_patient_sequences`**: crea la tabla vacía. La fila de la serie se crea en el primer alta sin id, partiendo del `p-NNN` más alto que ya exista, así no hace falta un backfill en SQL que repita la expresión regular del código. Es idempotente en los dos mundos (instancia armada por `create_all` o por migraciones).
 - Dónde vive la numeración: ni `libracore` ni `libragenda` generan el id del paciente. `libragenda` (`add_client`) recibe el `Client` con el id ya armado, que es una cadena libre; los clientes de `libracore.db.clients` son otra tabla, con ids enteros, que este producto no usa para los pacientes. El formato `p-NNN` y el contador son de MedLibra (el id del paciente es su identidad clínica), y por eso `PatientRepository` los pone en `app/services/patients.py`. Si otro producto de la familia que usa `libragenda` quiere lo mismo para sus clientes, hay que subir el contador a `libragenda` y no copiarlo.
 - Consecuencias: un alta que falla después de tomar el número (un 422 por un email inválido, por ejemplo) **deja un hueco** en la serie; es el costo de un contador que nunca devuelve números, y no es un defecto. Los números no son correlativos para una auditoría; si algún día lo tienen que ser, es otra decisión. Tests verificados por mutación: sin `id` opcional, seis tests del backend se ponen rojos; sin `SelectCliente` en la Agenda, la guarda se pone roja nombrando `pages/Agenda.tsx:454`; el test de Escape (panel abierto dentro de «Nuevo turno») cubre el arreglo del kit v0.158.1, que corta Escape antes que el `Dialog`.
+
+## ADR-042 — El consultorio es un recurso secundario del turno, y el motor lo traba (2026-10-17)
+
+- Estado: aceptada. Corrige a ADR-030 en lo que dice del consultorio.
+- Contexto: **dos profesionales podían quedarse el mismo consultorio a la misma hora.** ADR-030 modelaba la sala como entidad propia (`consultorios` + `appointment_rooms`) porque «el motor asocia un turno a un solo recurso»; para entonces ADR-009 de LibraGenda (recurso secundario) ya existía. `AppointmentService` chequeaba la sala con `_consultorio_libre()` leyendo los turnos **antes** de llamar al motor, y recién después `reserve()` abría su transacción: dos pedidos simultáneos veían los dos la sala libre, cada uno trababa su propia fila de profesional —no se cruzaban— y entraban los dos. Medido con dos hilos sobre `AppointmentService.create` y sobre `reschedule` contra PostgreSQL (`tests/test_consultorio_concurrente.py`): **entraban los dos** en las dos operaciones; con el cambio, entra uno y el otro recibe `ConsultorioOcupado`. Los tests de `test_agenda_blocks.py`, que corren de a un pedido, nunca lo veían.
+- Decisión: **la sala es un `Resource` de LibraGenda y va en `Appointment.secondary_resource_ids`** (ADR-009 y ADR-016 del motor, v0.13.0). El motor traba el profesional y la sala en la misma transacción (`SELECT … FOR UPDATE` en orden de id) y compara la intersección de recursos; el choque de sala es un `AppointmentConflict` como el del horario. Nada del chequeo vive ya en MedLibra.
+  - **Cada consultorio son dos filas con el mismo id**: el `Resource` (lo que el motor traba) y la `ConsultorioRow` (la extensión del vertical), como `PatientRow` sobre `Client`. `ConsultorioRepository` escribe las dos en una transacción y las mantiene al editar y al borrar. Sin FK entre ellas: la invariante la sostienen el repositorio y la migración.
+  - **El `Resource` de una sala no es un profesional.** `/resources` y `/agenda/catalogo` lo sacan con `ConsultorioRepository.ids()`; sin eso la Agenda dibujaría un carril «Consultorio 2» al lado de la Dra. Vidal. Un consultorio con el id de un profesional da 409 y no deja nada escrito.
+  - **La sala sigue al bloque**: el turno ocupa el consultorio del bloque que cubre su horario, y al **reprogramar** cambia de sala si el horario nuevo cae en otro bloque (la sala nueva se valida y se traba con la hora nueva, en la misma transacción). Sin bloque que lo cubra, el turno no ocupa sala —como uno dado por la disponibilidad semanal—, **y al reprogramar a un horario así libera la que tenía** (antes la conservaba sin validarla).
+  - **Qué mensaje se da**: `AppointmentConflict.resource_ids` dice qué chocó. Si fue **sólo** la sala, `ConsultorioOcupado` («el consultorio ya está ocupado… por otro profesional»); si el profesional estaba ocupado —solo o con la sala—, el «horario ya está ocupado» de siempre. Antes, un mismo profesional repetido sobre el mismo bloque decía «consultorio ocupado»: era cierto pero no era lo primero que había que mirar.
+  - **El choque se compara en instantes**, como antes: `_TurnosEnHoraLocal` pasa ahora los turnos que **comparten algún recurso** con el candidato (no sólo los del profesional) y los lleva a la hora de pared de la sede que valida; dos sedes de husos distintos que piden la misma sala al mismo instante chocan (`test_la_sala_se_comparte_entre_sedes_de_husos_distintos`).
+- Migración `0022_consultorio_recurso` (con datos, reversible): crea un `Resource` por consultorio, pasa cada fila de `appointment_rooms` a `appointment_resources` (después de otros secundarios que el turno ya tuviera), verifica los conteos **antes** de borrar la tabla y la borra. Corta, sin escribir nada, si el id de un consultorio ya es el de un profesional. El downgrade recrea `appointment_rooms`, devuelve a cada turno su sala y borra los `Resource` de las salas. Probada en `tests/test_migracion_consultorio_recurso.py`: subida, bajada y resubida con conteos, el solapamiento que ya existía conservado, una sala huérfana descartada.
+- Consecuencias:
+  - 🔴 Requiere **libragenda v0.13.0** (`AppointmentConflict.resource_ids` y `reschedule(secondary_resource_ids=…)`); con el pin en v0.12.0 reprogramar falla con `TypeError` y un choque de sala con `AttributeError`: ruidoso, no en silencio.
+  - **Los turnos que ya estaban solapados en una sala siguen así**: la migración no mueve ni borra turnos ajenos. A partir de ahora no entran más.
+  - Se retiran `AppointmentRoomRow`/`AppointmentRoomRepository`, `AppointmentService._consultorio_libre()` y el parámetro `rooms` del servicio; la auditoría etiqueta `AppointmentResourceRow` como «sala del turno».
+  - No se carga todavía el `TimeBlock` de una sala (consultorio en mantenimiento) al motor: ADR-009 lo permite sin concepto nuevo, y falta sólo pasárselo a `_agenda_local`.

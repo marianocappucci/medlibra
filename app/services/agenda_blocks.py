@@ -85,27 +85,6 @@ class AgendaBlockRow(Base):
     modality: Mapped[str] = mapped_column(String(20))
 
 
-class AppointmentRoomRow(Base):
-    """En qué consultorio ocurre un turno.
-
-    Tabla aparte y no una columna del turno porque el turno lo modela
-    LibraGenda: `Appointment` es un dataclass del motor y agregarle un campo
-    sería cambiar el motor. Es el mismo patrón con el que `Patient` extiende al
-    `Client` y `BranchContactRow` a la sede.
-
-    Se llena al crear el turno, con el consultorio del bloque que lo cubre. Un
-    turno dado sobre la disponibilidad semanal vieja —sin bloque— no tiene fila
-    acá, y entonces no participa del choque de sala: no hay sala que declarar.
-    """
-
-    __tablename__ = "appointment_rooms"
-
-    appointment_id: Mapped[str] = mapped_column(String(100), primary_key=True)
-    consultorio_id: Mapped[str] = mapped_column(
-        ForeignKey("consultorios.id"), index=True,
-    )
-
-
 def _to_dict(row: AgendaBlockRow) -> dict:
     return {
         "id": row.id, "resource_id": row.resource_id,
@@ -288,41 +267,3 @@ class AgendaBlockRepository:
             if b["starts_at"] <= inicio_local.time() < b["ends_at"]:
                 return timedelta(minutes=b["slot_minutes"])
         return None
-
-
-class AppointmentRoomRepository:
-    """Dónde ocurre cada turno, y qué turnos ocupan una sala."""
-
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
-        self.session_factory = session_factory
-
-    def set(self, appointment_id: str, consultorio_id: str) -> None:
-        with self.session_factory.begin() as session:
-            row = session.get(AppointmentRoomRow, appointment_id)
-            if row is None:
-                session.add(AppointmentRoomRow(
-                    appointment_id=appointment_id, consultorio_id=consultorio_id,
-                ))
-            else:
-                row.consultorio_id = consultorio_id
-
-    def get(self, appointment_id: str) -> str | None:
-        with self.session_factory() as session:
-            row = session.get(AppointmentRoomRow, appointment_id)
-            return row.consultorio_id if row else None
-
-    def ids_en(self, consultorio_id: str) -> set[str]:
-        """Los turnos asignados a esa sala."""
-        with self.session_factory() as session:
-            rows = session.scalars(
-                select(AppointmentRoomRow.appointment_id).where(
-                    AppointmentRoomRow.consultorio_id == consultorio_id,
-                )
-            ).all()
-            return set(rows)
-
-    def delete(self, appointment_id: str) -> None:
-        with self.session_factory.begin() as session:
-            row = session.get(AppointmentRoomRow, appointment_id)
-            if row is not None:
-                session.delete(row)
