@@ -428,7 +428,10 @@ async def test_el_pedido_lleva_el_vocabulario_de_contalibra(monkeypatch):
 
     # La barra final de la URL configurada no se duplica.
     assert capturado["url"] == "https://contalibra.example/api/integraciones/consultas"
-    # El header es el que valida libraauth del otro lado, no uno inventado.
+    # Los headers son los que valida libraauth del otro lado, no inventados: la
+    # credencial de integración (libraauth v0.52.0) y, mientras haya ContaLibras
+    # sin vincular, la de servicio. El mismo valor en los dos.
+    assert capturado["headers"]["x-integracion-auth"] == "un-token"
     assert capturado["headers"]["x-internal-auth"] == "un-token"
 
     cuerpo = capturado["json"]
