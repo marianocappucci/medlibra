@@ -91,7 +91,15 @@ def _ids_compartidos_con_un_profesional() -> list[str]:
     return sorted(compartidos)
 
 
+def _sin_nada_que_mover() -> bool:
+    """Una base sin las tablas de LibraGenda o sin consultorios (la cadena corrida sola, como en
+    `test_migracion_sin_users`): no hay salas que pasar a recurso. Mismo criterio que las revisiones previas."""
+    return not (_tiene("consultorios") and _tiene("resources"))
+
+
 def upgrade():
+    if _sin_nada_que_mover():
+        return
     bind = op.get_bind()
 
     # -- 1. Un `Resource` por consultorio ---------------------------------
@@ -156,6 +164,8 @@ def upgrade():
 
 
 def downgrade():
+    if _sin_nada_que_mover():
+        return
     bind = op.get_bind()
 
     # -- 1. La tabla vieja, como la dejó `0015` ----------------------------
