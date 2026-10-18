@@ -156,6 +156,11 @@ services:
       # y DEJA DE FACTURAR por su cuenta. Vacía = factura acá, como siempre.
       # No hay estado en el que hagan las dos cosas (ver ADR-035).
       - CONTALIBRA_URL=${CONTALIBRA_URL:-}
+      # El valor es el LIBRA_INTEGRACION_TOKEN de la ContaLibra destino (una por
+      # instancia, libraauth v0.52.0); lo carga
+      # `panel_admin.py vincular-integracion --token-var CONTALIBRA_SERVICE_TOKEN`.
+      # Va en `x-integracion-auth` y en `x-internal-auth`, así que una instancia
+      # todavía no vinculada sigue andando con el token de servicio de antes.
       # Variable propia y NO la LIBRA_SERVICE_TOKEN que este producto lee para
       # su propio guard de entrada: son dos permisos distintos —el que nos
       # dejan usar y el que nosotros aceptamos— y compartir el nombre haría que

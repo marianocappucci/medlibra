@@ -44,7 +44,7 @@ import httpx
 # motor que valida del otro lado (`token_de_servicio_valido`), así que si el
 # nombre cambiara alguna vez, escribirlo acá dejaría los envíos rebotando con
 # 401 y el mensaje diría "no autorizado", no "el header se llama distinto".
-from libraauth.session_auth import SERVICE_TOKEN_HEADER
+from libraauth.session_auth import INTEGRACION_TOKEN_HEADER, SERVICE_TOKEN_HEADER
 from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, Integer, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
@@ -112,7 +112,14 @@ def destino() -> str:
 
 
 def _token() -> str:
-    """El token de servicio con el que Contalibra nos deja entrar.
+    """La credencial con la que Contalibra nos deja entrar.
+
+    Desde libraauth v0.52.0 el valor es el **`LIBRA_INTEGRACION_TOKEN` de la
+    ContaLibra destino** (una por instancia, ADR-071 de libracore), que sólo
+    abre las rutas de integración; lo carga `panel_admin.py
+    vincular-integracion`. Una instancia que todavía no se vinculó tiene acá el
+    token de servicio de ContaLibra, como antes: por eso va en los dos headers
+    (`_headers`).
 
     Variable **propia** y no la `LIBRA_SERVICE_TOKEN` que este producto ya lee
     para su propio guard de entrada: son dos permisos distintos —el que nos
@@ -120,6 +127,19 @@ def _token() -> str:
     haría que rotar uno rote el otro sin que nadie lo pida.
     """
     return os.environ.get("CONTALIBRA_SERVICE_TOKEN", "")
+
+
+def _headers() -> dict[str, str]:
+    """La credencial en `x-integracion-auth` **y** en `x-internal-auth`.
+
+    Mientras dura el paso a la credencial de integración, el valor puede ser
+    cualquiera de las dos (ver `_token`), y del otro lado cada header se compara
+    sólo contra la suya: mandarlo en los dos hace que el envío ande con
+    cualquiera, sin coordinar el cambio de variable con un cambio de código. No
+    expone nada nuevo: va al mismo destino que ya lo recibía.
+    """
+    token = _token()
+    return {INTEGRACION_TOKEN_HEADER: token, SERVICE_TOKEN_HEADER: token}
 
 
 class EnvioRepository:
@@ -274,7 +294,7 @@ async def enviar_consulta(
         respuesta = await cliente.post(
             f"{url}/api/integraciones/consultas",
             json=cuerpo,
-            headers={SERVICE_TOKEN_HEADER: _token()},
+            headers=_headers(),
         )
     if respuesta.status_code >= 400:
         # El cuerpo del error entra al mensaje: Contalibra contesta cosas
