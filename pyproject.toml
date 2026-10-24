@@ -119,7 +119,8 @@ dependencies = [
     # v1.190.0 -> v1.190.1 (2026-10-22): LibraCargo y LibraClub en _UNA_SOLA_BASE (ADR-078). Sin migracion.
     # v1.190.1 -> v1.191.0 (2026-10-23): cola de comprobantes del nodo offline (cola_arca, ADR-079). Migracion 0029 aditiva.
     # v1.191.0 -> v1.192.0 (2026-10-24): costuras de caja: corregir, extra y gancho del central (ADR-080). Sin migracion.
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.192.0",
+    # v1.192.0 -> v1.192.1 (2026-10-24): un ciclo con el candado del esquema da deadlock en 1 s, no a los 120 s (ADR-081). Sin migracion.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.192.1",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
