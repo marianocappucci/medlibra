@@ -6,12 +6,11 @@ ninguna instancia con dos (el dominio y `medlibra_core`). El código sigue toler
 
 Resuelve igual que LibraClub (ADR-020 de ese producto):
 
-- sin `MEDLIBRA_LIBRACORE_DATABASE_URL` (ni el histórico `MEDLIBRA_LIBRACORE_DB_PATH`), o con la misma base
+- sin `MEDLIBRA_LIBRACORE_DATABASE_URL`, o con la misma base
   que el dominio, `libracore_database_url` **es** la URL del dominio y `core_en_la_del_dominio` es verdadero;
 - con otra base (ya sin instancias así), todo sigue como antes de la unión.
 
-El motor llama a la segunda variable `..._LIBRACORE_DATABASE_URL` y acepta la vieja
-(`libracore.db.url_de_instancia`): se leen las dos por ese camino, no a mano.
+La variable es `..._LIBRACORE_DATABASE_URL` y se lee por `libracore.db.url_de_instancia`, no a mano.
 """
 
 from __future__ import annotations
