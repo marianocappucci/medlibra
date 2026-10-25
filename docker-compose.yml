@@ -137,7 +137,7 @@ services:
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
       # 🔴 El corte a PostgreSQL, con UNA sola base (ADR-044): el dominio (LibraGenda), LibraAuth
       # y LibraCore viven todos en `medlibra`. **No hay variable del core**: sin
-      # `MEDLIBRA_LIBRACORE_DATABASE_URL` (ni su histórico `MEDLIBRA_LIBRACORE_DB_PATH`) el motor y
+      # `MEDLIBRA_LIBRACORE_DATABASE_URL` el motor y
       # `app/config.py` usan la base del dominio. Dev y demo se unieron el 2026-10-25 con
       # `libracore-unir-bases` y no queda ninguna instancia de dos bases (el código la tolera, ADR-046).
       #

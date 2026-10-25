@@ -2211,3 +2211,15 @@ prestaciones—.
   - **Despliegue**: dev y demo ya corren la cadena con `--base core`; con la base única los dos valores van al mismo lugar, así que **desplegar esto no cambia el destino de ninguna migración** (ni hace falta migrar nada).
   - **LibraEdge** (otro repo, otro PR): `instalador/productos/medlibra.json` declara `--base core` y `base_auth: core`. Funciona igual mientras el nodo sea de una sola base; conviene alinearlo a `dominio`.
 - Tests: ver el punto 5.
+
+## ADR-047 — Adoptar libracore v1.195.0 (ADR-084 del motor): la ruta de conexión del nodo es del motor y fuera `MEDLIBRA_LIBRACORE_DB_PATH` (2026-10-25)
+
+- Estado: aceptada. Es lo que el ADR-084 de libracore pide a MedLibra. Sin migración.
+- Contexto: `app/routers/nodo.py` escribía a mano `GET /api/nodo/conexion` (ADR-045) porque el motor sólo la ofrecía con un `PuertoDeVentas`. Y el motor todavía leía `MEDLIBRA_LIBRACORE_DB_PATH` como nombre histórico de la variable del core, así que no podía sacarlo de `_HISTORICOS` mientras este repo lo nombrara (`tests/conftest.py`, `tests/test_una_sola_base.py`, `app/config.py`).
+- Decisión:
+  1. **Pin `libracore` v1.195.0.**
+  2. **La ruta de conexión es del motor:** `build_conexion_del_nodo_router(conexion=offline.CONEXION, usuario_actual=require_staff)` reemplaza `app/routers/nodo.py` (borrado). Se usa `offline.CONEXION` y no `ConexionDelNodo(nodo=offline.nodo, en_linea=offline.en_linea)`: es la misma clase con las mismas funciones, pero atadas por nombre en cada pedido (ya la usa la barra del pie y el comentario de `offline.py` dice por qué). Ruta, guarda (cualquier usuario de la instancia) y respuesta, iguales; MedLibra no factura y `a_facturar` queda en 0.
+  3. **Fuera `MEDLIBRA_LIBRACORE_DB_PATH`** de `tests/conftest.py`, `tests/test_una_sola_base.py` (se retira `test_el_nombre_historico_del_core_se_sigue_aceptando`: el nombre que medía ya no existe), `app/config.py`, el compose y el README (que todavía describía el modo SQLite). Los ADR y el CHANGELOG anteriores lo siguen nombrando: son historia.
+  4. **`app/asgi.py` sin el `setdefault` del core:** existía para llevar el nombre histórico al normalizado; sin histórico no hace nada, y `Config` resuelve la base de LibraCore por su cuenta.
+- Consecuencias: ninguna instancia cambia. Una variable `MEDLIBRA_LIBRACORE_DB_PATH` suelta ya no la lee este repo; el motor deja de leerla cuando saque el histórico.
+- Tests: `tests/test_nodo_aprovisionamiento.py` (`test_el_cartel_de_conexion_distingue_la_pc_del_central` y `test_el_cartel_pide_sesion`) ya fijan la ruta, la respuesta y la sesión, y valen sin cambios.

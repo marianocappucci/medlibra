@@ -39,6 +39,7 @@ from libracore.db.core import get_connection as lc_get_connection
 from libracore.docs_api import cerrar_docs_de_la_api
 from libracore.errores import instalar_registro_de_errores
 from libracore.estado_del_sistema import build_estado_del_sistema_router
+from libracore.nodo_conexion_router import build_conexion_del_nodo_router
 from libracore.nodo_offline import SinConexion, SoloEnElCentral
 from libracore.resguardo_enlace import build_resguardo_enlace_router
 from libracore.respaldo import Instancia
@@ -105,7 +106,6 @@ from .routers import (
 from .routers import (
     medios_pago as medios_pago_router,
 )
-from .routers import nodo as nodo_router
 from .routers import patients as patients_router
 from .routers import (
     resource_prices as resource_prices_router,
@@ -490,8 +490,10 @@ def create_app(database_url: str) -> FastAPI:
     # un nodo registrado no hay ningún secreto válido y todo contesta 401. La autenticación es el secreto del nodo, no la
     # sesión: por eso no lleva guarda de rol.
     app.include_router(sincronizacion_offline.router)
-    # Si esta instalación es la PC del consultorio y si ve a la web: lo que lee el cartel «Sin conexión» de la pantalla.
-    app.include_router(nodo_router.router, dependencies=[Depends(require_staff)])
+    # `GET /api/nodo/conexion` (libracore ADR-084): si esta instalación es la PC del consultorio y si ve a la web, lo que lee el cartel
+    # «Sin conexión» de la pantalla. MedLibra no factura: `a_facturar` es siempre 0. La abre cualquier usuario de la instancia
+    # (`require_staff`, como la barra del pie): la pantalla la lee en cuanto carga la sesión. Fuera de un nodo contesta `es_nodo: false`.
+    app.include_router(build_conexion_del_nodo_router(conexion=offline.CONEXION, usuario_actual=require_staff))
     # «Sucursal sin internet» (libraedge ADR-011 y ADR-014): el admin da de alta el nodo de una sede y se lleva la dirección y un
     # código de vinculación, ve los nodos y los da de baja. Toda la lógica es de LibraEdge; acá sólo la guarda (cambia la
     # estructura de la instancia: sólo admin) y el aprovisionamiento de `app/offline.py`.

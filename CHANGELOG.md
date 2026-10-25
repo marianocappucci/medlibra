@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **libracore `v1.195.0` (ADR-084 del motor): `GET /api/nodo/conexion` del motor y fuera `MEDLIBRA_LIBRACORE_DB_PATH`** (2026-10-25; ADR-047). **Sin migración.** Pin `libracore` `v1.194.0` → `v1.195.0` (y `uv.lock`).
+  - **`app/routers/nodo.py` se borra:** la ruta la monta `build_conexion_del_nodo_router(conexion=offline.CONEXION, usuario_actual=require_staff)`. Misma ruta, misma guarda y misma respuesta (`{es_nodo, en_linea, node_id, a_facturar: 0}`); el frontend no cambia.
+  - **Se borra toda mención de `MEDLIBRA_LIBRACORE_DB_PATH`** del código vivo: `tests/conftest.py`, `tests/test_una_sola_base.py` (un test que medía el nombre histórico), `app/config.py`, el compose y el README. Con eso el motor puede sacar el histórico de `_HISTORICOS`.
+  - **`app/asgi.py` ya no puentea la variable del core** (`setdefault` de `MEDLIBRA_LIBRACORE_DATABASE_URL`): `Config` la resuelve sola y el motor la lee del entorno. `Config` sigue resolviendo por `url_de_instancia(core=True)`: la del dominio, salvo que exista `MEDLIBRA_LIBRACORE_DATABASE_URL` apuntando a otra (tolerancia).
+  - **Al desplegar:** nada que migrar ni configurar. Subir el pin de la imagen alcanza.
+  - Tests: los de la ruta (`test_el_cartel_de_conexion_distingue_la_pc_del_central`, `test_el_cartel_pide_sesion`) valen tal cual.
+
 - **`libraauth-migrar` pasa a `--base dominio` y el reset de la demo es de una sola base** (2026-10-25; ADR-046; cierra lo anotado en el ADR-044 y el pendiente chico del plan «GestioLibra, MedLibra y LibraDesk en la versión de escritorio»). **Sin migración, sin cambio de pin.** Dev y demo ya son de UNA base y no queda ninguna instancia de dos: la cadena de auth va con `--base dominio` en `scripts/panel_admin.py`, `scripts/nuevo_cliente.py`, el `command:` del compose de dev y la suite (`tests/bases_temporales.py`); la guarda de arranque ya decía `dominio` con una base. `scripts/reset_demo.sh` ya no lee la variable del core del contenedor: resetea la base del dominio, una vez.
   - **`app/config.py` y `app/asgi.py` siguen tolerando la variable del core** (`MEDLIBRA_LIBRACORE_DATABASE_URL`/`_DB_PATH`) por si aparece; nada del camino normal la define ni la necesita.
   - **Al desplegar:** nada que migrar; con una sola base `core` y `dominio` van al mismo lugar. Pendiente en otro repo: `instalador/productos/medlibra.json` de LibraEdge (`--base core` / `base_auth: core`).

@@ -35,8 +35,7 @@ PG = "postgresql+psycopg://medlibra:clave@db:5432"
 @pytest.fixture
 def entorno_limpio(monkeypatch):
     """Sin ninguna variable de base: cada test dice cuáles quiere."""
-    for nombre in ("MEDLIBRA_DATABASE_URL", "DATABASE_URL", "MEDLIBRA_LIBRACORE_DATABASE_URL",
-                   "MEDLIBRA_LIBRACORE_DB_PATH", "DATA_DIR"):
+    for nombre in ("MEDLIBRA_DATABASE_URL", "DATABASE_URL", "MEDLIBRA_LIBRACORE_DATABASE_URL", "DATA_DIR"):
         monkeypatch.delenv(nombre, raising=False)
     return monkeypatch
 
@@ -81,18 +80,6 @@ def test_con_otra_base_son_dos_y_todo_sigue_como_hasta_hoy(entorno_limpio):
     assert cfg.libracore_database_url == f"{PG}/medlibra_core"
     assert cfg.core_en_la_del_dominio is False
     assert cfg.base_de_auth == "core"
-
-
-def test_el_nombre_historico_del_core_se_sigue_aceptando(entorno_limpio):
-    """El compose de la demo decía `MEDLIBRA_LIBRACORE_DB_PATH` (el de dev ya no, ADR-044): el nombre histórico se sigue leyendo."""
-    entorno_limpio.setenv("DATABASE_URL", f"{PG}/medlibra")
-    entorno_limpio.setenv("MEDLIBRA_LIBRACORE_DB_PATH", f"{PG}/medlibra_core")
-
-    cfg = Config.desde_entorno()
-
-    assert cfg.database_url == f"{PG}/medlibra"
-    assert cfg.libracore_database_url == f"{PG}/medlibra_core"
-    assert cfg.core_en_la_del_dominio is False
 
 
 def test_la_url_que_se_pasa_manda_sobre_el_entorno(entorno_limpio):
@@ -155,7 +142,6 @@ def _app(monkeypatch, tmp_path, dominio, core=None):
     from libracore.db import core as libracore_core
     from libragenda.database import reset as soltar_engine
 
-    monkeypatch.delenv("MEDLIBRA_LIBRACORE_DB_PATH", raising=False)
     if core:
         monkeypatch.setenv("MEDLIBRA_LIBRACORE_DATABASE_URL", core)
     else:
