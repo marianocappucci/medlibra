@@ -130,6 +130,22 @@ apuntar el autogenerate ahí vería también las tablas de LibraGenda como
 propias de esta cadena. Las migraciones se escriben a mano, mismo criterio
 que LibraGenda y Gestiolibra.
 
+## Versión de escritorio (sin conexión)
+
+La PC del consultorio corre MedLibra como un **nodo de LibraEdge** y sigue atendiendo sin internet; el VPS es el central
+(ADR-045, `app/offline.py`). Sin conexión se **consulta** la agenda y la historia clínica completa, se **atiende** un turno ya
+dado (en curso, atendido, «no vino»), se **cargan** notas, recetas, pedidos de estudio y consentimientos, se **anota** la
+demanda espontánea y se **da de alta** un paciente (con número provisorio, que el central confirma o une al que tenga ese DNI).
+**No se dan, mueven ni cancelan turnos**, y los **documentos adjuntos** se ven y se suben sólo con internet (409).
+
+- La consulta de un turno cobrado sin conexión la manda a ContaLibra **el central**, una sola vez, cuando sube la atención; la PC
+  no guarda el token.
+- El central aprovisiona los nodos con `LIBRAEDGE_APROVISIONAMIENTO=app.offline:aprovisionamiento libraedge-central nodo ...` y
+  aplica lo que suben con `LIBRAEDGE_DESPACHADOR=app.routers.sincronizacion_offline:despachador`.
+- Los turnos que se atendieron sin conexión y en la web cambiaron mientras tanto quedan en **Turnos a revisar**.
+- Historia clínica en la PC: disco cifrado, usuario de Windows con clave y respaldos cifrados son del instalador y de la
+  documentación, no de este código.
+
 ## CI
 
 `.github/workflows/ci.yml`: en cada push/PR a `main` — instala el paquete,

@@ -45,7 +45,15 @@ class ModuleRepository:
         `habilitado=True` los prendería solos en todas las instancias en el
         próximo arranque. Como `ADDONS` está afuera de `TODOS_LOS_MODULOS`, el
         set de abajo ya no los incluye; la fila de un add-on la crea sólo
-        `set_addon` (backoffice) o `set_enabled`."""
+        `set_addon` (backoffice) o `set_enabled`.
+
+        🔴 **En un nodo de LibraEdge no hace nada** (ADR-045): `medlibra_modulos` es del espejo (sólo la escribe el central) y
+        sembrarla antes de la primera bajada chocaría con la guarda de la base del nodo. Sin fila, `is_enabled` ya contesta
+        «habilitado» para los módulos de plan y «apagado» para los add-ons, que es lo que contesta el central sin sembrar."""
+        from .. import offline
+
+        if offline.en_un_nodo():
+            return
         with self.session_factory.begin() as session:
             existentes = {row.modulo for row in session.scalars(select(ModuleRow)).all()}
             for modulo in sorted(TODOS_LOS_MODULOS - existentes):

@@ -37,10 +37,13 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    case,
     func,
     select,
 )
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
+
+from . import walkins_nodo
 
 #: Los estados de alguien en la fila.
 #:
@@ -106,23 +109,31 @@ class WalkinRepository:
     def registrar(
         self, id: str, block_id: str, dia: date, client_id: str, service_id: str,
     ) -> dict:
-        """Anota una llegada al final de la fila de ese bloque, ese día."""
+        """Anota una llegada al final de la fila de ese bloque, ese día.
+
+        **En un nodo de LibraEdge** (ADR-045) el número de llegada es provisorio (negativo: ver
+        `walkins_nodo.py`) y la llegada sube como `walkin.registrado`, en esta misma transacción."""
         with self.session_factory.begin() as session:
             # El máximo incluye a los cancelados a propósito: el número dice el
             # orden en que se llegó, y reusar el de alguien que se fue haría que
             # dos personas distintas hayan sido "la tercera" del mismo día.
-            ultimo = session.scalar(
-                select(func.max(WalkinRow.arrival_order)).where(
-                    WalkinRow.block_id == block_id, WalkinRow.day == dia,
+            if walkins_nodo.en_un_nodo():
+                orden = walkins_nodo.llegada_provisoria(session, block_id, dia)
+            else:
+                ultimo = session.scalar(
+                    select(func.max(WalkinRow.arrival_order)).where(
+                        WalkinRow.block_id == block_id, WalkinRow.day == dia,
+                    )
                 )
-            )
+                orden = (ultimo or 0) + 1
             row = WalkinRow(
                 id=id, block_id=block_id, day=dia, client_id=client_id,
-                service_id=service_id, arrival_order=(ultimo or 0) + 1,
+                service_id=service_id, arrival_order=orden,
                 status=ESPERANDO, created_at=datetime.now(UTC),
             )
             session.add(row)
             session.flush()
+            walkins_nodo.encolar_registrada(session, row)
             return _to_dict(row)
 
     def get(self, walkin_id: str) -> dict | None:
@@ -138,8 +149,13 @@ class WalkinRepository:
             )
             if solo_activos:
                 consulta = consulta.where(WalkinRow.status.in_(ACTIVOS))
+            # Las llegadas anotadas en un nodo sin conexión tienen un número provisorio negativo (ver `walkins_nodo.py`):
+            # van después de las que ya tenían su número, en el orden en que se anotaron. En el central todos son
+            # positivos y el orden es el de siempre.
             rows = session.scalars(
-                consulta.order_by(WalkinRow.arrival_order)
+                consulta.order_by(
+                    case((WalkinRow.arrival_order < 0, 1), else_=0), func.abs(WalkinRow.arrival_order),
+                )
             ).all()
             return [_to_dict(row) for row in rows]
 
@@ -152,4 +168,5 @@ class WalkinRepository:
                 raise TransicionInvalida(f"{row.status} -> {nuevo}")
             row.status = nuevo
             session.flush()
+            walkins_nodo.encolar_estado(session, walkin_id, nuevo)
             return _to_dict(row)

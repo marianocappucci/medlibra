@@ -148,8 +148,12 @@ class EnvioRepository:
 
     def registrar(self, appointment_id: str, estado: str, *,
                   venta_id: int | None = None, error: str = "",
-                  medio_del_saldo: str | None = None) -> dict:
+                  medio_del_saldo: str | None = None, sumar_intento: bool = True) -> dict:
         """Crea o actualiza la fila del turno, sumando un intento.
+
+        `sumar_intento=False` es para quien **ya contó el intento al reclamarlo** (el central que manda lo que subió un
+        nodo sin conexion, `atencion_nodo.enviar_pendiente`, ADR-045): el intento se anota antes de mandar, para que
+        dos entregas a la vez no manden dos veces, y el resultado no lo cuenta de nuevo.
 
         `medio_del_saldo=None` **conserva el que ya estaba**, y no lo pisa con
         vacío: el reintento no lo sabe —lo recalcula todo desde el turno— y
@@ -169,7 +173,8 @@ class EnvioRepository:
             # una columna que se muestra en pantalla es ruido, y el detalle
             # completo ya está en el log.
             row.error = (error or "")[:500]
-            row.intentos = (row.intentos or 0) + 1
+            if sumar_intento:
+                row.intentos = (row.intentos or 0) + 1
             row.actualizado = datetime.now(UTC)
             session.flush()
             return _to_dict(row)

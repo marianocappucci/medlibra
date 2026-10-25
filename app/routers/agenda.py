@@ -23,6 +23,7 @@ from ..dependencies import (
     get_catalog_repository,
     get_consultorio_repository,
 )
+from ..services import atencion_nodo
 from ..services.appointments import AppointmentService
 from ..services.branches import BranchRepository
 from ..services.consultorios import ConsultorioRepository
@@ -109,6 +110,13 @@ class AppointmentOut(BaseModel):
     ends_at: InstanteUTC
     status: str
     reason: str | None = None
+    #: El turno se atendió en la PC del consultorio sin conexión y todavía no subió (ADR-045): `status` es el de esa atención.
+    #: Siempre `false` fuera de un nodo.
+    atendido_en_la_pc: bool = False
+    #: Subió, pero en la web el turno cambió mientras tanto y nadie lo revisó: pide que alguien lo acomode (vale en las dos
+    #: puntas). `motivo` es el de LibraGenda (`movido`, `cancelado`, `ya_atendido`...).
+    a_revisar: bool = False
+    motivo: str | None = None
 
 
 @router.get("/resources/{resource_id}/agenda", response_model=list[AppointmentOut])
@@ -120,11 +128,17 @@ def get_agenda(
 ):
     if date_to < date_from:
         raise HTTPException(422, mensajes.RANGO_INVERTIDO)
+    turnos = service.agenda(resource_id, date_from, date_to)
+    # La agenda de un nodo es el espejo con la atencion de la PC encima (ADR-045); en el central solo trae si hay algo a revisar.
+    marcas = atencion_nodo.marcas_de_agenda([item.id for item in turnos])
     return [
         AppointmentOut(
             id=item.id, resource_id=item.resource_id, service_id=item.service_id,
             client_id=item.client_id, starts_at=item.starts_at, ends_at=item.ends_at,
-            status=item.status.value, reason=item.reason,
+            status=marcas.get(item.id, {}).get("estado") or item.status.value, reason=item.reason,
+            atendido_en_la_pc=marcas.get(item.id, {}).get("atendido_en_la_pc", False),
+            a_revisar=marcas.get(item.id, {}).get("a_revisar", False),
+            motivo=marcas.get(item.id, {}).get("motivo"),
         )
-        for item in service.agenda(resource_id, date_from, date_to)
+        for item in turnos
     ]
