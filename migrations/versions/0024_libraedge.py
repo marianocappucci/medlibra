@@ -22,6 +22,7 @@ silencio**; por eso esta revisión **no consulta** la identidad del nodo. Es ide
 """
 from alembic import op
 from libracore.db._postgres import ConnectionWrapper
+from libracore.db.migraciones import conexion_libracore
 from libraedge.db.changelog import init_changelog_schema
 from libraedge.db.schema import init_schema as init_edge_schema
 
@@ -38,8 +39,13 @@ def upgrade():
     #
     # 🔑 Directo y no `libracore.db.migraciones.conexion_libracore(bind)`: esa elige el adaptador mirando si `libracore.db.core`
     # está configurada (`is_postgres()`), y una cadena de Alembic corre sin que nadie la haya configurado: devolvería la
-    # conexión cruda de psycopg y el `PRAGMA` reventaría. MedLibra es PostgreSQL y nada más (`libracore_setup.configure`).
-    conn = ConnectionWrapper(op.get_bind().connection.driver_connection)
+    # conexión cruda de psycopg y el `PRAGMA` reventaría. Las instancias son PostgreSQL, pero el CI también corre la cadena
+    # contra un SQLite: ahí la conexión de sqlite3 va por `conexion_libracore`, como la `0033` de LibraCargo.
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        conn = ConnectionWrapper(bind.connection.driver_connection)
+    else:
+        conn = conexion_libracore(bind)
     init_edge_schema(conn)
     init_changelog_schema(conn)
 
