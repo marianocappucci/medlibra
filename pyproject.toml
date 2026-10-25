@@ -129,7 +129,8 @@ dependencies = [
     # VentaLibra, RestoLibra, LibraCargo y LibraClub: el central monta `/sync/v1/*` (push, pull) aunque no tenga nodos. El repo es
     # publico: no hace falta deploy key ni en el CI ni en el build del VPS. v0.23.0 trae los ids provisorios de texto (`"-N"`,
     # `libraedge_mapeo_texto`, ADR-026), que es lo que necesitan los pacientes (`p-NNN`). Sin migracion de los productos.
-    "libraedge @ git+https://github.com/marianocappucci/libraedge.git@v0.23.0",
+    # v0.23.0 -> v0.24.1 (2026-10-25): instalador publicado de GestioLibra y MedLibra (ADR-027). Sin migracion.
+    "libraedge @ git+https://github.com/marianocappucci/libraedge.git@v0.24.1",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
