@@ -15,6 +15,7 @@
 import { api as baseApi, ApiError, type User } from 'libra-ui/api-client'
 import type { OpcionSelect } from 'libra-ui/SelectBuscable'
 import type { CampoDeAlta, ClienteNuevo } from 'libra-ui/SelectCliente'
+import type { AtencionARevisar } from 'libra-ui/turnos-del-nodo'
 
 export { ApiError, type User }
 
@@ -330,7 +331,14 @@ export type Appointment = {
   client_id: string
   starts_at: string
   ends_at: string
+  /** En la PC del consultorio sin conexión (ADR-045), el estado de la atención hecha ahí, encima del que trae el espejo. */
   status: AppointmentStatus
+  /** Se atendió en esta PC sin conexión y todavía no subió a la web. Siempre `false` fuera de un nodo. */
+  atendido_en_la_pc?: boolean
+  /** Subió, pero en la web el turno cambió mientras tanto y nadie lo revisó (libra-ui ADR-095). Vale en las dos puntas. */
+  a_revisar?: boolean
+  /** Por qué: `movido`, `cancelado`, `ya_atendido`, `transicion_invalida` o `turno_inexistente` (LibraGenda ADR-019). */
+  motivo?: string | null
 }
 
 // 🔴 Acá vivían `ArcaConfig`, `Factura` y `TIPO_COMPROBANTE_LABELS`. Se fueron
@@ -357,6 +365,20 @@ export type CompleteAppointmentResponse = {
   status: AppointmentStatus
   /** `null` cuando el turno no tenía precio, o el módulo está apagado. */
   contalibra: EnvioAContalibra | null
+  /** El turno se atendió en la PC del consultorio sin conexión (ADR-045): `contalibra` es `null` porque todavía no se mandó. La
+   *  consulta se manda a Contalibra cuando la atención sube a la web; no se manda desde la PC. */
+  atendido_sin_conexion?: boolean
+}
+
+/** Una atención hecha sin conexión que en la web chocó con un cambio: una fila de `GET /turnos-a-revisar`. Los nombres son los de
+ *  `AtencionAplicada` de LibraGenda (lo que espera `libra-ui/TurnosARevisar`, ADR-095), más lo que la pantalla necesita para decir de
+ *  quién es el turno. */
+export type AtencionARevisarDelTurno = AtencionARevisar & {
+  paciente: string | null
+  servicio: string | null
+  starts_at: string | null
+  /** El huso de la sede del profesional: la hora del turno se muestra en la de la sede, no en la del navegador (ADR-028). */
+  zona: string | null
 }
 
 // Dominio clínico: todo append-only -- crear/listar/borrar (admin-only),

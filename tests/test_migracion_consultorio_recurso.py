@@ -65,7 +65,7 @@ def base_con_datos(monkeypatch):
     _sql("CREATE INDEX ix_appointment_rooms_consultorio_id ON appointment_rooms (consultorio_id)")
 
     _sql("INSERT INTO branches (id, name, active, timezone) VALUES ('b1', 'Sede', true, 'UTC')")
-    _sql("INSERT INTO clients (id, name, active) VALUES ('c1', 'Paciente', true)")
+    _sql("INSERT INTO agenda_clients (id, name, active) VALUES ('c1', 'Paciente', true)")
     _sql("INSERT INTO services (id, name, duration_seconds, active) VALUES ('s1', 'Consulta', 1800, true)")
     for rid, nombre in (("dr-molina", "Dr. Molina"), ("dra-vidal", "Dra. Vidal"), ("equipo-1", "Ecógrafo")):
         _sql("INSERT INTO resources (id, name, branch_id, active) VALUES (%s, %s, 'b1', true)", (rid, nombre))

@@ -16,6 +16,8 @@ from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
+from . import historia_en_nodo
+
 
 class ConsentRow(Base):
     __tablename__ = "consents"
@@ -49,6 +51,8 @@ class ConsentRepository:
         )
         with self.session_factory.begin() as session:
             session.add(row)
+            # En un nodo de LibraEdge el consentimiento sube como `consentimiento.alta`, en esta misma transaccion (ADR-045).
+            historia_en_nodo.encolar_alta(session, historia_en_nodo.CONSENTIMIENTO, row)
         return _to_dict(row)
 
     def get(self, consent_id: str) -> dict | None:

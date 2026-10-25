@@ -27,7 +27,7 @@
  *  `components/agenda/datos.ts` una sola vez, al cargar.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -37,7 +37,8 @@ import { EncabezadoDePantalla } from 'libra-ui/acciones'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
 import { SelectCliente } from 'libra-ui/SelectCliente'
-import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
+import { AvisoEstado, BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
+import { EtiquetasDeTurnoDelNodo } from 'libra-ui/EtiquetasDeTurno'
 import {
   LABEL_VISTA, NavegadorCalendario, ReferenciaDeColores, VISTAS, VistaMes,
   VistaSemana, clasePunto, diaDeLaUrl, hoyLocal, rangoDeVista, vistaDeLaUrl,
@@ -46,7 +47,7 @@ import {
   api, ApiError, STATUS_LABELS,
   ALTA_DE_PACIENTE, altaDePaciente, opcionesPaciente, opcionesServicio,
   type AppointmentStatus, type CatalogoDeLaAgenda, type CompleteAppointmentResponse,
-  type EnvioAContalibra, type MedioPago, type Patient, type Resource,
+  type AtencionARevisarDelTurno, type EnvioAContalibra, type MedioPago, type Patient, type Resource,
   type SedeDeLaAgenda, type Service,
 } from '../api'
 import { Button } from '@/components/ui/button'
@@ -127,6 +128,10 @@ export function Agenda() {
   // Sólo se llena cuando la consulta NO llegó a facturarse. El caso feliz no
   // interrumpe a nadie: viajó a Contalibra y no hay nada que mostrar.
   const [sinFacturar, setSinFacturar] = useState<EnvioAContalibra | null>(null)
+  // El turno se atendió en esta PC sin conexión (ADR-045): la consulta no se mandó, se manda sola cuando suba.
+  const [atendidoSinConexion, setAtendidoSinConexion] = useState(false)
+  // Cuántos turnos esperan que alguien los acomode (se atendieron sin conexión y en la web cambiaron: libra-ui ADR-095).
+  const [aRevisar, setARevisar] = useState(0)
 
   const vista = vistaDeLaUrl(params.get('vista'))
   // `hoyLocal()` en cada render y no en un `useState`: si alguien deja la
@@ -163,6 +168,14 @@ export function Agenda() {
     }).catch((err) => setErrorCatalogo(describirError(err)))
       .finally(() => setCatalogoCargado(true))
   }, [])
+
+  const cargarARevisar = useCallback(() => {
+    // Un aviso, no un requisito: si la lista no contesta, la agenda se ve igual.
+    api.get<AtencionARevisarDelTurno[]>('/turnos-a-revisar')
+      .then((filas) => setARevisar(Array.isArray(filas) ? new Set(filas.map((f) => f.appointment_id)).size : 0))
+      .catch(() => setARevisar(0))
+  }, [])
+  useEffect(() => { cargarARevisar() }, [cargarARevisar])
 
   // Sólo los activos: un profesional dado de baja no se agenda, y sus turnos
   // viejos en la grilla serían ruido permanente.
@@ -253,6 +266,8 @@ export function Agenda() {
       // todavía hay alguien mirando.
       const envio = respuesta.contalibra
       if (envio && envio.estado !== 'enviado') setSinFacturar(envio)
+      // Sin conexión no hay envío todavía: se avisa que se manda sola (y no "no se facturó", que sería falso).
+      if (respuesta.atendido_sin_conexion) setAtendidoSinConexion(true)
       await recargar()
       cerrarTurno()
     } catch (err) {
@@ -341,6 +356,15 @@ export function Agenda() {
           </Button>
         </div>
       </EncabezadoDePantalla>
+
+      {/* Lo que se atendió sin conexión y en la web cambió mientras tanto (libra-ui ADR-095): un aviso con el camino a la lista. */}
+      {aRevisar > 0 && (
+        <AvisoEstado tono="atencion" role="status" data-slot="aviso-turnos-a-revisar">
+          {aRevisar === 1 ? 'Hay 1 turno para revisar' : `Hay ${aRevisar} turnos para revisar`}: se atendieron sin conexión y en la
+          web cambiaron mientras tanto.{' '}
+          <Link to="/turnos-a-revisar" className="font-medium underline">Ver turnos a revisar</Link>
+        </AvisoEstado>
+      )}
 
       <NavegadorCalendario vista={vista} dia={dia} hoy={hoy} href={href}>
         {/* Las pestañas de shadcn: la vista la manda la URL, así que el
@@ -509,9 +533,16 @@ export function Agenda() {
               ))}
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Estado</span>
-                <BadgeEstado tono={STATUS_TONO[turno.status]}>
-                  {STATUS_LABELS[turno.status]}
-                </BadgeEstado>
+                <span className="flex flex-wrap items-center justify-end gap-1.5">
+                  <BadgeEstado tono={STATUS_TONO[turno.status]}>
+                    {STATUS_LABELS[turno.status]}
+                  </BadgeEstado>
+                  {/* Las del nodo (libra-ui ADR-095), al lado del estado: «Atendido sin conexión» (en esta PC, todavía sin subir) o
+                      «A revisar» (subió y en la web el turno cambió). Sin nodo no dibuja nada. */}
+                  <EtiquetasDeTurnoDelNodo
+                    atendidoSinConexion={turno.atendido_en_la_pc} aRevisar={turno.a_revisar} motivo={turno.motivo}
+                  />
+                </span>
               </div>
               {errorAccion && <p className="text-sm text-destructive">{errorAccion}</p>}
             </div>
@@ -534,7 +565,24 @@ export function Agenda() {
                 Cancelar turno
               </Button>
             )}
+            {/* «No vino» y «Empezar» (ADR-045): el mostrador los usa con o sin conexión; sin conexión suben como atención. */}
             {turno?.status === 'confirmed' && (
+              <Button
+                variant="outline"
+                onClick={() => accion(() => api.post(`/appointments/${turno.id}/no-show`))}
+              >
+                No vino
+              </Button>
+            )}
+            {turno?.status === 'confirmed' && (
+              <Button
+                variant="outline"
+                onClick={() => accion(() => api.post(`/appointments/${turno.id}/start`))}
+              >
+                Empezar
+              </Button>
+            )}
+            {(turno?.status === 'confirmed' || turno?.status === 'in_progress') && (
               <Button onClick={() => completar(turno)}>Completar</Button>
             )}
           </DialogFooter>
@@ -570,6 +618,24 @@ export function Agenda() {
             >
               {completando ? 'Completando…' : 'Completar'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Atendido sin conexión ─────────────────────────────────────── */}
+      {/*  Sin conexión la consulta no se manda a Contalibra desde esta PC: sube con la atención y la manda la web. Decirlo evita
+           que el mostrador piense que se perdió (o que la mande a mano). */}
+      <Dialog open={atendidoSinConexion} onOpenChange={(abierto) => { if (!abierto) setAtendidoSinConexion(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turno atendido sin conexión</DialogTitle>
+            <DialogDescription>
+              La atención y lo cobrado quedaron guardados en esta PC. Se suben solos cuando vuelva la conexión y la consulta se
+              manda a Contalibra desde la web: no hay que hacer nada más.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setAtendidoSinConexion(false)}>Entendido</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -25,6 +25,7 @@ import { EncabezadoDePantalla } from 'libra-ui/acciones'
 import { SelectBuscable } from 'libra-ui/SelectBuscable'
 import { SelectCliente } from 'libra-ui/SelectCliente'
 import { BadgeEstado, type TonoEstado } from 'libra-ui/badge-estado'
+import { EtiquetaDePersonaDelNodo } from 'libra-ui/EtiquetaProvisorio'
 import { hoyISO } from 'libra-ui/fechas'
 import {
   ALTA_DE_PACIENTE, ApiError, ESTADO_LLEGADA_LABELS, altaDePaciente, api, opcionesPaciente,
@@ -396,10 +397,17 @@ export function DemandaEspontanea() {
                 <TableBody>
                   {fila.map((l) => (
                     <TableRow key={l.id}>
-                      <TableCell className="tabular-nums font-medium">{l.arrival_order}</TableCell>
+                      {/* Anotada sin conexión (ADR-045): el número provisorio es negativo y no se muestra; lo recibe al volver la conexión. */}
+                      <TableCell
+                        className="tabular-nums font-medium"
+                        title={l.arrival_order < 0 ? 'Anotada sin conexión: recibe su número cuando vuelva la conexión.' : undefined}
+                      >
+                        {l.arrival_order > 0 ? l.arrival_order : '—'}
+                      </TableCell>
                       <TableCell>
                         <span className="flex items-center gap-2">
                           {nombrePaciente(l.client_id)}
+                          <EtiquetaDePersonaDelNodo id={l.client_id} persona="paciente" />
                           {l.id === sigue && <BadgeEstado tono="curso">Sigue</BadgeEstado>}
                         </span>
                       </TableCell>

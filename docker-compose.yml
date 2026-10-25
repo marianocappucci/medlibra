@@ -9,8 +9,11 @@ services:
   # 🔴 Imagen Debian (`postgres:16`), la misma del CI: el collation viene de la
   # imagen y la alpine ordena por bytes, como SQLite.
   #
-  # 🔴 **Dos bases**, creadas por `docker/postgres-init/`: el dominio y
-  # LibraCore no pueden compartir schema (ver el comentario de ese .sql).
+  # 🔑 **Una sola base** (ADR-044, sobre el ADR-043): el dominio, LibraAuth y LibraCore
+  # comparten la `medlibra` que crea `POSTGRES_DB`. Hasta el 2026-10-25 había una
+  # segunda, `medlibra_core`, que creaba `docker/postgres-init/` (ya no existe):
+  # LibraCore y LibraGenda declaraban las dos una tabla `clients`, y con
+  # libragenda v0.14.0 la suya es `agenda_clients`.
   #
   # Sin `ports:` a propósito: sólo se llega desde la red interna.
   medlibra-postgres:
@@ -27,7 +30,6 @@ services:
       TZ: America/Argentina/Buenos_Aires
     volumes:
       - medlibra-postgres-data:/var/lib/postgresql/data
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medlibra -d medlibra"]
       interval: 10s
@@ -133,17 +135,16 @@ services:
       - TZ=America/Argentina/Buenos_Aires
       - MEDLIBRA_ADMIN_USERNAME=${MEDLIBRA_ADMIN_USERNAME:-admin}
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
-      # 🔴 El corte a PostgreSQL. Son DOS bases y no dos schemas de la misma:
-      # el dominio (LibraGenda) y LibraCore declaran los dos una tabla
-      # `clients` con `id` de tipos incompatibles — ver
-      # `docker/postgres-init/10-base-de-libracore.sql`.
+      # 🔴 El corte a PostgreSQL, con UNA sola base (ADR-044): el dominio (LibraGenda), LibraAuth
+      # y LibraCore viven todos en `medlibra`. **No hay variable del core**: sin
+      # `MEDLIBRA_LIBRACORE_DATABASE_URL` (ni su histórico `MEDLIBRA_LIBRACORE_DB_PATH`) el motor y
+      # `app/config.py` usan la base del dominio. Una instancia que todavía tenga dos bases (la
+      # demo, hasta que se una con `libracore-unir-bases`) la sigue declarando en SU compose.
       #
-      # Volver estas dos líneas a las rutas `.db` y reiniciar es el rollback
-      # completo: los archivos de `dev-data/` siguen ahí y sin tocar —
+      # Volver esta línea a la ruta `.db` y reiniciar es el rollback completo: el archivo de
+      # `dev-data/` sigue ahí y sin tocar —
       #   - DATABASE_URL=sqlite:////app/dev-data/medlibra.db
-      #   - MEDLIBRA_LIBRACORE_DB_PATH=/app/dev-data/medlibra_libracore.db
       - DATABASE_URL=postgresql+psycopg://medlibra:${MEDLIBRA_POSTGRES_PASSWORD:?hay que definirla en el .env del VPS}@medlibra-postgres:5432/medlibra
-      - MEDLIBRA_LIBRACORE_DB_PATH=postgresql://medlibra:${MEDLIBRA_POSTGRES_PASSWORD:?hay que definirla en el .env del VPS}@medlibra-postgres:5432/medlibra_core
       # Sin esto la carpeta de backups colgaría de `dirname()` de la URL, que
       # no es una carpeta — ver `_carpeta_de_backups` en app/main.py.
       - DATA_DIR=/app/dev-data

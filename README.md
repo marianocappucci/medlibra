@@ -100,9 +100,9 @@ amerite, sin cambios de código.
 ## Migraciones
 
 Dos cadenas de Alembic independientes corren contra la **misma** base
-`medlibra`, cada una con su propia tabla de versión (`alembic_version` es
-de LibraGenda, `alembic_version_medlibra` es de MedLibra). El deploy corre
-ambas, en este orden, antes de levantar la API:
+`medlibra`, cada una con su propia tabla de versión (`alembic_version_libragenda`
+es de LibraGenda desde la v0.14.0; `alembic_version_medlibra` es de MedLibra). El
+deploy corre ambas, en este orden, antes de levantar la API:
 
 **1. Migraciones de LibraGenda** (schema del motor). No viajan en el wheel
 instalado por pip, se aplican clonando el repo en el tag pineado en
@@ -129,6 +129,22 @@ modelos están registrados en el `Base` compartido de LibraGenda, así que
 apuntar el autogenerate ahí vería también las tablas de LibraGenda como
 propias de esta cadena. Las migraciones se escriben a mano, mismo criterio
 que LibraGenda y Gestiolibra.
+
+## Versión de escritorio (sin conexión)
+
+La PC del consultorio corre MedLibra como un **nodo de LibraEdge** y sigue atendiendo sin internet; el VPS es el central
+(ADR-045, `app/offline.py`). Sin conexión se **consulta** la agenda y la historia clínica completa, se **atiende** un turno ya
+dado (en curso, atendido, «no vino»), se **cargan** notas, recetas, pedidos de estudio y consentimientos, se **anota** la
+demanda espontánea y se **da de alta** un paciente (con número provisorio, que el central confirma o une al que tenga ese DNI).
+**No se dan, mueven ni cancelan turnos**, y los **documentos adjuntos** se ven y se suben sólo con internet (409).
+
+- La consulta de un turno cobrado sin conexión la manda a ContaLibra **el central**, una sola vez, cuando sube la atención; la PC
+  no guarda el token.
+- El central aprovisiona los nodos con `LIBRAEDGE_APROVISIONAMIENTO=app.offline:aprovisionamiento libraedge-central nodo ...` y
+  aplica lo que suben con `LIBRAEDGE_DESPACHADOR=app.routers.sincronizacion_offline:despachador`.
+- Los turnos que se atendieron sin conexión y en la web cambiaron mientras tanto quedan en **Turnos a revisar**.
+- Historia clínica en la PC: disco cifrado, usuario de Windows con clave y respaldos cifrados son del instalador y de la
+  documentación, no de este código.
 
 ## CI
 
@@ -159,7 +175,7 @@ acá lo clínico es una necesidad profesional básica, no un extra
 comercial. Lo que varía por plan es recordatorios, señas, facturación y
 dashboard.
 
-La tabla `modulos` (migración `0011_modulos`) guarda el estado real por
+La tabla `medlibra_modulos` (migración `0011_modulos`; se llamaba `modulos` hasta la `0023`, ADR-043) guarda el estado real por
 instancia — se siembra con todo habilitado por defecto (una instancia sin
 plan asignado no bloquea nada) y `aplicar_plan_en_db()` la ajusta cuando
 se asigna un plan real. `require_module(nombre)` (`app/modules_gate.py`)

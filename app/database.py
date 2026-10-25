@@ -4,74 +4,51 @@
 DENTRO de este contenedor (`libracore.admin.services`), y ese snippet importa
 `app.database.get_modulos` / `app.database.set_addon`. Es el contrato que
 MedLibra tiene que cumplir desde que declaró `ADDONS = {"resguardo_externo"}` en
-`plans.py`. Hasta hoy **este módulo no existía**: el `docker exec` habría muerto
-con `ModuleNotFoundError`, y el backoffice lo muestra como "no se pudo leer".
+`plans.py`.
 
-Delegan en `libracore.db.modulos`, que es donde vive la implementación única
-de la familia. Acá no se copia lógica: se cumple el contrato. Mismo patrón que
-`app/database.py` de LibraDesk, con una diferencia que en este producto no es
-opcional — ver `_asegurar_core_configurado`.
+**Desde ADR-043 (2026-10-25) no delegan en `libracore.db.modulos`**, que lee y
+escribe una tabla llamada `modulos`: la tabla de este producto se renombró a
+`medlibra_modulos` (migración 0023) porque LibraCore tiene una `modulos` de otra
+forma y con una sola base por producto no pueden llamarse igual. Se lee y se
+escribe la del producto, la que consulta `ModuleRepository` en cada request, y
+con eso el contrato sirve igual con una base o con dos (el motor miraba la base
+a la que apuntara `libracore.db.core`, y adentro de la app no era la del
+dominio: había que cortar con un error).
+
+El paso a `libracore.db.modulos` —que las filas de `medlibra_modulos` pasen a la
+`modulos` del motor y esta función vuelva a delegar— se hace **después de unir
+las bases**, no antes (ver ADR-043). Hasta entonces la fuente de verdad es esta
+tabla y nadie escribe la del motor.
 
 ⚠️ No confundir con `libragenda.database`, que es la engine factory del dominio
-(`app/main.py` la importa como `configure`/`get_engine`). Ésta no configura
-ningún engine de SQLAlchemy.
+(`app/main.py` la importa como `configure`/`get_engine`). Ésta no toca esa
+configuración: abre su propio engine, lo usa y lo suelta.
 """
-from libracore.db import core as libracore_core
 from libracore.db.url_de_instancia import url_de_instancia
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-#: Si el `configure()` del core lo hizo ESTE módulo, contra la base del dominio.
-#: Hace falta para distinguir "lo configuré yo" de "lo configuró la app", que en
-#: este producto apuntan a bases distintas.
-_core_apuntado_al_dominio = False
+from .config import PREFIJO
+from .services.modules import ModuleRepository, ModuleRow
 
 
-def _asegurar_core_configurado() -> None:
-    """Apunta `libracore.db.core` a la base del DOMINIO de esta instancia.
+def _con_la_tabla_del_dominio(operacion):
+    """Corre `operacion(session_factory)` contra la base del DOMINIO de esta instancia y suelta el engine.
 
-    🔴 **En MedLibra la tabla `modulos` NO vive en la base de LibraCore.** Son
-    dos bases (ver `_instancia_a_respaldar` en `app/main.py`): la del dominio
-    (`MEDLIBRA_DATABASE_URL` / `DATABASE_URL`, base `medlibra`), donde está la
-    `modulos` que lee `ModuleRepository`, y la de LibraCore
-    (`MEDLIBRA_LIBRACORE_DATABASE_URL`, base `medlibra_core`), que tiene su
-    propia `modulos` **vacía** — la crea `init_core_schema()` y nadie la lee.
-
-    Por eso el patrón de LibraDesk no alcanza tal cual. Allá "el core ya está
-    configurado" significa "apunta a la base correcta"; acá no:
-
-    - Bajo `docker exec python3 -c "from app.database import get_modulos"` —el
-      único camino por el que se llama esto— no corrió ningún arranque, el core
-      está sin configurar y se lo apunta al dominio. Es el caso que tiene que
-      resolverse solo, sin pedirle al backoffice que bootee la app entera.
-    - **Dentro de la app**, `create_app()` configura el core contra
-      `medlibra_core` (`libracore_setup.configure(libracore_db_path)`), no
-      contra el dominio. Delegar ahí leería la tabla vacía y devolvería `{}`:
-      el backoffice mostraría el add-on apagado con el add-on prendido. En vez
-      de esa mentira, se corta con un error que dice qué usar. Adentro de la
-      app el estado de un módulo se pregunta a `app.state.modules`.
-
-    Tampoco se reconfigura el core a ciegas: le pisaría la base de usuarios y
-    caja a una app viva.
+    La URL sale de `url_de_instancia`, el mismo lugar del que la lee `app/asgi.py`: si este contrato
+    resolviera la base por su cuenta, podría escribir en una y que la app sirva otra, sin fallar.
     """
-    global _core_apuntado_al_dominio
-    if _core_apuntado_al_dominio:
-        return
-    if libracore_core.esta_configurado():
-        raise RuntimeError(
-            "app.database.get_modulos/set_addon son para el backoffice (docker exec), "
-            "fuera del arranque de la app. En este proceso libracore.db.core ya apunta "
-            "a la base de LibraCore (medlibra_core), y la tabla `modulos` que manda "
-            "vive en la del dominio: usar app.state.modules."
-        )
-    libracore_core.configure(url_de_instancia("medlibra", requerida=True))
-    _core_apuntado_al_dominio = True
+    url = url_de_instancia(PREFIJO, requerida=True).replace("postgresql://", "postgresql+psycopg://", 1)
+    engine = create_engine(url, pool_pre_ping=True)
+    try:
+        return operacion(sessionmaker(engine, expire_on_commit=False))
+    finally:
+        engine.dispose()
 
 
 def get_modulos() -> dict[str, bool]:
-    """`{modulo: habilitado}` de esta instancia. Ver `_asegurar_core_configurado`."""
-    _asegurar_core_configurado()
-    from libracore.db.modulos import get_modulos as _get_modulos
-
-    return _get_modulos()
+    """`{modulo: habilitado}` de esta instancia."""
+    return _con_la_tabla_del_dominio(lambda sesiones: ModuleRepository(sesiones).get_all())
 
 
 def set_addon(nombre: str, habilitado: bool) -> None:
@@ -79,9 +56,16 @@ def set_addon(nombre: str, habilitado: bool) -> None:
     `require_module` pregunta a `ModuleRepository.is_enabled` en cada request,
     y ése lee la fila en cada llamada, sin cache.
 
-    No valida que `nombre` sea un add-on: eso lo hace el backoffice contra
-    `plans.ADDONS` antes de llegar acá (`libracore.admin.services.set_addon`)."""
-    _asegurar_core_configurado()
-    from libracore.db.modulos import set_addon as _set_addon
+    Igual que la del motor: crea la fila con `plan="addon"` si falta y **sólo cambia
+    `habilitado`** si existe (nunca la etiqueta de plan). No valida que `nombre` sea
+    un add-on: eso lo hace el backoffice contra `plans.ADDONS` antes de llegar acá
+    (`libracore.admin.services.set_addon`)."""
+    def _escribir(sesiones: sessionmaker) -> None:
+        with sesiones.begin() as sesion:
+            fila = sesion.get(ModuleRow, nombre)
+            if fila is None:
+                sesion.add(ModuleRow(modulo=nombre, habilitado=habilitado, plan="addon"))
+            else:
+                fila.habilitado = habilitado
 
-    _set_addon(nombre, habilitado)
+    _con_la_tabla_del_dominio(_escribir)

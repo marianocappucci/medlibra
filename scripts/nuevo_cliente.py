@@ -46,7 +46,14 @@ configure(
     # bajar y restaurar solo. Sin el flag, el `tar.gz` empaqueta `data/` mientras
     # el dump de PostgreSQL queda **afuera**.
     backup_zip=True,
-    base_core_separada=True,
+    # 🔑 UNA sola base (ADR-044, sobre el ADR-043 y el ADR-083 de libracore): ya no se pasa
+    # `base_core_separada=True` --el motor lo ignora para los productos de `_UNA_SOLA_BASE`, entre
+    # ellos este-- y el alta nace con `medlibra` y nada más, sin `medlibra_core`. Lo único que el
+    # motor no puede adivinar es cómo se llama la tabla de módulos de este producto en esa base: la
+    # `modulos` a secas es la del motor, la de acá es `medlibra_modulos`. Va en `nuevo_cliente.py` Y
+    # en `panel_admin.py`: `configure()` pisa una configuración global y el que corre último gana.
+    # Cuando este producto lea la `modulos` del motor, se saca.
+    tabla_modulos="medlibra_modulos",
     product_name="MEDLIBRA",
     image_name="medlibra:latest",
     container_prefix="medlibra",
@@ -71,17 +78,21 @@ configure(
     # primero. Al reves, la primera revision que las toque muere con
     # `relation "branches" does not exist`.
     #
-    # Son dos tablas de version distintas en la misma base: `alembic_version`
-    # para LibraGenda y `alembic_version_medlibra` para esta cadena.
-    # 🔴 **TRES cadenas, y el orden no es decorativo.**
+    # Son tablas de version distintas en la misma base: `alembic_version_libragenda`
+    # para LibraGenda (hasta libragenda v0.13.0 era `alembic_version`, la del motor;
+    # `libragenda-migrar` la renombra sola, ADR-017 de libragenda), y
+    # `alembic_version_medlibra` para esta cadena.
+    # 🔴 **CUATRO cadenas, y el orden no es decorativo.**
     #
     # 1. `libragenda-migrar` — va primero porque las revisiones propias de este
     #    producto tienen FK contra tablas de LibraGenda.
-    # 2. `libracore-migrar` — el esquema de LibraCore vive en `medlibra_core`,
-    #    una base **aparte**: el comando la resuelve por `MEDLIBRA_LIBRACORE_DB_PATH` y **no**
-    #    por `DATABASE_URL`, que apunta al dominio. Ver
+    # 2. `libraauth-migrar` — las tablas de auth. `--base core`, **a propósito, y no
+    #    `--base dominio`** (ver abajo).
+    # 3. `libracore-migrar` — el esquema de LibraCore. Con una sola base (ADR-044) no hay
+    #    `MEDLIBRA_LIBRACORE_DATABASE_URL` y el comando cae a la base del dominio, porque
+    #    `medlibra` figura en `_UNA_SOLA_BASE` desde libracore v1.194.0 (ADR-083). Ver
     #    `libracore.migrar.url_de_core`.
-    # 3. `alembic` — la cadena propia.
+    # 4. `alembic` — la cadena propia.
     #
     # La del motor no la corría nadie hasta el 2026-08-25: sus migraciones no
     # viajaban en el wheel. Medido, `medlibra_core` de la demo no tiene
@@ -89,7 +100,12 @@ configure(
     # `0002` le agrega a `clients`.
     migraciones=(
         ("libragenda-migrar", "upgrade"),
-        # libraauth: sus seis tablas viven en la base de LibraCore (medido 2026-09-16), por eso --base core.
+        # 🔴 `--base core` y NO `--base dominio`, medido el 2026-10-25. Con `--base core` el comando usa la base
+        # del core si la instancia todavía tiene la variable (la demo, hasta que se una) y, si no, cae a la del
+        # dominio (dev unida y todo alta nueva). Con `--base dominio` migraría SIEMPRE la del dominio: en una
+        # instancia que aún tiene dos bases crea ahí las tablas de auth, vacías, al lado de las reales, y
+        # `libracore-unir-bases verificar` corta después con `auth_en_los_dos`. Es el mismo destino en una base
+        # única; cambiarlo a `dominio` es un PR aparte, cuando no quede ninguna instancia de dos bases.
         ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "core"),
         ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
         ("alembic", "upgrade", "head"),

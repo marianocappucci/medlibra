@@ -40,6 +40,11 @@ def _backups_en_tmp(monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
 
 
+def fresh_url() -> str:
+    """La base del dominio de este worker: la misma a la que apunta la app de `admin_client`."""
+    return TEST_DATABASE_URL
+
+
 def _modulos(client: TestClient):
     return client.app.state.modules
 
@@ -147,8 +152,7 @@ def test_app_database_exporta_el_contrato_del_backoffice():
 def _como_el_backoffice(codigo: str) -> str:
     """Corre `codigo` como lo corre el backoffice: `python3 -c` en un proceso
     nuevo, sin `create_app()`, con la base del dominio en el entorno. Es el
-    `docker exec` sin el docker — el core de LibraCore arranca sin configurar,
-    que es el caso que `_asegurar_core_configurado` tiene que resolver solo."""
+    `docker exec` sin el docker: no corrió ningún arranque."""
     entorno = {k: v for k, v in os.environ.items() if k not in ("DATABASE_URL", "MEDLIBRA_DATABASE_URL")}
     entorno["MEDLIBRA_DATABASE_URL"] = TEST_DATABASE_URL
     r = subprocess.run(
@@ -160,12 +164,11 @@ def _como_el_backoffice(codigo: str) -> str:
 
 
 def test_el_backoffice_prende_y_apaga_el_addon_en_la_base_que_lee_la_app(admin_client: TestClient):
-    """🔑 El circuito completo, y el control de que el shim no abre una base
+    """🔑 El circuito completo, y el control de que el contrato no abre una base
     paralela: se escribe por `app.database` y se lee por la app.
 
-    Si `_asegurar_core_configurado()` apuntara a la base de LibraCore
-    (`medlibra_core`, que tiene su propia `modulos` vacía), el `set_addon`
-    saldría con éxito y el gate seguiría dando 403."""
+    Si escribiera en otra tabla o en la `modulos` del motor (misma base, ADR-044), el
+    `set_addon` saldría con éxito y el gate seguiría dando 403."""
     assert admin_client.get(ENLACE).status_code == 403
 
     _como_el_backoffice("from app.database import set_addon; set_addon('resguardo_externo', True)")
@@ -180,12 +183,40 @@ def test_el_backoffice_prende_y_apaga_el_addon_en_la_base_que_lee_la_app(admin_c
     assert admin_client.get(ENLACE).status_code == 403
 
 
-def test_dentro_de_la_app_el_contrato_corta_en_vez_de_leer_otra_base(admin_client: TestClient):
-    """Adentro de la app el core de LibraCore apunta a `medlibra_core`, no al
-    dominio. Delegar ahí devolvería `{}` —el add-on "apagado" aunque esté
-    prendido—, así que el shim prefiere un error que diga qué usar."""
-    from app.database import get_modulos
+def test_dentro_de_la_app_el_contrato_lee_la_misma_tabla_que_la_app(admin_client: TestClient, monkeypatch):
+    """Desde ADR-043 el contrato ya no depende de a qué base apunte `libracore.db.core`.
 
+    Antes delegaba en `libracore.db.modulos`, que lee la tabla `modulos` de la base a la que el core
+    estuviera apuntado: adentro de la app era la base de LibraCore (con una `modulos` vacía) y había que cortar
+    con un error para no contestar «apagado» con el add-on prendido. Ahora lee y escribe `medlibra_modulos`
+    por la base del dominio, la que consulta `ModuleRepository`, así que adentro de la app dice lo mismo
+    que `app.state.modules`."""
+    from app.database import get_modulos, set_addon
+
+    monkeypatch.setenv("MEDLIBRA_DATABASE_URL", fresh_url())
     _modulos(admin_client).set_enabled(ADDON, True)
-    with pytest.raises(RuntimeError, match="app.state.modules"):
-        get_modulos()
+    assert get_modulos()[ADDON] is True
+    set_addon(ADDON, False)
+    assert _modulos(admin_client).is_enabled(ADDON) is False
+    assert admin_client.get(ENLACE).status_code == 403
+
+
+def test_set_addon_crea_la_fila_con_plan_addon_y_no_toca_el_plan_de_una_existente(admin_client: TestClient, monkeypatch):
+    """Igual que `libracore.db.modulos.set_addon`: la fila nueva lleva `plan="addon"`; si existe, sólo cambia `habilitado`."""
+    from app.database import set_addon
+
+    monkeypatch.setenv("MEDLIBRA_DATABASE_URL", fresh_url())
+    modulos = _modulos(admin_client)
+    with modulos.session_factory.begin() as session:
+        session.execute(delete(ModuleRow).where(ModuleRow.modulo == ADDON))
+
+    set_addon(ADDON, True)
+    with modulos.session_factory() as session:
+        assert session.get(ModuleRow, ADDON).plan == "addon"
+
+    with modulos.session_factory.begin() as session:
+        session.get(ModuleRow, ADDON).plan = "otro"
+    set_addon(ADDON, False)
+    with modulos.session_factory() as session:
+        fila = session.get(ModuleRow, ADDON)
+        assert (fila.habilitado, fila.plan) == (False, "otro")

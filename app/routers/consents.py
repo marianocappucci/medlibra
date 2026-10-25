@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
+from .. import offline
 from ..auth import require_admin
 from ..dependencies import get_consent_repository, get_patient_repository
 from ..services.consents import ConsentRepository
@@ -69,7 +70,7 @@ def get_consent(
     return consent
 
 
-@router.delete("/{consent_id}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete("/{consent_id}", status_code=204, dependencies=[Depends(require_admin), Depends(offline.exigir_central_para_borrar)])
 def delete_consent(
     patient_id: str,
     consent_id: str,

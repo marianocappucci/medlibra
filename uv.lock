@@ -671,8 +671,8 @@ migrations = [
 
 [[package]]
 name = "libracore"
-version = "1.190.1"
-source = { git = "https://github.com/marianocappucci/libracore.git?rev=v1.190.1#e8ead51d1898d9e0b935942a5dcc363e83bc3d23" }
+version = "1.194.0"
+source = { git = "https://github.com/marianocappucci/libracore.git?rev=v1.194.0#1b42e5599126c02f7bad598775f2a6c2fb0375c9" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
@@ -689,9 +689,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "libraedge"
+version = "0.23.0"
+source = { git = "https://github.com/marianocappucci/libraedge.git?rev=v0.23.0#a6e94771d73e792bab6c482746f67ab2ea79144f" }
+
+[[package]]
 name = "libragenda"
-version = "0.13.0"
-source = { git = "https://github.com/marianocappucci/libragenda.git?rev=v0.13.0#c23d111532e363b3730a42d03ff378431d62ae00" }
+version = "0.15.0"
+source = { git = "https://github.com/marianocappucci/libragenda.git?rev=v0.15.0#159915e9fef27f086b3056fb845e626e99b792f4" }
 dependencies = [
     { name = "alembic" },
     { name = "psycopg", extra = ["binary"] },
@@ -791,6 +796,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "libraauth", extra = ["migrations"] },
     { name = "libracore" },
+    { name = "libraedge" },
     { name = "libragenda" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
@@ -811,8 +817,9 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.111,<1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27,<1" },
     { name = "libraauth", extras = ["migrations"], git = "https://github.com/marianocappucci/libraauth.git?rev=v0.55.0" },
-    { name = "libracore", git = "https://github.com/marianocappucci/libracore.git?rev=v1.190.1" },
-    { name = "libragenda", git = "https://github.com/marianocappucci/libragenda.git?rev=v0.13.0" },
+    { name = "libracore", git = "https://github.com/marianocappucci/libracore.git?rev=v1.194.0" },
+    { name = "libraedge", git = "https://github.com/marianocappucci/libraedge.git?rev=v0.23.0" },
+    { name = "libragenda", git = "https://github.com/marianocappucci/libragenda.git?rev=v0.15.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8" },

@@ -14,6 +14,8 @@ from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, sessionmaker
 
+from . import historia_en_nodo
+
 
 class PrescriptionRow(Base):
     __tablename__ = "prescriptions"
@@ -80,6 +82,8 @@ class PrescriptionRepository:
             session.add(row)
             session.flush()
             session.refresh(row)
+            # En un nodo de LibraEdge la receta sube como `receta.alta`, en esta misma transaccion (ADR-045).
+            historia_en_nodo.encolar_alta(session, historia_en_nodo.RECETA, row)
             result = _to_dict(row)
         return result
 

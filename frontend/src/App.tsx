@@ -6,6 +6,7 @@ import { Login } from './pages/Login'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Agenda } from './pages/Agenda'
 import { DemandaEspontanea } from './pages/DemandaEspontanea'
+import { TurnosARevisar } from './pages/TurnosARevisar'
 import { Pacientes } from './pages/Pacientes'
 import { PacienteFicha } from './pages/PacienteFicha'
 import { Dashboard } from './pages/Dashboard'
@@ -48,6 +49,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <DemandaEspontanea />
+          </ProtectedRoute>
+        }
+      />
+      {/* Los turnos atendidos sin conexión que en la web cambiaron (libra-ui ADR-095): staff y admin, en la PC y en la web. */}
+      <Route
+        path="/turnos-a-revisar"
+        element={
+          <ProtectedRoute>
+            <TurnosARevisar />
           </ProtectedRoute>
         }
       />

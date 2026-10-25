@@ -16,6 +16,8 @@ from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
+from .. import offline
+from . import pacientes_nodo
 from .clinical_documents import ClinicalDocumentRow
 from .clinical_notes import ClinicalNoteRow
 from .consents import ConsentRow
@@ -26,7 +28,8 @@ from .study_orders import StudyOrderRow
 class PatientRow(Base):
     __tablename__ = "patients"
 
-    id: Mapped[str] = mapped_column(ForeignKey("clients.id"), primary_key=True)
+    # `agenda_clients` y no `clients` (libragenda v0.14.0, ADR-018 de libragenda; ADR-043 de este repo): `clients` es de LibraCore.
+    id: Mapped[str] = mapped_column(ForeignKey("agenda_clients.id"), primary_key=True)
     dni: Mapped[str | None] = mapped_column(String(20), nullable=True)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     cuit: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -88,7 +91,16 @@ class PatientRepository:
         cuit: str | None = None, condicion_iva: str | None = None,
     ) -> dict:
         """Con `id` lo respeta (y un duplicado levanta `IntegrityError`, como siempre);
-        sin `id` (`None`) genera el próximo número de la serie."""
+        sin `id` (`None`) genera el próximo número de la serie.
+
+        **En un nodo de LibraEdge** (ADR-045) el paciente nace con un id provisorio `"-N"` y sube como `paciente.alta`;
+        el número `p-NNN` lo asigna el central al aplicarla. El `id` no se elige."""
+        if offline.en_un_nodo():
+            pacientes_nodo.exigir_sin_id_propio(id)
+            return pacientes_nodo.crear_en_el_nodo(
+                self.session_factory, name=name, phone=phone, email=email, active=active, dni=dni,
+                birth_date=birth_date, cuit=cuit, condicion_iva=condicion_iva,
+            )
         if id is None:
             client = self._add_with_next_number(name, phone, email, active)
             id = client.id
@@ -226,7 +238,7 @@ class PatientRepository:
             ) is not None
         if has_notes or has_prescriptions or has_study_orders or has_documents or has_consents:
             raise PatientHasClinicalNotes(patient_id)
-        # Borrar primero la extension (PatientRow.id tiene FK a clients.id):
+        # Borrar primero la extension (PatientRow.id tiene FK a agenda_clients.id):
         # borrar el Client antes violaria esa FK en Postgres real -- en
         # SQLite pasaba desapercibido porque no fuerza FKs por default.
         with self.session_factory.begin() as session:

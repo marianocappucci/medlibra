@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
+from .. import offline
 from ..auth import require_admin
 from ..dependencies import get_patient_repository, get_prescription_repository
 from ..services.patients import PatientRepository
@@ -83,7 +84,7 @@ def get_prescription(
     return prescription
 
 
-@router.delete("/{prescription_id}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete("/{prescription_id}", status_code=204, dependencies=[Depends(require_admin), Depends(offline.exigir_central_para_borrar)])
 def delete_prescription(
     patient_id: str,
     prescription_id: str,

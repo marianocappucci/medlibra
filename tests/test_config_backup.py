@@ -5,7 +5,7 @@ Hasta hoy este producto **no tenía ninguna pantalla de configuración**.
 El mecanismo es de `libracore` y tiene sus propios tests ahí. Lo que se prueba
 acá es lo que sólo este producto puede verificar, y es más que en los otros:
 
-1. 🔴 Que el backup traiga **las dos bases y los documentos clínicos**. Los
+1. 🔴 Que el backup traiga **la base (una sola desde el ADR-044, una vez) y los documentos clínicos**. Los
    estudios y las interconsultas subidas son archivos en disco: un backup "de
    la base" los deja afuera enteros y el usuario se lleva un ZIP creyendo que
    tiene los estudios de sus pacientes. No falla de ninguna forma visible.
@@ -36,8 +36,8 @@ def admin_client(tmp_path):
     La de `conftest.py` usa `sqlite:///:memory:`, y para estos tests no sirve
     por dos motivos, los dos artefactos del entorno y no del producto:
 
-    1. No hay archivo que respaldar, así que el ZIP saldría con una sola base
-       y el test de las dos bases fallaría por el motivo equivocado.
+    1. No hay archivo que respaldar, así que el ZIP saldría sin la base
+       y el test de la base fallaría por el motivo equivocado.
     2. `engine.dispose()` sobre una base en memoria **la borra**: la base vive
        en la conexión. En producción siempre es un archivo.
 
@@ -86,9 +86,13 @@ def _documento(client, patient_id, titulo="Interconsulta"):
     return r.json()
 
 
-# ── 🔴 Las dos bases y los documentos ─────────────────────────────────────
+# ── 🔴 La base y los documentos ───────────────────────────────────────────────
 
-def test_el_backup_trae_las_dos_bases(admin_client):
+def test_el_backup_trae_la_base_una_sola_vez(admin_client):
+    """Una sola base (el dominio, auth y LibraCore juntos): el ZIP lleva UN dump, con usuarios y facturación adentro.
+
+    Con la forma de dos bases (la demo, hasta que se una) lleva dos: lo mide `tests/test_una_sola_base.py`
+    (`test_una_instancia_entera_sobre_dos_bases`). Volcar la misma base dos veces es el error que esto vigila."""
     _paciente(admin_client)
 
     r = admin_client.get("/api/config/backup-ahora")
@@ -97,12 +101,8 @@ def test_el_backup_trae_las_dos_bases(admin_client):
     with zipfile.ZipFile(io.BytesIO(r.content)) as z:
         bases = sorted(n for n in z.namelist() if n.startswith("bases/"))
 
-    assert len(bases) == 2, f"esperaba dos bases, vinieron {bases}"
-    # "core" y no "libracore" porque el nombre depende del motor: en SQLite es
-    # el archivo `medlibra_libracore.db` y en PostgreSQL el dump de la base
-    # `medlibra_core`. Lo que se prueba es que la mitad de usuarios/facturación
-    # esté, no cómo se llama el archivo.
-    assert any("core" in b for b in bases), f"falta la base de usuarios: {bases}"
+    assert len(bases) == 1, f"esperaba una sola base, vinieron {bases}"
+    assert not any("core" in b for b in bases), f"no hay base de LibraCore aparte: {bases}"
 
 
 def test_el_backup_trae_los_documentos_clinicos(admin_client):

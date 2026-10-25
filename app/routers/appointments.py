@@ -11,10 +11,13 @@ from libragenda import (
     InvalidTransition,
 )
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from libragenda.domain import AppointmentStatus
 from libragenda.repositories import DepositRepository
 from pydantic import BaseModel
 
 from .. import mensajes_agenda as mensajes
+from .. import offline
+from ..auth import get_current_user
 from ..dependencies import (
     get_appointment_service,
     get_business_settings_repository,
@@ -27,7 +30,7 @@ from ..dependencies import (
     get_service_price_repository,
 )
 from ..modules_gate import get_module_repository
-from ..services import contalibra
+from ..services import atencion_nodo, contalibra
 from ..services.appointments import (
     AppointmentService,
     ConsultorioOcupado,
@@ -66,7 +69,12 @@ class RescheduleRequest(BaseModel):
     reason: str | None = None
 
 
-@router.post("/appointments", status_code=201)
+#: Dar, confirmar, cancelar y mover un turno no se hace en un nodo sin conexion (decision del humano, 2026-10-21): la agenda
+#: es de solo consulta. Desde la PC se atienden los turnos que ya estan dados. 409 `sin_conexion` o `solo_en_el_central`.
+_DEL_CENTRAL = [Depends(offline.exigir_central_para_turnos)]
+
+
+@router.post("/appointments", status_code=201, dependencies=_DEL_CENTRAL)
 def create_appointment(
     data: AppointmentRequest,
     service: AppointmentService = Depends(get_appointment_service),
@@ -88,7 +96,7 @@ def create_appointment(
     return {"id": appointment.id, "status": appointment.status.value, "ends_at": appointment.ends_at}
 
 
-@router.post("/appointments/{appointment_id}/confirm")
+@router.post("/appointments/{appointment_id}/confirm", dependencies=_DEL_CENTRAL)
 def confirm_appointment(
     appointment_id: str,
     service: AppointmentService = Depends(get_appointment_service),
@@ -102,7 +110,7 @@ def confirm_appointment(
     return {"id": appointment.id, "status": appointment.status.value}
 
 
-@router.post("/appointments/{appointment_id}/cancel")
+@router.post("/appointments/{appointment_id}/cancel", dependencies=_DEL_CENTRAL)
 def cancel_appointment(
     appointment_id: str,
     data: CancelRequest = CancelRequest(),
@@ -117,7 +125,7 @@ def cancel_appointment(
     return {"id": appointment.id, "status": appointment.status.value, "reason": appointment.reason}
 
 
-@router.post("/appointments/{appointment_id}/reschedule")
+@router.post("/appointments/{appointment_id}/reschedule", dependencies=_DEL_CENTRAL)
 def reschedule_appointment(
     appointment_id: str,
     data: RescheduleRequest,
@@ -157,6 +165,7 @@ def complete_appointment(
     iva_rates: IvaRateRepository = Depends(get_iva_rate_repository),
     business: BusinessSettingsRepository = Depends(get_business_settings_repository),
     envios: contalibra.EnvioRepository = Depends(get_envio_contalibra_repository),
+    user: dict = Depends(get_current_user),
 ):
     """Completa el turno y, si hay precio configurado Y el plan incluye el
     módulo "facturacion" (ver plans.py), manda la consulta a Contalibra.
@@ -211,6 +220,19 @@ def complete_appointment(
         if balance > 0 and not data.medio_pago:
             raise HTTPException(422, f"medio_pago requerido para saldo de {balance}")
 
+    if atencion_nodo.en_un_nodo():
+        # 🔴 En un nodo sin conexion (ADR-045) NO se llama a Contalibra desde la PC: el turno atendido sube como
+        # `turno.atendido` con la consulta y los pagos en `extra`, y el central la manda al aplicarlo. Asi la PC no guarda el
+        # token y no pueden salir dos envios. La validacion de arriba (medio de pago si hay saldo) corre igual: lo que sube
+        # tiene que ser cobrable.
+        consulta = None
+        if price_row is not None:
+            consulta = atencion_nodo.consulta_a_enviar(
+                current, price_row, deposit, paid, data.medio_pago or "efectivo",
+                iva_rates.resolve(current.service_id, business.get()["default_iva_rate"]),
+            )
+        return _atender_en_el_nodo(appointment_id, AppointmentStatus.COMPLETED, user, consulta)
+
     try:
         appointment = service.complete(appointment_id)
     except AppointmentNotFound:
@@ -259,6 +281,60 @@ def complete_appointment(
     return {
         "id": appointment.id, "status": appointment.status.value,
         "contalibra": enviado_a_contalibra,
+    }
+
+
+@router.post("/appointments/{appointment_id}/start")
+def start_appointment(
+    appointment_id: str,
+    service: AppointmentService = Depends(get_appointment_service),
+    user: dict = Depends(get_current_user),
+):
+    """El profesional empieza la consulta: el turno pasa a «en curso». En un nodo sin conexión sube como `turno.atendido`
+    (ADR-045)."""
+    if atencion_nodo.en_un_nodo():
+        return _atender_en_el_nodo(appointment_id, AppointmentStatus.IN_PROGRESS, user)
+    try:
+        appointment = service.start(appointment_id)
+    except AppointmentNotFound:
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
+    except InvalidTransition as exc:
+        raise HTTPException(*mensajes.describir(exc))
+    return {"id": appointment.id, "status": appointment.status.value}
+
+
+@router.post("/appointments/{appointment_id}/no-show")
+def no_show_appointment(
+    appointment_id: str,
+    service: AppointmentService = Depends(get_appointment_service),
+    user: dict = Depends(get_current_user),
+):
+    """«No vino»: el turno confirmado pasa a «no se presentó». En un nodo sin conexión sube como `turno.atendido`
+    (ADR-045, decisión del humano: *«no vino» sí*)."""
+    if atencion_nodo.en_un_nodo():
+        return _atender_en_el_nodo(appointment_id, AppointmentStatus.NO_SHOW, user)
+    try:
+        appointment = service.no_show(appointment_id)
+    except AppointmentNotFound:
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
+    except InvalidTransition as exc:
+        raise HTTPException(*mensajes.describir(exc))
+    return {"id": appointment.id, "status": appointment.status.value}
+
+
+def _atender_en_el_nodo(
+    appointment_id: str, estado: AppointmentStatus, user: dict, consulta: dict | None = None,
+) -> dict:
+    """Atiende el turno en el nodo (ADR-045): la fila propia y `turno.atendido`, en una sola transacción. Contesta lo mismo
+    que la web, con `contalibra: null` (todavía no se mandó: lo manda el central al recibirla) y `atendido_sin_conexion`."""
+    try:
+        atencion_nodo.atender(appointment_id, estado, actor=user.get("username"), consulta=consulta)
+    except AppointmentNotFound:
+        raise HTTPException(*mensajes.describir(AppointmentNotFound("")))
+    except InvalidTransition as exc:
+        raise HTTPException(*mensajes.describir(exc))
+    return {
+        "id": appointment_id, "status": estado.value, "contalibra": None, "atendido_sin_conexion": True,
     }
 
 

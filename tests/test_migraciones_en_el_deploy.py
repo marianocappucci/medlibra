@@ -29,11 +29,10 @@ import pytest
 
 RAIZ = Path(__file__).resolve().parent.parent
 #: Las CUATRO cadenas, en orden. `libraauth-migrar` entró el 2026-09-16 (la
-#: adopción de la cadena de auth). `libracore-migrar` entró el 2026-08-25: el schema de
-#: LibraCore de este producto vive en `medlibra_core`, una base aparte, y su
-#: cadena no la corría nadie porque las migraciones del motor no viajaban en el
-#: wheel. `libracore-migrar` la resuelve por la variable de la instancia y NO
-#: por `DATABASE_URL`, que apunta al dominio.
+#: adopción de la cadena de auth). `libracore-migrar` entró el 2026-08-25 y su cadena no la
+#: corría nadie porque las migraciones del motor no viajaban en el wheel. Con una sola base
+#: (ADR-044) la resuelve por `MEDLIBRA_DATABASE_URL`, porque `medlibra` figura en
+#: `_UNA_SOLA_BASE` del motor; en la demo, que todavía tiene dos, por la variable del core.
 ESPERADO = (
     ("libragenda-migrar", "upgrade"),
     ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "core"),
@@ -42,26 +41,32 @@ ESPERADO = (
 )
 
 
-def _config_de(script: str):
-    """La `ProductConfig` que deja el `configure()` de ese script al importarlo.
+def _leer_de_la_config(script: str, expresion: str):
+    """Evalua `expresion` sobre la `ProductConfig` (`config`) que deja el `configure()` de ese script al importarlo.
 
     Se importa en un proceso aparte: `configure()` escribe un global del motor y
     los dos scripts lo pisarian entre si, dando un verde que no dice de cual de
-    los dos salio.
+    los dos salio. Devuelve el resultado ya pasado por JSON.
     """
+    import json
+
     codigo = (
         "import json, sys;"
         f"sys.path.insert(0, {str(RAIZ)!r});"
         f"sys.path.insert(0, {str(RAIZ / 'scripts')!r});"
         f"import importlib; importlib.import_module({script!r});"
         "from libracore.provisioning import get_config;"
-        "print(json.dumps(get_config().migraciones))"
+        "config = get_config();"
+        f"print(json.dumps({expresion}))"
     )
     r = subprocess.run([sys.executable, "-c", codigo], capture_output=True,
                        text=True, cwd=str(RAIZ))
     assert r.returncode == 0, r.stderr[-2000:]
-    import json
-    return tuple(tuple(c) for c in json.loads(r.stdout))
+    return json.loads(r.stdout)
+
+
+def _config_de(script: str):
+    return tuple(tuple(c) for c in _leer_de_la_config(script, "config.migraciones"))
 
 
 @pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])
@@ -201,18 +206,61 @@ def test_la_imagen_lleva_con_que_correrlas():
             assert prohibido not in lineas, f".dockerignore excluye {prohibido}"
 
 
-def test_libraauth_migra_la_base_de_LIBRACORE_y_no_la_del_dominio():
-    """🔴 `--base core`, y no por prolijidad.
+def test_libraauth_va_con_base_core_hasta_que_no_quede_una_instancia_de_dos_bases():
+    """🔴 `--base core`, y no `--base dominio`: medido el 2026-10-25 sobre una instancia de dos bases.
 
-    Las seis tablas de auth de este producto viven en la base de LibraCore
-    (`medlibra_core`): medido el 2026-09-16 en la demo y en dev, **6/6 ahi y 0/6
-    en la del dominio**. Con `--base dominio` la cadena migraria la base vacia
-    —crearia las seis tablas al lado de las del dominio y registraria la
-    version— **sin fallar**, y la base real quedaria sin adoptar. Es la misma
-    trampa que la guarda del `--prefijo` de arriba, del lado de LibraAuth.
+    Con `--base core` el comando usa la base del core si la instancia todavía tiene la variable (la demo, hasta que
+    se una) y, si no, cae a la del dominio (dev unida y todo alta nueva), porque `medlibra` figura en
+    `_UNA_SOLA_BASE` del motor desde libracore v1.194.0. Con `--base dominio` migraría SIEMPRE la del dominio: en la demo
+    crearía ahí las tablas de auth, vacías, al lado de las reales —sin fallar— y `libracore-unir-bases verificar`
+    cortaría después con `auth_en_los_dos`. En una base única los dos valores van al mismo lugar, así que cambiarlo a
+    `dominio` es un PR aparte, cuando no quede ninguna instancia de dos bases.
     """
     comando = next(c for c in _config_de("panel_admin") if c[0] == "libraauth-migrar")
     assert "--base" in comando, "sin --base, libraauth-migrar se niega a correr con --prefijo"
     assert comando[comando.index("--base") + 1] == "core", (
-        f"las tablas de auth de medlibra viven en la base de LibraCore: --base core, "
-        f"no {comando[comando.index('--base') + 1]!r}")
+        f"mientras la demo tenga dos bases: --base core, no {comando[comando.index('--base') + 1]!r}")
+
+
+def test_a_donde_va_libraauth_con_una_base_y_con_dos():
+    """La resolución real de `libraauth-migrar` (`url_de_auth`), sin tocar ninguna base: el destino de cada `--base`."""
+    from libraauth.migrar import url_de_auth
+
+    dominio = "postgresql+psycopg://u:clave@servidor:5432/medlibra"
+    core = "postgresql+psycopg://u:clave@servidor:5432/medlibra_core"
+
+    # Una sola base (dev unida, alta nueva): sin variable del core, `core` y `dominio` son la misma.
+    una = {"MEDLIBRA_DATABASE_URL": dominio}
+    assert url_de_auth("medlibra", "core", entorno=una) == dominio
+    assert url_de_auth("medlibra", "dominio", entorno=una) == dominio
+
+    # Dos bases (la demo hasta que se una): `core` es la del core; `dominio` sería la equivocada.
+    dos = {**una, "MEDLIBRA_LIBRACORE_DATABASE_URL": core}
+    assert url_de_auth("medlibra", "core", entorno=dos) == core
+    assert url_de_auth("medlibra", "dominio", entorno=dos) == dominio  # el peligro: migraría la base equivocada
+
+
+@pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])
+def test_los_dos_scripts_declaran_una_sola_base_y_la_tabla_de_modulos(script):
+    """El alta nace con UNA base y escribe los módulos en la tabla del producto (ADR-044, libracore ADR-083).
+
+    Va en los dos scripts: `configure()` pisa un global y el que corre último gana, así que uno solo no alcanza. Sin
+    `tabla_modulos` el alta esperaría `modulos` (la del motor) y terminaría en `AltaIncompleta`, o peor, prendería los
+    adicionales en la tabla que este producto no lee."""
+    leido = _leer_de_la_config(script, (
+        "{'tabla': config.tabla_modulos, 'core_separado': config.core_separado,"
+        " 'bases': list(config.bases_postgres), 'urls': [list(p) for p in config.db_urls]}"
+    ))
+    assert leido["tabla"] == "medlibra_modulos"
+    assert leido["core_separado"] is False
+    assert leido["bases"] == ["medlibra"], "el alta no debe crear `medlibra_core`"
+    assert [base for _variable, base in leido["urls"]] == ["medlibra", "medlibra"]
+    assert not any("medlibra_core" in base for _v, base in leido["urls"])
+
+
+def test_los_scripts_no_piden_la_base_del_core_aparte():
+    """`base_core_separada=True` ya no decide nada (el motor lo ignora) y dejarlo sugiere lo contrario."""
+    for script in ("panel_admin.py", "nuevo_cliente.py"):
+        codigo = (RAIZ / "scripts" / script).read_text(encoding="utf-8")
+        sin_comentarios = "\n".join(l for l in codigo.splitlines() if not l.lstrip().startswith("#"))
+        assert "base_core_separada" not in sin_comentarios, script

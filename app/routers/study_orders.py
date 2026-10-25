@@ -3,8 +3,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
+from .. import offline
 from ..auth import require_admin
 from ..dependencies import get_patient_repository, get_study_order_repository
+from ..services import historia_en_nodo
 from ..services.patients import PatientRepository
 from ..services.study_orders import StudyOrderRepository
 from ._instantes import InstanteUTC
@@ -104,7 +106,7 @@ def get_study_order(
     return _require_order(patient_id, order_id, orders)
 
 
-@router.delete("/{order_id}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete("/{order_id}", status_code=204, dependencies=[Depends(require_admin), Depends(offline.exigir_central_para_borrar)])
 def delete_study_order(
     patient_id: str,
     order_id: str,
@@ -117,7 +119,10 @@ def delete_study_order(
     return Response(status_code=204)
 
 
-@router.post("/{order_id}/items/{item_id}/results", status_code=201, response_model=StudyResultOut)
+@router.post(
+    "/{order_id}/items/{item_id}/results", status_code=201, response_model=StudyResultOut,
+    dependencies=[Depends(historia_en_nodo.exigir_central_para_resultados)],
+)
 def add_study_result(
     patient_id: str,
     order_id: str,
@@ -133,7 +138,8 @@ def add_study_result(
 
 @router.delete(
     "/{order_id}/items/{item_id}/results/{result_id}",
-    status_code=204, dependencies=[Depends(require_admin)],
+    status_code=204,
+    dependencies=[Depends(require_admin), Depends(historia_en_nodo.exigir_central_para_resultados)],
 )
 def delete_study_result(
     patient_id: str,

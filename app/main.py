@@ -4,7 +4,8 @@ clinical-note extensions, and mounts the routers."""
 import logging
 import os
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from libraauth.auditoria import (
     AuditoriaBase,
     AuditoriaRepository,
@@ -12,7 +13,7 @@ from libraauth.auditoria import (
     build_logs_router,
     configurar_auditoria,
 )
-from libraauth.auth_events import AuthEventRepository
+from libraauth.auth_events import AuthEventRepository, ip_del_request
 from libraauth.bootstrap import ensure_demo_user
 from libraauth.captcha import Captcha, UsadosEnBase
 from libraauth.demo_codigos import DemoCodigoRepository
@@ -34,15 +35,17 @@ from libracore.config_router import (
     build_empresa_admin_router,
     build_empresa_router,
 )
-from libracore.db.url_de_instancia import url_de_instancia
+from libracore.db.core import get_connection as lc_get_connection
 from libracore.docs_api import cerrar_docs_de_la_api
 from libracore.errores import instalar_registro_de_errores
 from libracore.estado_del_sistema import build_estado_del_sistema_router
+from libracore.nodo_offline import SinConexion, SoloEnElCentral
 from libracore.resguardo_enlace import build_resguardo_enlace_router
 from libracore.respaldo import Instancia
 from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
 from libracore.tema_router import build_tema_admin_router, build_tema_router
+from libraedge.pantalla_del_central import create_canje_router, create_nodos_router
 from libragenda import (
     DepositManager,
     ReminderDispatcher,
@@ -58,8 +61,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
+from . import offline
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, get_current_user, require_admin, require_admin_o_servicio, require_staff
+from .config import Config, misma_base
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
@@ -83,7 +88,9 @@ from .routers import (
     service_iva_rates,
     service_prices,
     services,
+    sincronizacion_offline,
     study_orders,
+    turnos_a_revisar,
 )
 from .routers import (
     agenda_blocks as agenda_blocks_router,
@@ -98,6 +105,7 @@ from .routers import (
 from .routers import (
     medios_pago as medios_pago_router,
 )
+from .routers import nodo as nodo_router
 from .routers import patients as patients_router
 from .routers import (
     resource_prices as resource_prices_router,
@@ -153,12 +161,16 @@ def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
                            directorios: list) -> Instancia:
     """Que se lleva el backup, segun el motor de cada mitad.
 
-    🔴 **Las dos mitades o ninguna.** El dominio y LibraCore son dos bases
-    separadas -- dos archivos en SQLite, dos bases PostgreSQL despues del corte,
-    porque no pueden compartir schema: las dos declaran una tabla `clients` con
-    `id` de tipos incompatibles. Un backup con una sola no se puede restaurar:
-    o volves el dominio y te quedan usuarios de otro momento, o al reves. Y no
+    🔴 **Las dos mitades o ninguna.** Mientras el dominio y LibraCore sean dos
+    bases (dos archivos en SQLite, dos bases PostgreSQL desde el corte, porque
+    no podian compartir schema: las dos declaraban una tabla `clients` con `id`
+    de tipos incompatibles), un backup con una sola no se puede restaurar: o
+    volves el dominio y te quedan usuarios de otro momento, o al reves. Y no
     falla: da un ZIP que se descarga y pesa poco.
+
+    Con una sola base (ADR-043: libragenda v0.14.0 renombro su `clients`) hay una
+    sola mitad, y declarar la misma base como `postgres_extra` la volcaria dos
+    veces y la restauraria encima de si misma: el core se agrega **sólo si es otra**.
 
     Eso es exactamente lo que pasaba al cortar a PostgreSQL: `bases=` sirve para
     rutas de archivo, asi que la URL de la base entraba como si fuera una ruta,
@@ -169,7 +181,8 @@ def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
     dominio = make_url(database_url)
     if dominio.drivername.startswith("postgresql"):
         extra = []
-        if str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://")):
+        if (str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://"))
+                and not misma_base(database_url, str(libracore_db_path))):
             extra.append(str(libracore_db_path))
         return Instancia(
             nombre="medlibra",
@@ -218,6 +231,17 @@ def migrar_secretos() -> dict:
     return informe
 
 
+async def _contestar_409_de_nodo(request: Request, exc: SinConexion | SoloEnElCentral) -> JSONResponse:
+    """Lo que un nodo de LibraEdge contesta con un 409 y no con un 500 (ADR-045): lo que se hace sólo con internet o sólo en el
+    central. `{"detail": {"codigo", "mensaje"}}`, el mismo cuerpo que los routers del motor."""
+    return JSONResponse({"detail": exc.detalle()}, status_code=409)
+
+
+#: Los routers cuyos datos manda el central: en un nodo se leen del espejo y se escriben sólo en el central (409
+#: `solo_en_el_central`). En el central y en una instalación común no hace nada. Ver `app/offline.py`.
+_DEL_CENTRAL = [Depends(offline.escritura_solo_en_el_central)]
+
+
 def create_app(database_url: str) -> FastAPI:
     """Build the vertical app after configuring LibraGenda's PostgreSQL port."""
     # `pool_pre_ping` en el engine del dominio tambien (`libragenda.configure` se lo pasa a `create_engine`): mismo motivo
@@ -242,9 +266,14 @@ def create_app(database_url: str) -> FastAPI:
     #
     # libraauth lee sin problema la tabla que escribio el sqlite3 crudo de
     # libracore (mismo schema, mismo hashing) y `create_all` no la altera.
-    libracore_db_path = url_de_instancia(
-        "medlibra", core=True, default="./data/medlibra_libracore.db"
-    )
+    #
+    # 2026-10-25 (ADR-043): "la base de LibraCore" puede ser la del dominio. Con una sola
+    # base las `usuarios` y las 11 tablas con FK a `usuarios` conviven con las de la agenda
+    # (ya no chocan: `agenda_clients`, `medlibra_modulos`).
+    #
+    # La base de LibraCore puede ser la del dominio o una aparte (ADR-043): `Config` lo resuelve.
+    config = Config.desde_entorno(database_url)
+    libracore_db_path = config.libracore_database_url
     libracore_setup.configure(libracore_db_path)
     # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
     # fuera una URL PostgreSQL: la interpolacion la convertia en una ruta
@@ -268,7 +297,7 @@ def create_app(database_url: str) -> FastAPI:
     # no corrió, la app no levanta y el error dice el comando. Hasta ese día acá
     # había un `AuthBase.metadata.create_all(auth_engine)` que tapaba cualquier
     # camino que se olvidara de migrar.
-    exigir_schema_al_dia(auth_engine, prefijo="medlibra", base="core")
+    exigir_schema_al_dia(auth_engine, prefijo="medlibra", base=config.base_de_auth)
     auth_sessions = sessionmaker(bind=auth_engine)
 
     # 🔴 Los secretos de terceros de `config.json` -el access token y la firma
@@ -354,6 +383,12 @@ def create_app(database_url: str) -> FastAPI:
 
     app = FastAPI(title="MedLibra")
     cerrar_docs_de_la_api(app)
+    # Lo que en un nodo de LibraEdge se hace sólo con internet o sólo en el central se contesta 409 (ADR-045), también si lo
+    # levanta un servicio al que no llega ninguna traducción por ruta (el alta de un paciente, la nota de una consulta).
+    for excepcion in (SinConexion, SoloEnElCentral):
+        app.add_exception_handler(excepcion, _contestar_409_de_nodo)
+    # La atención de un turno sin conexión se enchufa al outbox (ADR-045). Fuera de un nodo no hace nada.
+    offline.configurar()
 
     # 🔴 Colgado de la app para poder SOLTARLO. En produccion la app es una y
     # vive lo que vive el proceso, asi que da igual; en la suite cada test arma
@@ -450,6 +485,22 @@ def create_app(database_url: str) -> FastAPI:
     instalar_registro_de_errores(app, "medlibra")
 
     app.include_router(health.router)
+    # La sincronización del nodo offline (LibraEdge, ADR-045): `/sync/v1/push` y `/pull` (`/ticket-arca` y `/carga-inicial` contestan 501: MedLibra no factura ni tiene existencias). Se monta siempre: sin
+    # un nodo registrado no hay ningún secreto válido y todo contesta 401. La autenticación es el secreto del nodo, no la
+    # sesión: por eso no lleva guarda de rol.
+    app.include_router(sincronizacion_offline.router)
+    # Si esta instalación es la PC del consultorio y si ve a la web: lo que lee el cartel «Sin conexión» de la pantalla.
+    app.include_router(nodo_router.router, dependencies=[Depends(require_staff)])
+    # «Sucursal sin internet» (libraedge ADR-011 y ADR-014): el admin da de alta el nodo de una sede y se lleva la dirección y un
+    # código de vinculación, ve los nodos y los da de baja. Toda la lógica es de LibraEdge; acá sólo la guarda (cambia la
+    # estructura de la instancia: sólo admin) y el aprovisionamiento de `app/offline.py`.
+    app.include_router(
+        create_nodos_router(offline.aprovisionamiento, lc_get_connection),
+        dependencies=[Depends(require_admin)],
+    )
+    # El canje del código (libraedge ADR-014): `POST /sync/v1/vinculacion`. **Sin guarda a propósito**: lo llama el instalador del
+    # nodo, que no tiene sesión; lo protegen el código (un solo uso, 15 minutos) y el límite de intentos del motor.
+    app.include_router(create_canje_router(offline.aprovisionamiento, lc_get_connection, ip_del_request=ip_del_request))
     app.include_router(auth_router.router)
     # `GET`/`PUT`/`DELETE /admin/smtp`. El router exige rol admin por dentro:
     # quien pueda escribir ahí puede redirigir a dónde salen los enlaces de
@@ -490,25 +541,25 @@ def create_app(database_url: str) -> FastAPI:
     # servicios, disponibilidad, hours, prices, business settings and other
     # users.
     admin_only = [Depends(require_admin)]
-    app.include_router(branches.router, dependencies=admin_only)
-    app.include_router(branch_hours.router, dependencies=admin_only)
-    app.include_router(holidays.router, dependencies=admin_only)
-    app.include_router(resources.router, dependencies=admin_only)
-    app.include_router(services.router, dependencies=admin_only)
-    app.include_router(service_prices.router, dependencies=admin_only)
-    app.include_router(resource_prices_router.router, dependencies=admin_only)
+    app.include_router(branches.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(branch_hours.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(holidays.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(resources.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(services.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(service_prices.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(resource_prices_router.router, dependencies=admin_only + _DEL_CENTRAL)
     # Que consultas se mandaron a Contalibra y cuales no pudieron. Admin: es
     # plata y es configuracion de la instancia, no operacion del mostrador.
-    app.include_router(facturacion_externa.router, dependencies=admin_only)
+    app.include_router(facturacion_externa.router, dependencies=admin_only + _DEL_CENTRAL)
     # 🔴 Con que medios se puede cobrar. **NO va con `admin_only`**: lo consume
     # el selector del mostrador al completar un turno, y ahi no hay un admin.
     # Es una lista de constantes del motor, sin datos de la instancia.
     app.include_router(medios_pago_router.router)
-    app.include_router(service_iva_rates.router, dependencies=admin_only)
-    app.include_router(availability.router, dependencies=admin_only)
-    app.include_router(consultorios_router.router, dependencies=admin_only)
-    app.include_router(agenda_blocks_router.router, dependencies=admin_only)
-    app.include_router(business_settings.router, dependencies=admin_only)
+    app.include_router(service_iva_rates.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(availability.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(consultorios_router.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(agenda_blocks_router.router, dependencies=admin_only + _DEL_CENTRAL)
+    app.include_router(business_settings.router, dependencies=admin_only + _DEL_CENTRAL)
     # Usuarios acepta ADEMAS el token de servicio (libraauth v0.7.0): es lo
     # unico que el backoffice de la suite necesita y que no puede salir del
     # motor, porque el router de usuarios es propio de cada producto.
@@ -525,10 +576,10 @@ def create_app(database_url: str) -> FastAPI:
     # por plan (ver plans.py) -- el resto del dominio clínico y turnos
     # nunca se gatean (ver ADR-018).
     app.include_router(
-        reminders.router, dependencies=admin_only + [Depends(require_module("recordatorios"))],
+        reminders.router, dependencies=admin_only + _DEL_CENTRAL + [Depends(require_module("recordatorios"))],
     )
     app.include_router(
-        deposits.admin_router, dependencies=admin_only + [Depends(require_module("senas"))],
+        deposits.admin_router, dependencies=admin_only + _DEL_CENTRAL + [Depends(require_module("senas"))],
     )
     # 🔴 No hay router de `/config/arca`. Este producto ya no factura: la
     # facturación vive en Contalibra (ADR-036). El módulo "facturacion" del plan
@@ -555,6 +606,8 @@ def create_app(database_url: str) -> FastAPI:
     # profesionales, sedes y prestaciones, sin abrirle a staff los routers de
     # configuración de arriba, que son el alta y el borrado (ADR-039).
     app.include_router(agenda.router, dependencies=staff_or_admin)
+    # Los turnos que se atendieron sin conexión y en la web cambiaron mientras tanto (ADR-045): staff y admin, en las dos puntas.
+    app.include_router(turnos_a_revisar.router, dependencies=staff_or_admin)
     # La fila por orden de llegada va con los turnos y NO con la configuración:
     # armar el bloque de agenda es tarea de quien parametriza (admin), pero
     # anotar a quien acaba de entrar por la puerta la hace la secretaria todas
@@ -562,7 +615,7 @@ def create_app(database_url: str) -> FastAPI:
     # nadie del mostrador.
     app.include_router(walkins_router.router, dependencies=staff_or_admin)
     app.include_router(
-        deposits.request_router, dependencies=staff_or_admin + [Depends(require_module("senas"))],
+        deposits.request_router, dependencies=staff_or_admin + _DEL_CENTRAL + [Depends(require_module("senas"))],
     )
     # Logs: admin y nada más, y acá el gate importa más que en los otros
     # productos — la fila dice quién abrió la ficha de qué paciente. **No** se
@@ -624,7 +677,11 @@ def create_app(database_url: str) -> FastAPI:
     # último respaldo, en una consulta. La abre cualquier rol de la instancia; lo que ve cada uno lo decide el motor
     # (ARCA y respaldo, sólo admin).
     app.include_router(
-        build_estado_del_sistema_router(usuario_actual=get_current_user, backups_dir=backups_dir),
+        build_estado_del_sistema_router(
+            usuario_actual=get_current_user, backups_dir=backups_dir, conexion=offline.CONEXION,
+            # La barra del pie: la PC con su conexión, o los nodos del central.
+            nodos_del_central=offline.nodos_del_central,
+        ),
         dependencies=[Depends(require_staff)],
     )
     # Enlace de la copia externa con la nube del cliente (LibraCore v1.93.0):

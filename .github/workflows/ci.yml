@@ -175,9 +175,9 @@ jobs:
       # pyproject. El piso (fail_under) tambien esta ahi: es un trinquete
       # fijado 2 puntos debajo de lo medido el 2026-07-31, no una meta.
       #
-      # `-n 4` (pytest-xdist): cuatro workers, cada uno con SU base de dominio y
-      # SU base de LibraCore, que los tests con `admin_client` restauran por test
-      # desde una plantilla -- ver `tests/motor_de_test.py` y
+      # `-n 4` (pytest-xdist): cuatro workers, cada uno con SU base (una sola:
+      # el dominio, LibraAuth y LibraCore comparten, ADR-044), que los tests con
+      # `admin_client` restauran por test desde una plantilla -- ver `tests/motor_de_test.py` y
       # `libracore.testing.pg_por_worker`. Con mas
       # workers que vCPU compiten con el PostgreSQL del servicio (reglas/ci.md
       # del wiki). `--cov` se queda: el piso de arriba sigue valiendo.
@@ -200,12 +200,12 @@ jobs:
       # resto fuera a PostgreSQL, asi que el verde de este job no decia nada
       # sobre las ~340 consultas crudas del core.
       #
-      # LibraCore va a `medlibra_core`, otra base en el mismo servidor, que el
-      # arnes crea si no esta (ver `motor_de_test.url_libracore`). No puede
-      # compartir schema con el dominio: LibraCore y LibraGenda declaran las dos
-      # una tabla `clients` con formas incompatibles -- `id` INTEGER contra
-      # VARCHAR(100) -- y en SQLite eso no chocaba porque eran dos archivos.
-
+      # LibraCore va a la MISMA base que el dominio (ADR-044): no hay `medlibra_core` ni
+      # variable del core. Hasta el 2026-10-25 la suite llevaba dos bases porque LibraCore y
+      # LibraGenda declaraban las dos una tabla `clients` con formas incompatibles -- `id`
+      # INTEGER contra VARCHAR(100) --; desde libragenda v0.14.0 la de la agenda es
+      # `agenda_clients`. `tests/test_una_sola_base.py` mide ademas la forma de dos bases
+      # (la demo, hasta que se una).
 
       # Smoke check for the two independent Alembic chains this repo
       # depends on: LibraGenda's own (engine schema) applied first, then
