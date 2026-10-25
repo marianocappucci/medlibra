@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- **Una sola base: se va la variable del core, el alta nace con `medlibra` y nada más, y la suite también** (2026-10-25; ADR-044; plan «GestioLibra, MedLibra y LibraDesk en la versión de escritorio», PR 6). **Sin migración, sin cambio de pin** (libracore `v1.194.0` ya estaba). `nuevo_cliente.py` y `panel_admin.py`: `tabla_modulos="medlibra_modulos"` y fuera `base_core_separada=True`; el compose de dev pierde `MEDLIBRA_LIBRACORE_DB_PATH` y el montaje de `docker/postgres-init` (`10-base-de-libracore.sql` se borra); CI y smoke sin `medlibra_core`; la suite pasa a una base por worker.
+  - **`libraauth-migrar` se queda en `--base core`** (el plan decía `--base dominio`): medido que en una instancia de dos bases (la demo) `--base dominio` crea las tablas de auth vacías en el dominio y deja la unión imposible (`auth_en_los_dos`). Con una base los dos valores van al mismo lugar; se cambia cuando la demo esté unida.
+  - **Al desplegar:** dev (ya unida): retirar el override temporal del VPS; el cambio de compose recrea `medlibra-postgres` (unos segundos). Demo: nada hasta que se una. `scripts/reset_demo.sh` y `app/config.py` siguen aceptando las dos formas.
+  - **No incluye** pasar las filas de `medlibra_modulos` a la `modulos` del motor (ADR-043): queda para un PR aparte.
+  - Tests: `tests/test_migraciones_en_el_deploy.py` (destino de `libraauth` con una y dos bases, scripts con `tabla_modulos`), `tests/test_una_sola_base.py` (cadena sin variable del core; `--base dominio` sobre dos bases deja la unión imposible), `tests/test_arranque_exige_cadena_libraauth.py` y `tests/test_config_backup.py`.
+
 - **Una base o dos: `agenda_clients`, `medlibra_modulos` y `Config`** (2026-10-25; ADR-043 de este producto, ADR-017/018 de libragenda; PR 4 del plan de LibraEdge). Prepara la unión de `medlibra` y `medlibra_core` en una sola base; **no une ninguna instancia**.
   - **Pin libragenda `v0.14.0`** (antes `v0.13.0`): `clients` pasa a `agenda_clients` y la tabla de versión a `alembic_version_libragenda` (se autorrenombra). `PatientRow.id` (clave primaria y foránea a la vez) y `WalkinRow.client_id` apuntan a `agenda_clients.id`; en una base viva las claves se mueven solas con el renombre (medido).
   - **Migración `0023_medlibra_modulos`**: `modulos` pasa a `medlibra_modulos` (con su clave primaria), porque LibraCore tiene una `modulos` de otra forma. Reversible y sin pérdida de filas; no toca la `modulos` del motor. `0011` crea la tabla con el nombre nuevo (en una base nueva y única la cadena del motor corre antes).

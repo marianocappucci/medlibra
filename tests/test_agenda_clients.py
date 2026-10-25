@@ -67,7 +67,7 @@ def test_no_queda_ninguna_referencia_a_la_clients_de_libragenda_en_el_codigo():
             if archivo.suffix not in (".py", ".sh", ".sql") or "__pycache__" in archivo.parts:
                 continue
             for n, linea in enumerate(archivo.read_text(encoding="utf-8").splitlines(), 1):
-                if patron.search(linea) and "docker/postgres-init" not in str(archivo):
+                if patron.search(linea):
                     encontrados.append(f"{archivo.relative_to(RAIZ)}:{n}: {linea.strip()}")
     assert not encontrados, "\n".join(encontrados)
 

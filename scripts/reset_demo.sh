@@ -88,6 +88,11 @@ log "seed listo desde origin/develop ($(wc -l < "$SEED_LOCAL") lineas)"
 # MedLibra) la de la agenda es `agenda_clients` y una instancia puede tener UNA:
 # sin variable del core, la base de LibraCore es la del dominio y no se resetea
 # dos veces. Se acepta el nombre vigente del core y el historico (`..._DB_PATH`).
+#
+# 🔴 Esto LEE el entorno del contenedor, no lo define, y se queda a proposito: la demo todavia tiene dos bases
+# (hasta que se una con `libracore-unir-bases`) y sin esta lectura el reset recrearia el dominio y dejaria el core
+# (usuarios, codigos de acceso, caja) con los datos de ayer, sin avisar. Con una sola base la variable no existe y
+# `URL_CORE` es `URL_DOMINIO` (ADR-044). Se simplifica cuando no quede ninguna instancia de dos bases.
 URL_DOMINIO=$(docker exec "$CONTENEDOR" printenv DATABASE_URL 2>/dev/null || true)
 URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DATABASE_URL 2>/dev/null || true)
 [ -n "$URL_CORE" ] || URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DB_PATH 2>/dev/null || true)

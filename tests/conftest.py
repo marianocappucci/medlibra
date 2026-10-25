@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from libraauth import session_auth
 from libraauth.captcha import Captcha
-from motor_de_test import destino_libracore, fresh_database_url, limpiar_entre_tests
+from motor_de_test import fresh_database_url, limpiar_entre_tests
 
 from app.main import create_app
 
@@ -45,8 +45,15 @@ def _sin_almacen_de_secretos_colgado():
     config_manager.usar_almacen_de_secretos(None)
 
 
-def _construir_armada(url_dominio: str, url_core: str) -> None:
-    """Deja las dos bases como las deja `admin_client` antes de loguear: `create_app()` sobre ellas.
+#: Las dos formas del nombre de la variable que le diria a la app y al motor "LibraCore esta en OTRA
+#: base". La suite es de una sola base (ADR-044): ningun test arranca con ellas puestas, ni siquiera
+#: si quien corre la suite las tiene en su entorno. Los tests de la forma de dos bases (la demo,
+#: hasta que se una) las ponen ellos, a mano, con una base propia.
+_VARIABLES_DEL_CORE = ("MEDLIBRA_LIBRACORE_DATABASE_URL", "MEDLIBRA_LIBRACORE_DB_PATH")
+
+
+def _construir_armada(url: str) -> None:
+    """Deja la base como la deja `admin_client` antes de loguear: `create_app()` sobre ella.
 
     Es la plantilla "armada" (ver `motor_de_test.py`). Se corre una vez por
     worker, con el mismo entorno que `_dev_env` le pone a cada test, y no deja
@@ -67,14 +74,16 @@ def _construir_armada(url_dominio: str, url_core: str) -> None:
     try:
         mp.setenv("ENV", "development")
         mp.setenv("MEDLIBRA_DOCUMENTS_DIR", f"{carpeta}/medlibra_documents")
-        mp.setenv("MEDLIBRA_LIBRACORE_DB_PATH", url_core)
+        # Una sola base (ADR-044): ninguna variable del core, como en dev unida y en un alta nueva.
+        for nombre in _VARIABLES_DEL_CORE:
+            mp.delenv(nombre, raising=False)
         mp.setattr(config_manager, "CONFIG_PATH", f"{carpeta}/config.json")
         mp.setattr(config_manager, "LOGO_DIR", f"{carpeta}/logos")
         # `create_app()` apunta `libracore.db.core` a la base de la plantilla; el
         # `setattr` con el mismo valor es para que `undo()` lo deje como estaba.
         mp.setattr(libracore_core, "_db_path", libracore_core._db_path)
         mp.setattr(libracore_core, "_database_url", libracore_core._database_url)
-        app = create_app(url_dominio)
+        app = create_app(url)
         app.state.auth_engine.dispose()
     finally:
         soltar_engine()
@@ -85,11 +94,10 @@ def _construir_armada(url_dominio: str, url_core: str) -> None:
 
 @pytest.fixture(autouse=True)
 def _dev_env(request, monkeypatch, tmp_path):
-    # Bases nuevas por TEST (ver `motor_de_test.py`): la ARMADA, restaurada de una
+    # Base nueva por TEST (ver `motor_de_test.py`): la ARMADA, restaurada de una
     # plantilla, para los tests que usan `admin_client` (`staff_client` lo arrastra
-    # en `fixturenames`); la VACIA (dominio sin tablas, LibraCore con solo la
-    # cadena de auth, como siempre) para el resto, que arma su app o prueba
-    # migraciones desde cero. Antes de tocar el entorno: `_construir_armada` pone
+    # en `fixturenames`); la VACIA (sin tablas y solo con la cadena de auth) para el
+    # resto, que arma su app o prueba migraciones desde cero. Antes de tocar el entorno: `_construir_armada` pone
     # el suyo.
     usa_admin_client = "admin_client" in request.fixturenames
     limpiar_entre_tests(_construir_armada if usa_admin_client else None)
@@ -100,18 +108,10 @@ def _dev_env(request, monkeypatch, tmp_path):
     # Uploaded clinical documents go to a per-test temp dir instead of the
     # repo's default ./data path -- pytest cleans tmp_path up automatically.
     monkeypatch.setenv("MEDLIBRA_DOCUMENTS_DIR", str(tmp_path / "medlibra_documents"))
-    # libracore.db is raw sqlite3 (a fresh connection per call, unlike
-    # SQLAlchemy's pooled engine) -- ":memory:" would give every call an
-    # empty, unrelated database. A real temp file per test is required.
-    #
-    # 🔴 Y contra PostgreSQL va a SU PROPIA base, no a la del dominio. Hasta el
-    # 2026-08-10 esta linea daba un archivo SQLite temporal aunque el resto de
-    # la corrida fuera a PostgreSQL: la mitad cruda del producto -- las ~340
-    # consultas de LibraCore -- nunca se ejercitaba contra el motor nuevo.
-    monkeypatch.setenv(
-        "MEDLIBRA_LIBRACORE_DB_PATH",
-        destino_libracore(tmp_path / "medlibra_libracore.db"),
-    )
+    # Sin variable del core: ni la vigente ni la historica, aunque este en el entorno de quien corre.
+    # Una sola base (ADR-044): LibraCore usa la del dominio, que es la que restauro `limpiar_entre_tests`.
+    for nombre in _VARIABLES_DEL_CORE:
+        monkeypatch.delenv(nombre, raising=False)
     # `libracore.config_manager` resuelve sus rutas AL IMPORTARSE, desde
     # DATA_DIR o -- si no esta -- el cwd, que corriendo pytest es la raiz del
     # repo. Setear la variable de entorno aca ya llega tarde, por eso se

@@ -93,7 +93,6 @@ jobs:
           ENV: development
           DATA_DIR: ${{ github.workspace }}/smoke-data
           MEDLIBRA_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
-          MEDLIBRA_LIBRACORE_DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra_core
           DATABASE_URL: postgresql+psycopg://medlibra:medlibra-ci@localhost:5432/medlibra
           SECRET_KEY: smoke-de-navegador-no-es-un-secreto-real-0123456789
           DOCS_AUTH_SECRET: smoke-docs
@@ -104,7 +103,6 @@ jobs:
           MEDLIBRA_ADMIN_PASSWORD: smoke-admin-1234
         run: |
           mkdir -p "$DATA_DIR"
-          PGPASSWORD=medlibra-ci psql -h localhost -U medlibra -d medlibra -c 'CREATE DATABASE medlibra_core'
           # Las migraciones son LAS QUE DECLARA scripts/panel_admin.py, en su orden,
           # y no una copia: el mismo snippet que usa scripts/reset_demo.sh. Hasta el
           # 2026-09-17 esta lista era a mano y le faltaba libraauth-migrar (y

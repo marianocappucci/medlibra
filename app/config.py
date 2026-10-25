@@ -1,8 +1,8 @@
 """Configuración por entorno: la base del dominio y la de LibraCore, que pueden ser una sola o dos (ADR-043).
 
-🔑 **Una sola base es el destino** (decisión del humano, 2026-10-22: una base por producto). Hoy las
-instancias vivas de MedLibra (`-dev` y `-demo`) siguen con dos —el dominio y `medlibra_core`— hasta que
-`libracore-unir-bases` las una, así que el código tiene que andar con las dos formas y no suponer.
+🔑 **Una sola base es el destino** (decisión del humano, 2026-10-22: una base por producto). `-dev` ya está
+unida (ADR-044) y todo alta nueva nace con una; `-demo` sigue con dos —el dominio y `medlibra_core`— hasta que
+`libracore-unir-bases` la una, así que el código tiene que andar con las dos formas y no suponer.
 
 Resuelve igual que LibraClub (ADR-020 de ese producto):
 
