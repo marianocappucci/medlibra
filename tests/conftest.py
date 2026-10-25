@@ -46,11 +46,11 @@ def _sin_almacen_de_secretos_colgado():
     config_manager.usar_almacen_de_secretos(None)
 
 
-#: Las dos formas del nombre de la variable que le diria a la app y al motor "LibraCore esta en OTRA
-#: base". La suite es de una sola base (ADR-044): ningun test arranca con ellas puestas, ni siquiera
-#: si quien corre la suite las tiene en su entorno. Los tests de la forma de dos bases (tolerada,
-#: ya sin instancias así) las ponen ellos, a mano, con una base propia.
-_VARIABLES_DEL_CORE = ("MEDLIBRA_LIBRACORE_DATABASE_URL", "MEDLIBRA_LIBRACORE_DB_PATH")
+#: La variable que le diria a la app y al motor "LibraCore esta en OTRA base". La suite es de una sola
+#: base (ADR-044): ningun test arranca con ella puesta, ni siquiera si quien corre la suite la tiene en
+#: su entorno. Los tests de la forma de dos bases (tolerada, ya sin instancias así) la ponen ellos, a
+#: mano, con una base propia.
+_VARIABLES_DEL_CORE = ("MEDLIBRA_LIBRACORE_DATABASE_URL",)
 
 
 def _construir_armada(url: str) -> None:

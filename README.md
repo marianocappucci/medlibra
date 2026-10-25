@@ -82,10 +82,10 @@ producción, un volumen persistente montado en ese path, mismo patrón que
 `DATA_DIR` de Contalibra/Restolibra; ver `DECISIONS.md` ADR-013).
 
 Facturación/caja usa `libracore.db` — sqlite3 crudo con su propia
-conexión, configurada aparte del engine SQLAlchemy de LibraGenda/MedLibra
-vía `MEDLIBRA_LIBRACORE_DB_PATH` (default `./data/medlibra_libracore.db`,
-mismo criterio de volumen persistente que `MEDLIBRA_DOCUMENTS_DIR`). Ver
-`DECISIONS.md` ADR-016.
+conexión, configurada aparte del engine SQLAlchemy de LibraGenda/MedLibra.
+La base de LibraCore es **la misma del dominio** (una sola base, ADR-044 y ADR-046;
+`app/config.py`, ADR-043): ninguna instancia declara ya `MEDLIBRA_LIBRACORE_DATABASE_URL`, y el
+código la tolera por si aparece. Ver `DECISIONS.md` ADR-016.
 
 ## Base de datos
 

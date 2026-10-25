@@ -32,16 +32,9 @@ if DATA_DIR:
     database_url = url_de_instancia(
         "medlibra", default=f"sqlite:///{DATA_DIR}/medlibra.db"
     )
-    # Puente al nombre NORMALIZADO -- ver el comentario equivalente en
-    # gestiolibra/app/asgi.py: se resuelve primero para que un compose con
-    # el nombre viejo gane sobre el default de SQLite.
-    #
-    # Sólo si la instancia DICE una base para LibraCore. Sin variable no se inventa
-    # una: `Config` (ADR-043) resuelve la del dominio cuando ésta es PostgreSQL --
-    # una sola base -- y el archivo `DATA_DIR/medlibra_libracore.db` si no lo es.
-    _core = url_de_instancia("medlibra", core=True)
-    if _core:
-        os.environ.setdefault("MEDLIBRA_LIBRACORE_DATABASE_URL", _core)
+    # La base de LibraCore ya NO se puentea acá: `Config` (ADR-043) la resuelve sola -- la de `MEDLIBRA_LIBRACORE_DATABASE_URL`
+    # si hay una OTRA, y la del dominio si no (una sola base, ADR-044 y ADR-046)--, y el motor (`libracore-migrar`) lee esa
+    # misma variable del entorno por su cuenta.
     os.environ.setdefault(
         "MEDLIBRA_DOCUMENTS_DIR", f"{DATA_DIR}/medlibra_documents"
     )
