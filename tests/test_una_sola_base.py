@@ -1,16 +1,17 @@
 """Una sola base o dos: `Config`, el respaldo y la instancia entera con las dos formas (ADR-043 y ADR-044).
 
-Decisión del humano del 2026-10-22: una base por producto. `-dev` ya está unida (ADR-044) y todo alta nueva nace con
-una; la demo sigue con dos (`medlibra` y `medlibra_core`) hasta que `libracore-unir-bases` las una, así que el código
-tiene que andar con las dos formas. La suite normal es de una sola base (la que arma `tests/motor_de_test.py`); estos
+Decisión del humano del 2026-10-22: una base por producto. `-dev` y la demo se unieron el 2026-10-25 (ADR-044 y ADR-046) y todo
+alta nueva nace con una: ya no queda ninguna instancia de dos bases (`medlibra` y `medlibra_core`), pero el código las tolera
+y tiene que seguir andando con las dos formas. La suite normal es de una sola base (la que arma `tests/motor_de_test.py`); estos
 tests miden las dos con **bases propias**, descartables, y la cadena de migraciones corrida como la corre el deploy:
 
 1. **`Config`**: sin variable del core, o con la misma base, es una sola; con otra, son dos.
 2. **El respaldo** lleva el core como segunda base sólo si es otra.
-3. **Una instancia entera sobre una sola base**: las cuatro cadenas del deploy (libragenda, libraauth `--base core`,
+3. **Una instancia entera sobre una sola base**: las cuatro cadenas del deploy (libragenda, libraauth `--base dominio`,
    libracore, la propia) conviven sin pisarse y **sin ninguna variable del core**, la app arranca, un paciente se da
    de alta y el backup trae una base.
-4. **Lo mismo sobre dos bases**, con `--base core`; y qué pasaría con `--base dominio` (la base equivocada).
+4. **Lo mismo sobre dos bases** (tolerado), con `--base core`, que es lo que pide una instancia así; y el comando
+   `--base dominio` corrido solo, que deja las tablas de auth en la única base.
 5. **El paso a `libracore.db.modulos`**: las filas de `medlibra_modulos` caben en la `modulos` del motor y
    el motor las lee. Es el SQL que dice ADR-043 para después de unir.
 """
@@ -83,7 +84,7 @@ def test_con_otra_base_son_dos_y_todo_sigue_como_hasta_hoy(entorno_limpio):
 
 
 def test_el_nombre_historico_del_core_se_sigue_aceptando(entorno_limpio):
-    """El compose de la demo (hasta que se una) dice `MEDLIBRA_LIBRACORE_DB_PATH`: el de dev ya no (ADR-044)."""
+    """El compose de la demo decía `MEDLIBRA_LIBRACORE_DB_PATH` (el de dev ya no, ADR-044): el nombre histórico se sigue leyendo."""
     entorno_limpio.setenv("DATABASE_URL", f"{PG}/medlibra")
     entorno_limpio.setenv("MEDLIBRA_LIBRACORE_DB_PATH", f"{PG}/medlibra_core")
 
@@ -197,7 +198,8 @@ def _tablas(url: str) -> set[str]:
 def test_una_instancia_entera_sobre_una_sola_base(monkeypatch, tmp_path):
     with base_temporal("una") as url:
         # Las cuatro cadenas del deploy, contra la misma base y SIN variable del core (ADR-044): `libracore-migrar`
-        # y `libraauth-migrar --base core` caen a la base del dominio porque `medlibra` figura en `_UNA_SOLA_BASE`.
+        # cae a la base del dominio porque `medlibra` figura en `_UNA_SOLA_BASE`, y `libraauth-migrar --base dominio`
+        # va a esa misma (ADR-046).
         # Sin la `alembic_version_libragenda` de libragenda v0.14.0 la del motor y la de libragenda se pisarían: la
         # de MedLibra moriría con «Can't locate revision».
         correr_cadena(url)
@@ -235,7 +237,9 @@ def test_una_instancia_entera_sobre_una_sola_base(monkeypatch, tmp_path):
 
 def test_una_instancia_entera_sobre_dos_bases(monkeypatch, tmp_path):
     with base_temporal("dom") as dominio, base_temporal("core") as core:
-        correr_cadena(dominio, core)
+        # Una instancia de dos bases pide `--base core` (`Config.base_de_auth`): con `dominio` crearía las tablas de auth
+        # vacías en la base equivocada.
+        correr_cadena(dominio, core, base_de_auth="core")
 
         # Cada cadena en su base: la agenda y lo propio en el dominio; los usuarios y el motor en el core.
         assert {"agenda_clients", "patients", "medlibra_modulos"} <= _tablas(dominio)
@@ -245,6 +249,7 @@ def test_una_instancia_entera_sobre_dos_bases(monkeypatch, tmp_path):
         with _app(monkeypatch, tmp_path, dominio, core) as app:
             cfg = Config.desde_entorno(dominio)
             assert cfg.core_en_la_del_dominio is False
+            assert cfg.base_de_auth == "core"
 
             client = _sesion(app)
             try:
@@ -257,36 +262,16 @@ def test_una_instancia_entera_sobre_dos_bases(monkeypatch, tmp_path):
                 client.__exit__(None, None, None)
 
 
-def _unir_bases_verificar(dominio: str, core: str):
-    """`libracore-unir-bases verificar` sobre dos bases: (código de salida, texto)."""
-    import subprocess
-    import sys
-    from pathlib import Path
+def test_libraauth_con_base_dominio_deja_las_tablas_de_auth_en_la_unica_base():
+    """`--base dominio` sobre una base nueva: `usuarios` y la versión de auth quedan ahí, y no nace ninguna `<base>_core`.
 
-    r = subprocess.run(
-        [str(Path(sys.executable).parent / "libracore-unir-bases"), "--prefijo", "medlibra",
-         "--core", core, "--dominio", dominio, "verificar"],
-        capture_output=True, text=True, timeout=300)
-    return r.returncode, r.stdout + r.stderr
-
-
-def test_libraauth_con_base_dominio_en_una_instancia_de_dos_bases_deja_la_union_imposible():
-    """🔴 Por qué el deploy sigue con `--base core` (ADR-044) y no pasó a `--base dominio`: medido el 2026-10-25.
-
-    En una instancia que todavía tiene dos bases (la demo) `--base dominio` termina bien y crea en el dominio las
-    tablas de auth, vacías, al lado de las reales del core; desde ahí `libracore-unir-bases` corta con
-    `auth_en_los_dos` y la unión de esa demo ya no se puede hacer sin retirar a mano el juego de tablas sobrante."""
-    with base_temporal("dom") as dominio, base_temporal("core") as core:
-        correr_cadena(dominio, core)
-        assert "usuarios" not in _tablas(dominio)
-        antes, texto = _unir_bases_verificar(dominio, core)
-        assert antes == 0, texto  # control: con el deploy tal cual, se puede unir
-
-        correr_cadena(dominio, core, solo=("libraauth-migrar",), base_de_auth="dominio")
-
-        assert "usuarios" in _tablas(dominio)  # migró la base equivocada, sin fallar
-        despues, texto = _unir_bases_verificar(dominio, core)
-        assert despues != 0 and "auth_en_los_dos" in texto, texto
+    Es lo que corre el `command:` del compose de dev y el alta de un cliente nuevo (ADR-046). El comando solo (auth no
+    tiene FK contra la agenda) migra la base del dominio, y el destino sale de `DATABASE_URL`/`MEDLIBRA_DATABASE_URL`,
+    no de una variable del core."""
+    with base_temporal("auth") as url:
+        correr_cadena(url, solo=("libraauth-migrar",))
+        assert {"usuarios", "auth_log", "alembic_version_libraauth"} <= _tablas(url)
+        assert una(url, "SELECT count(*) FROM pg_database WHERE datname = current_database() || '_core'") == 0
 
 
 # ── 5. El paso a `libracore.db.modulos` ─────────────────────────────────────

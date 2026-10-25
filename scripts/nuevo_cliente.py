@@ -86,8 +86,9 @@ configure(
     #
     # 1. `libragenda-migrar` — va primero porque las revisiones propias de este
     #    producto tienen FK contra tablas de LibraGenda.
-    # 2. `libraauth-migrar` — las tablas de auth. `--base core`, **a propósito, y no
-    #    `--base dominio`** (ver abajo).
+    # 2. `libraauth-migrar` — las tablas de auth. `--base dominio`: desde el 2026-10-25 dev y demo son
+    #    de UNA sola base (ADR-046) y no queda ninguna instancia de dos (ADR-044 punto 2 lo dejaba en
+    #    `--base core` por la demo, que todavía tenía dos).
     # 3. `libracore-migrar` — el esquema de LibraCore. Con una sola base (ADR-044) no hay
     #    `MEDLIBRA_LIBRACORE_DATABASE_URL` y el comando cae a la base del dominio, porque
     #    `medlibra` figura en `_UNA_SOLA_BASE` desde libracore v1.194.0 (ADR-083). Ver
@@ -100,13 +101,11 @@ configure(
     # `0002` le agrega a `clients`.
     migraciones=(
         ("libragenda-migrar", "upgrade"),
-        # 🔴 `--base core` y NO `--base dominio`, medido el 2026-10-25. Con `--base core` el comando usa la base
-        # del core si la instancia todavía tiene la variable (la demo, hasta que se una) y, si no, cae a la del
-        # dominio (dev unida y todo alta nueva). Con `--base dominio` migraría SIEMPRE la del dominio: en una
-        # instancia que aún tiene dos bases crea ahí las tablas de auth, vacías, al lado de las reales, y
-        # `libracore-unir-bases verificar` corta después con `auth_en_los_dos`. Es el mismo destino en una base
-        # única; cambiarlo a `dominio` es un PR aparte, cuando no quede ninguna instancia de dos bases.
-        ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "core"),
+        # `--base dominio` (ADR-046): la base única de la instancia. `libraauth-migrar` migra la de
+        # `MEDLIBRA_DATABASE_URL` (o su histórico `DATABASE_URL`), que es donde viven también LibraGenda y LibraCore.
+        # Antes iba `--base core`, a propósito: con `dominio` una instancia de DOS bases crearía las tablas de auth vacías
+        # en la base equivocada y dejaría la unión imposible (`auth_en_los_dos`). Ya no queda ninguna.
+        ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "dominio"),
         ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
         ("alembic", "upgrade", "head"),
     ),

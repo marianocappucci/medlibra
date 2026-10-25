@@ -32,10 +32,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 #: adopción de la cadena de auth). `libracore-migrar` entró el 2026-08-25 y su cadena no la
 #: corría nadie porque las migraciones del motor no viajaban en el wheel. Con una sola base
 #: (ADR-044) la resuelve por `MEDLIBRA_DATABASE_URL`, porque `medlibra` figura en
-#: `_UNA_SOLA_BASE` del motor; en la demo, que todavía tiene dos, por la variable del core.
+#: `_UNA_SOLA_BASE` del motor. `libraauth-migrar` va con `--base dominio` (ADR-046).
 ESPERADO = (
     ("libragenda-migrar", "upgrade"),
-    ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "core"),
+    ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "dominio"),
     ("libracore-migrar", "upgrade", "--prefijo", "medlibra"),
     ("alembic", "upgrade", "head"),
 )
@@ -206,38 +206,33 @@ def test_la_imagen_lleva_con_que_correrlas():
             assert prohibido not in lineas, f".dockerignore excluye {prohibido}"
 
 
-def test_libraauth_va_con_base_core_hasta_que_no_quede_una_instancia_de_dos_bases():
-    """🔴 `--base core`, y no `--base dominio`: medido el 2026-10-25 sobre una instancia de dos bases.
+@pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])
+def test_libraauth_va_con_base_dominio(script):
+    """`--base dominio` en los dos scripts y en el `command:` del compose (ADR-046).
 
-    Con `--base core` el comando usa la base del core si la instancia todavía tiene la variable (la demo, hasta que
-    se una) y, si no, cae a la del dominio (dev unida y todo alta nueva), porque `medlibra` figura en
-    `_UNA_SOLA_BASE` del motor desde libracore v1.194.0. Con `--base dominio` migraría SIEMPRE la del dominio: en la demo
-    crearía ahí las tablas de auth, vacías, al lado de las reales —sin fallar— y `libracore-unir-bases verificar`
-    cortaría después con `auth_en_los_dos`. En una base única los dos valores van al mismo lugar, así que cambiarlo a
-    `dominio` es un PR aparte, cuando no quede ninguna instancia de dos bases.
-    """
-    comando = next(c for c in _config_de("panel_admin") if c[0] == "libraauth-migrar")
+    Desde el 2026-10-25 dev y demo son de UNA sola base: no hay `MEDLIBRA_LIBRACORE_DATABASE_URL` en ninguna instancia
+    y `dominio` es la base donde vive todo. Hasta el ADR-044 iba `--base core` porque la demo tenía dos bases y
+    `--base dominio` habría creado ahí las tablas de auth vacías, al lado de las reales del core (la unión quedaba
+    imposible: `auth_en_los_dos`); ese escenario ya no existe. El valor tiene que ser el mismo en los tres lugares: el que
+    el deploy corre, el que el alta corre y el que el compose de dev corre."""
+    comando = next(c for c in _config_de(script) if c[0] == "libraauth-migrar")
     assert "--base" in comando, "sin --base, libraauth-migrar se niega a correr con --prefijo"
-    assert comando[comando.index("--base") + 1] == "core", (
-        f"mientras la demo tenga dos bases: --base core, no {comando[comando.index('--base') + 1]!r}")
+    assert comando[comando.index("--base") + 1] == "dominio", comando
+    compose = (RAIZ / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "libraauth-migrar upgrade --prefijo medlibra --base dominio &&" in compose
+    assert "--base core" not in compose
 
 
-def test_a_donde_va_libraauth_con_una_base_y_con_dos():
-    """La resolución real de `libraauth-migrar` (`url_de_auth`), sin tocar ninguna base: el destino de cada `--base`."""
+def test_a_donde_va_libraauth_con_base_dominio():
+    """La resolución real de `libraauth-migrar` (`url_de_auth`), sin tocar ninguna base.
+
+    Con una sola base `dominio` sale de `MEDLIBRA_DATABASE_URL` y, como en el compose de dev (que sólo define
+    `DATABASE_URL`), de su nombre histórico."""
     from libraauth.migrar import url_de_auth
 
     dominio = "postgresql+psycopg://u:clave@servidor:5432/medlibra"
-    core = "postgresql+psycopg://u:clave@servidor:5432/medlibra_core"
-
-    # Una sola base (dev unida, alta nueva): sin variable del core, `core` y `dominio` son la misma.
-    una = {"MEDLIBRA_DATABASE_URL": dominio}
-    assert url_de_auth("medlibra", "core", entorno=una) == dominio
-    assert url_de_auth("medlibra", "dominio", entorno=una) == dominio
-
-    # Dos bases (la demo hasta que se una): `core` es la del core; `dominio` sería la equivocada.
-    dos = {**una, "MEDLIBRA_LIBRACORE_DATABASE_URL": core}
-    assert url_de_auth("medlibra", "core", entorno=dos) == core
-    assert url_de_auth("medlibra", "dominio", entorno=dos) == dominio  # el peligro: migraría la base equivocada
+    assert url_de_auth("medlibra", "dominio", entorno={"MEDLIBRA_DATABASE_URL": dominio}) == dominio
+    assert url_de_auth("medlibra", "dominio", entorno={"DATABASE_URL": dominio}) == dominio
 
 
 @pytest.mark.parametrize("script", ["panel_admin", "nuevo_cliente"])

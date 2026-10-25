@@ -292,7 +292,8 @@ def create_app(database_url: str) -> FastAPI:
             f"sqlite:///{libracore_db_path}", connect_args={"check_same_thread": False}
         )
     # 🔴 Las tablas de auth las crea la cadena de LibraAuth (`libraauth-migrar
-    # upgrade --prefijo medlibra --base core`, declarada en `scripts/panel_admin.py`),
+    # upgrade --prefijo medlibra --base dominio`, declarada en `scripts/panel_admin.py`; `core` si la
+    # instancia tuviera la variable del core con OTRA base: `Config.base_de_auth`),
     # no el arranque. Desde libraauth v0.45.0 (2026-09-17) el arranque la EXIGE: si
     # no corrió, la app no levanta y el error dice el comando. Hasta ese día acá
     # había un `AuthBase.metadata.create_all(auth_engine)` que tapaba cualquier
