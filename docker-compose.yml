@@ -121,7 +121,7 @@ services:
     #
     # `--workers ${WEB_CONCURRENCY:-1}`: el codigo esta listo para varios procesos (libracore ADR-044, libraauth ADR-023)
     # pero **todo sigue en 1**; subirlo es una decision aparte (`docs/varios-procesos.md` de libracore).
-    command: sh -c "libragenda-migrar upgrade && libraauth-migrar upgrade --prefijo medlibra --base core && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-1}"
+    command: sh -c "libragenda-migrar upgrade && libraauth-migrar upgrade --prefijo medlibra --base dominio && libracore-migrar upgrade --prefijo medlibra && alembic upgrade head && exec uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-1}"
     environment:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY es obligatorio tambien en dev (sin default en un repo publico)}
       # Token de servicio de ESTA instancia (libracore v1.183.0, ADR-071: uno por
@@ -138,8 +138,8 @@ services:
       # 🔴 El corte a PostgreSQL, con UNA sola base (ADR-044): el dominio (LibraGenda), LibraAuth
       # y LibraCore viven todos en `medlibra`. **No hay variable del core**: sin
       # `MEDLIBRA_LIBRACORE_DATABASE_URL` (ni su histórico `MEDLIBRA_LIBRACORE_DB_PATH`) el motor y
-      # `app/config.py` usan la base del dominio. Una instancia que todavía tenga dos bases (la
-      # demo, hasta que se una con `libracore-unir-bases`) la sigue declarando en SU compose.
+      # `app/config.py` usan la base del dominio. Dev y demo se unieron el 2026-10-25 con
+      # `libracore-unir-bases` y no queda ninguna instancia de dos bases (el código la tolera, ADR-046).
       #
       # Volver esta línea a la ruta `.db` y reiniciar es el rollback completo: el archivo de
       # `dev-data/` sigue ahí y sin tocar —

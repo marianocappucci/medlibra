@@ -1,8 +1,8 @@
 """Bases PostgreSQL descartables, para los tests que arman una instancia entera (ADR-043).
 
 La suite normal trabaja sobre la base del worker (`medlibra_gw0`, una sola desde el ADR-044) y la
-restaura entre test y test. Un test que necesita **una base propia** —una instancia con dos bases (la
-demo, hasta que se una), la cadena de migraciones completa corrida como la corre el deploy— no puede
+restaura entre test y test. Un test que necesita **una base propia** —una instancia con dos bases (tolerada
+por el código, ya sin instancias así), la cadena de migraciones completa corrida como la corre el deploy— no puede
 usarla: la pisaría el `limpiar_entre_tests` del siguiente. Éstas se crean en el mismo servidor, con un nombre único, y se
 borran al terminar (`FORCE`: la app del test deja su pool vivo).
 """
@@ -54,8 +54,8 @@ def una(url: str, sentencia: str, parametros=None):
 # ── la cadena de migraciones del deploy ─────────────────────────────────────
 
 #: En el orden y con los argumentos de `scripts/panel_admin.py` (lo fija `test_migraciones_en_el_deploy.py`).
-#: `--base` de `libraauth-migrar` es `core` en el deploy (ver el comentario de ese script) y es lo que se corre
-#: acá, con una base y con dos; `base_de_auth` lo cambia para medir qué pasaría con otro valor.
+#: `--base` de `libraauth-migrar` es `dominio` en el deploy (ADR-046; ver el comentario de ese script) y es lo que se
+#: corre acá; `base_de_auth` lo cambia para una instancia de dos bases, que pide `core` (`Config.base_de_auth`).
 _CADENA = (
     ("libragenda-migrar", "upgrade"),
     ("libraauth-migrar", "upgrade", "--prefijo", "medlibra", "--base", "{auth}"),
@@ -65,14 +65,15 @@ _CADENA = (
 
 
 def correr_cadena(dominio: str, core: str | None = None, *, solo: tuple[str, ...] | None = None,
-                  base_de_auth: str = "core") -> None:
+                  base_de_auth: str = "dominio") -> None:
     """Las cadenas del deploy contra bases descartables, como las corre el compose (subprocesos, no en proceso).
 
     `core=None` es **una sola base**: sin `MEDLIBRA_LIBRACORE_DATABASE_URL`, como una instancia unida o un alta
     nueva (`medlibra` figura en `_UNA_SOLA_BASE` del motor desde libracore v1.194.0: `libracore-migrar` y
-    `libraauth-migrar --base core` caen a la base del dominio). Con `core`, dos bases (la demo, hasta que se una).
+    `libraauth-migrar --base dominio` van a la base del dominio). Con `core`, dos bases (tolerado, ya sin instancias así: ahí
+    `base_de_auth` tiene que ser `core`).
     `solo` corre únicamente los comandos con esos nombres, en el orden de siempre. `base_de_auth` es el `--base` de
-    `libraauth-migrar`: el del deploy es `core`.
+    `libraauth-migrar`: el del deploy es `dominio`.
     """
     import os
     import subprocess

@@ -205,7 +205,7 @@ jobs:
       # LibraGenda declaraban las dos una tabla `clients` con formas incompatibles -- `id`
       # INTEGER contra VARCHAR(100) --; desde libragenda v0.14.0 la de la agenda es
       # `agenda_clients`. `tests/test_una_sola_base.py` mide ademas la forma de dos bases
-      # (la demo, hasta que se una).
+      # (tolerada por el código, ya sin instancias así).
 
       # Smoke check for the two independent Alembic chains this repo
       # depends on: LibraGenda's own (engine schema) applied first, then

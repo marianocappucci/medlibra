@@ -82,21 +82,10 @@ log "seed listo desde origin/develop ($(wc -l < "$SEED_LOCAL") lineas)"
 # sin resetear nada. Por eso el motor se DETECTA, y si no se puede detectar se
 # aborta en vez de suponer SQLite.
 #
-# 🔴 Mientras haya DOS bases (el dominio y LibraCore no podian compartir schema:
-# los dos declaraban una tabla `clients` con `id` de tipos incompatibles),
-# resetear una sola deja la demo a medias. Desde libragenda v0.14.0 (ADR-043 de
-# MedLibra) la de la agenda es `agenda_clients` y una instancia puede tener UNA:
-# sin variable del core, la base de LibraCore es la del dominio y no se resetea
-# dos veces. Se acepta el nombre vigente del core y el historico (`..._DB_PATH`).
-#
-# 🔴 Esto LEE el entorno del contenedor, no lo define, y se queda a proposito: la demo todavia tiene dos bases
-# (hasta que se una con `libracore-unir-bases`) y sin esta lectura el reset recrearia el dominio y dejaria el core
-# (usuarios, codigos de acceso, caja) con los datos de ayer, sin avisar. Con una sola base la variable no existe y
-# `URL_CORE` es `URL_DOMINIO` (ADR-044). Se simplifica cuando no quede ninguna instancia de dos bases.
+# 🔑 Una sola base (ADR-043, ADR-044 y ADR-046; dev y demo se unieron el 2026-10-25): el dominio, LibraAuth y
+# LibraCore viven en `medlibra`, y esa se resetea, una vez. Ya no se lee la variable del core del contenedor: no
+# existe en ninguna instancia.
 URL_DOMINIO=$(docker exec "$CONTENEDOR" printenv DATABASE_URL 2>/dev/null || true)
-URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DATABASE_URL 2>/dev/null || true)
-[ -n "$URL_CORE" ] || URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DB_PATH 2>/dev/null || true)
-[ -n "$URL_CORE" ] || URL_CORE=$URL_DOMINIO
 
 es_postgres() {
   case "$1" in postgres://*|postgresql://*|postgresql+*://*) return 0 ;; *) return 1 ;; esac
@@ -155,7 +144,7 @@ if es_postgres "$URL_DOMINIO"; then
 
   # --- Los codigos de acceso: guardarlos ---------------------------------------
   # Antes el reset borraba los codigos de acceso entregados a clientes
-  # potenciales: `demo_codigos` vive en la base de libracore (`*_core`, medido el 2026-10-09), que el `DROP SCHEMA` también vacía: por eso `--base`.
+  # potenciales: `demo_codigos` vive en la base de la instancia (antes `*_core`, medido el 2026-10-09; hoy es la única), que el `DROP SCHEMA` también vacía: por eso `--base`.
   # Ahora se guardan ANTES de borrar y se devuelven despues del arranque; la
   # logica vive en el motor, `libracore.provisioning.demo_codigos` (ADR-039).
   # Si falla NO se aborta: la demo igual tiene que quedar limpia.
@@ -163,7 +152,7 @@ if es_postgres "$URL_DOMINIO"; then
   DEMO_CODIGOS="$REPO/.venv-scripts/bin/libracore-demo-codigos"
   rm -f "$CODIGOS_DUMP"
   if [ -x "$DEMO_CODIGOS" ]; then
-    "$DEMO_CODIGOS" guardar --sidecar "$SIDECAR" --archivo "$CODIGOS_DUMP" --base "$(base_de "$URL_CORE")" 2>&1 | log_lineas \
+    "$DEMO_CODIGOS" guardar --sidecar "$SIDECAR" --archivo "$CODIGOS_DUMP" --base "$(base_de "$URL_DOMINIO")" 2>&1 | log_lineas \
       || { log "OJO: no se pudieron guardar los codigos de acceso: fallo \`guardar\`."; rm -f "$CODIGOS_DUMP"; }
   else
     log "OJO: no se pudieron guardar los codigos de acceso: no existe $DEMO_CODIGOS"
@@ -175,22 +164,17 @@ if es_postgres "$URL_DOMINIO"; then
   docker stop "$CONTENEDOR" >/dev/null
   log "app parada para soltar las conexiones"
 
-  for base in "$(base_de "$URL_DOMINIO")" "$(base_de "$URL_CORE")"; do
-    [ -z "$base" ] && continue
-    # Una sola base: la del core ya quedo vacia en la vuelta anterior.
-    [ "$base" = "${hecha:-}" ] && continue
-    hecha=$base
-    # `psql` corre DENTRO del sidecar y con las variables de su propio entorno:
-    # asi la contrasena no pasa por la linea de comandos del host, donde
-    # quedaria en el `ps` y en el log del cron.
-    docker exec -e BASE="$base" "$SIDECAR" sh -c '
-      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$BASE" \
-        -c "DROP SCHEMA IF EXISTS public CASCADE" \
-        -c "CREATE SCHEMA public" \
-        -c "GRANT ALL ON SCHEMA public TO \"$POSTGRES_USER\""
-    ' >/dev/null || { log "ABORTA: no se pudo recrear el schema de $base."; docker start "$CONTENEDOR" >/dev/null; exit 10; }
-    log "schema de $base recreado, vacio"
-  done
+  base="$(base_de "$URL_DOMINIO")"
+  # `psql` corre DENTRO del sidecar y con las variables de su propio entorno:
+  # asi la contrasena no pasa por la linea de comandos del host, donde
+  # quedaria en el `ps` y en el log del cron.
+  docker exec -e BASE="$base" "$SIDECAR" sh -c '
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$BASE" \
+      -c "DROP SCHEMA IF EXISTS public CASCADE" \
+      -c "CREATE SCHEMA public" \
+      -c "GRANT ALL ON SCHEMA public TO \"$POSTGRES_USER\""
+  ' >/dev/null || { log "ABORTA: no se pudo recrear el schema de $base."; docker start "$CONTENEDOR" >/dev/null; exit 10; }
+  log "schema de $base recreado, vacio"
 
   # --- Las cadenas de migracion, ANTES de que arranque la app --------------
   #
@@ -297,7 +281,7 @@ fi
 # demo ya quedo usable y se puede emitir un codigo nuevo (el comando dice OJO y
 # deja el archivo en su lugar).
 if [ -n "${SIDECAR:-}" ] && [ -x "$DEMO_CODIGOS" ]; then
-  "$DEMO_CODIGOS" devolver --sidecar "$SIDECAR" --archivo "$CODIGOS_DUMP" --base "$(base_de "$URL_CORE")" 2>&1 | log_lineas \
+  "$DEMO_CODIGOS" devolver --sidecar "$SIDECAR" --archivo "$CODIGOS_DUMP" --base "$(base_de "$URL_DOMINIO")" 2>&1 | log_lineas \
     || log "OJO: fallo \`devolver\`; los codigos siguen en $CODIGOS_DUMP."
 fi
 

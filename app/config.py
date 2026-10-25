@@ -1,14 +1,14 @@
 """Configuración por entorno: la base del dominio y la de LibraCore, que pueden ser una sola o dos (ADR-043).
 
-🔑 **Una sola base es el destino** (decisión del humano, 2026-10-22: una base por producto). `-dev` ya está
-unida (ADR-044) y todo alta nueva nace con una; `-demo` sigue con dos —el dominio y `medlibra_core`— hasta que
-`libracore-unir-bases` la una, así que el código tiene que andar con las dos formas y no suponer.
+🔑 **Una sola base es el destino** (decisión del humano, 2026-10-22: una base por producto). `-dev` y `-demo`
+se unieron el 2026-10-25 con `libracore-unir-bases` (ADR-044 y ADR-046) y todo alta nueva nace con una: ya no queda
+ninguna instancia con dos (el dominio y `medlibra_core`). El código sigue tolerando las dos formas y no supone.
 
 Resuelve igual que LibraClub (ADR-020 de ese producto):
 
 - sin `MEDLIBRA_LIBRACORE_DATABASE_URL` (ni el histórico `MEDLIBRA_LIBRACORE_DB_PATH`), o con la misma base
   que el dominio, `libracore_database_url` **es** la URL del dominio y `core_en_la_del_dominio` es verdadero;
-- con otra base, todo sigue como hasta hoy.
+- con otra base (ya sin instancias así), todo sigue como antes de la unión.
 
 El motor llama a la segunda variable `..._LIBRACORE_DATABASE_URL` y acepta la vieja
 (`libracore.db.url_de_instancia`): se leen las dos por ese camino, no a mano.
