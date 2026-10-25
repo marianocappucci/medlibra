@@ -13,7 +13,8 @@ dependencies = [
     # v0.11.0 -> v0.12.0 (2026-10-17): `crear_esquema` serializa el DDL de LibraGenda entre procesos (ADR-015 de libragenda), para `uvicorn --workers N`. Sin migracion.
     # v0.12.0 -> v0.13.0 (2026-10-18): `AppointmentConflict.resource_ids`, `reschedule(secondary_resource_ids=)` y candados en orden de id (ADR-016 de libragenda); el consultorio pasa a recurso secundario (ADR-042, migracion 0022).
     # v0.13.0 -> v0.14.0 (2026-10-25): `clients` pasa a `agenda_clients` y la tabla de version es `alembic_version_libragenda` (ADR-017/018 de libragenda; ADR-043 de este repo). Correr `libragenda-migrar upgrade` ANTES de arrancar.
-    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.14.0",
+    # v0.14.0 -> v0.15.0 (2026-10-25): atender un turno en un nodo sin conexion (`libragenda.atencion_en_nodo`, ADR-019 de libragenda; ADR-045 de este repo). **Migracion `0011_node_attendances`** (dos tablas nuevas, aditiva): correr `libragenda-migrar upgrade` ANTES de arrancar.
+    "libragenda @ git+https://github.com/marianocappucci/libragenda.git@v0.15.0",
     # libracore sigue proveyendo facturacion/caja/ARCA. El auth SALIO de aca el
     # 2026-07-30 y ahora lo da libraauth (ver app/auth.py y app/services/users.py).
     #
@@ -123,6 +124,11 @@ dependencies = [
     # v1.192.0 -> v1.192.1 (2026-10-24): un ciclo con el candado del esquema da deadlock en 1 s, no a los 120 s (ADR-081). Sin migracion.
     # v1.192.1 -> v1.194.0 (2026-10-25): unir-bases con libraauth en el core (ADR-082), GestioLibra y MedLibra de una sola base y tabla de modulos del producto (ADR-083). Sin migracion.
     "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.194.0",
+    # libraedge v0.23.0 (2026-10-25): el nodo sin conexion de MedLibra (ADR-045 de este repo). Dependencia NORMAL y no extra, como en
+    # VentaLibra, RestoLibra, LibraCargo y LibraClub: el central monta `/sync/v1/*` (push, pull) aunque no tenga nodos. El repo es
+    # publico: no hace falta deploy key ni en el CI ni en el build del VPS. v0.23.0 trae los ids provisorios de texto (`"-N"`,
+    # `libraedge_mapeo_texto`, ADR-026), que es lo que necesitan los pacientes (`p-NNN`). Sin migracion de los productos.
+    "libraedge @ git+https://github.com/marianocappucci/libraedge.git@v0.23.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log

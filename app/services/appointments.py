@@ -45,6 +45,7 @@ from uuid import uuid4
 from libragenda import Appointment, AppointmentConflict, InMemoryScheduler
 from libragenda.availability_repository import SqlAlchemyAvailabilityRepository
 from libragenda.catalog_repository import SqlAlchemyCatalogRepository
+from libragenda.domain import AppointmentStatus
 from libragenda.repositories import AppointmentRepository
 from libragenda.scheduling import TimeBlock
 from libragenda.timezones import to_utc
@@ -353,6 +354,20 @@ class AppointmentService:
     def complete(self, appointment_id: str) -> Appointment:
         scheduler = InMemoryScheduler(repository=self.appointments)
         return scheduler.complete(appointment_id)
+
+    def start(self, appointment_id: str) -> Appointment:
+        """El profesional empieza la consulta (`confirmed` -> `in_progress`)."""
+        scheduler = InMemoryScheduler(repository=self.appointments)
+        return scheduler.start(appointment_id)
+
+    def no_show(self, appointment_id: str) -> Appointment:
+        """El paciente no vino (`confirmed` -> `no_show`).
+
+        LibraGenda tiene la transicion en su maquina de estados pero ningun verbo publico para ella (si lo tienen `confirm`,
+        `start`, `cancel` y `complete`), asi que se usa `_transition`, el mismo camino que esos cuatro. Cuando LibraGenda
+        sume el verbo, esto pasa a llamarlo."""
+        scheduler = InMemoryScheduler(repository=self.appointments)
+        return scheduler._transition(appointment_id, AppointmentStatus.NO_SHOW)  # noqa: SLF001
 
     def reschedule(
         self, appointment_id: str, starts_at: datetime, reason: str | None = None

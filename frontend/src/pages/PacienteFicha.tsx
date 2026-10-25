@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TituloPantalla } from 'libra-ui/titulo-pantalla'
+import { EtiquetaDePersonaDelNodo } from 'libra-ui/EtiquetaProvisorio'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { fechaHora } from '@/lib/fechas'
 import { CampoArchivo } from 'libra-ui/CampoArchivo'
@@ -934,6 +935,8 @@ export function PacienteFicha() {
           <Link to="/pacientes">← Pacientes</Link>
         </Button>
         <TituloPantalla icono={ICONOS.clientes}>{patient?.name ?? 'Cargando…'}</TituloPantalla>
+        {/* Dado de alta sin conexión (id `-N`, libra-ui ADR-095): recibe su número cuando vuelva la conexión. */}
+        <EtiquetaDePersonaDelNodo id={patient?.id} persona="paciente" />
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

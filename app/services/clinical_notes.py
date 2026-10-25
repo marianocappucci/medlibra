@@ -13,6 +13,8 @@ from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, sessionmaker
 
+from . import historia_en_nodo
+
 
 class ClinicalNoteRow(Base):
     __tablename__ = "clinical_notes"
@@ -42,6 +44,8 @@ class ClinicalNoteRepository:
         )
         with self.session_factory.begin() as session:
             session.add(row)
+            # En un nodo de LibraEdge la nota sube como `nota.alta`, en esta misma transaccion (ADR-045).
+            historia_en_nodo.encolar_alta(session, historia_en_nodo.NOTA, row)
         return _to_dict(row)
 
     def get(self, note_id: str) -> dict | None:

@@ -24,6 +24,7 @@ from pathlib import Path
 import psycopg
 import pytest
 from alembic import command
+from alembic.script import ScriptDirectory
 from bases_temporales import base_temporal, consultar, correr_cadena, cruda, una
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -118,9 +119,11 @@ def test_en_una_instancia_viva_las_dos_claves_siguen_solas_el_renombre_de_librag
 
     with base_temporal("viva") as url:
         correr_cadena(url, solo=("libragenda-migrar", "alembic"))
-        # Se vuelve al estado de antes: se baja la revisión de libragenda que renombra (`0010_agenda_clients`).
+        # Se vuelve al estado de antes: se baja hasta la revisión anterior a la que renombra (`0010_agenda_clients`). No es `-1`:
+        # desde libragenda v0.15.0 la cabeza es otra (`0011_node_attendances`, la atención en un nodo, ADR-045) y `-1` no la pasaría.
         monkeypatch.setenv("DATABASE_URL", url)
-        command.downgrade(configuracion(url), "-1")
+        cfg = configuracion(url)
+        command.downgrade(cfg, ScriptDirectory.from_config(cfg).get_revision("0010_agenda_clients").down_revision)
         # El control: de verdad quedó como la instancia de antes, con las claves apuntando a `clients`.
         assert _destino_de_las_claves(url) == {"patients.id": "clients", "walkins.client_id": "clients"}
         consultar(url, "INSERT INTO clients (id, name, active) VALUES ('c1', 'Paciente Ficticio', true)")

@@ -6,9 +6,16 @@ from sqlalchemy.exc import IntegrityError
 
 from ..auth import require_admin
 from ..dependencies import get_patient_repository
+from ..services import pacientes_nodo
 from ..services.patients import PatientHasClinicalNotes, PatientRepository
 
 router = APIRouter(prefix="/patients", tags=["patients"])
+
+
+def _modificable_en_el_nodo(patient_id: str) -> None:
+    """En un nodo sin conexion (ADR-045) un paciente no se edita ni se borra: el del central es del espejo y el provisorio ya
+    subio con sus datos. 409. Fuera de un nodo no hace nada."""
+    pacientes_nodo.exigir_paciente_modificable(patient_id)
 
 
 class PatientCreate(BaseModel):
@@ -77,7 +84,7 @@ def get_patient(patient_id: str, patients: PatientRepository = Depends(get_patie
     return patient
 
 
-@router.put("/{patient_id}", response_model=PatientOut)
+@router.put("/{patient_id}", response_model=PatientOut, dependencies=[Depends(_modificable_en_el_nodo)])
 def update_patient(
     patient_id: str,
     data: PatientUpdate,
@@ -94,7 +101,9 @@ def update_patient(
         raise HTTPException(404, "patient not found")
 
 
-@router.delete("/{patient_id}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete(
+    "/{patient_id}", status_code=204, dependencies=[Depends(require_admin), Depends(_modificable_en_el_nodo)],
+)
 def delete_patient(patient_id: str, patients: PatientRepository = Depends(get_patient_repository)):
     try:
         patients.delete(patient_id)

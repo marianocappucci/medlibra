@@ -14,6 +14,8 @@ from libragenda.sqlalchemy_repository import Base
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, sessionmaker
 
+from . import historia_en_nodo
+
 
 class StudyOrderRow(Base):
     __tablename__ = "study_orders"
@@ -102,6 +104,8 @@ class StudyOrderRepository:
             session.add(row)
             session.flush()
             session.refresh(row)
+            # En un nodo de LibraEdge el pedido sube como `pedido_estudio.alta`, en esta misma transaccion (ADR-045).
+            historia_en_nodo.encolar_alta(session, historia_en_nodo.PEDIDO_DE_ESTUDIO, row)
             result = _order_to_dict(row)
         return result
 

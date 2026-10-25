@@ -1,9 +1,10 @@
 // Shim sobre libra-ui/Layout (extraído 2026-07-26, era idéntico en
 // Gestiolibra/MedLibra/VentaLibra salvo NAV_ITEMS/branding -- ver
 // wiki/analyses/auditoria-duplicacion-familia-libra.md).
-import { ListOrdered } from 'lucide-react'
+import { ClipboardCheck, ListOrdered } from 'lucide-react'
 import { createLayout, type NavSection } from 'libra-ui/Layout'
 import { ICONOS } from 'libra-ui/iconos-identidad'
+import { CARTEL_SIN_CONEXION } from '@/lib/nodo'
 import { WORDMARK } from '@/branding'
 
 // 🔴 Facturación NO está: sale de la vista por pedido del humano (2026-08-22); pasa a Contalibra (ADR-034).
@@ -17,6 +18,9 @@ const NAV_SECCIONES: NavSection<{ role?: string; name?: string }>[] = [
       // Junto a la Agenda y sin `adminOnly`: la fila la opera el mostrador, igual que los turnos (el router del backend es
       // `staff_or_admin`, ADR-031).
       { to: '/demanda-espontanea', label: 'Demanda espontánea', icon: ListOrdered },
+      // Lo que se atendió sin conexión y en la web cambió (libra-ui ADR-095). Sin `adminOnly`: lo acomoda el mostrador. Va con la agenda
+      // en la PC del consultorio y en la web; no es un concepto del catálogo de íconos (ADR-035): lleva el de la etiqueta «A revisar».
+      { to: '/turnos-a-revisar', label: 'Turnos a revisar', icon: ClipboardCheck },
       { to: '/pacientes', label: 'Pacientes', icon: ICONOS.clientes },
     ],
   },
@@ -47,5 +51,10 @@ export const Layout = createLayout({
   // La barra de estado del pie (libra-ui ADR-083, libracore ADR-075): usuario, ARCA, respaldo y versión, de
   // `GET /api/estado-del-sistema` al cargar y cada pocos minutos.
   barraDeEstado: true,
+  // El cartel «Sin conexión» arriba del contenido, sólo en la PC del consultorio (un nodo de LibraEdge) y sólo sin conexión (libra-ui
+  // ADR-077). Con la frase de MedLibra: no hay facturas ni cartas de porte en cola (la consulta la manda a Contalibra la web), pero sí
+  // lo que se puede y lo que no sin internet. `GET /api/nodo/conexion` es de `app/routers/nodo.py`; fuera de un nodo contesta
+  // `es_nodo: false` y el cartel deja de consultar.
+  conexionDelNodo: { texto: CARTEL_SIN_CONEXION },
   getUserSubtitle: (u) => (u as { empresa_nombre?: string }).empresa_nombre,
 })

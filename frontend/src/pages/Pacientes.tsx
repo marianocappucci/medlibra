@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BadgeEstado } from 'libra-ui/badge-estado'
+import { EtiquetaDePersonaDelNodo } from 'libra-ui/EtiquetaProvisorio'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -148,7 +149,13 @@ export function Pacientes() {
 
   const columns = useMemo<ColumnDef<Patient>[]>(() => {
     const base: ColumnDef<Patient>[] = [
-      { accessorKey: 'name', header: sortableHeader('Nombre'), size: 220, minSize: 130, meta: { stretch: true }, cell: ({ row }) => <span className="block truncate font-medium" title={row.original.name}>{row.original.name}</span> },
+      { accessorKey: 'name', header: sortableHeader('Nombre'), size: 220, minSize: 130, meta: { stretch: true }, cell: ({ row }) => (
+        <span className="flex items-center gap-2">
+          <span className="block truncate font-medium" title={row.original.name}>{row.original.name}</span>
+          {/* Dado de alta sin conexión (id `-N`, libra-ui ADR-095): recibe su número cuando vuelva la conexión. */}
+          <EtiquetaDePersonaDelNodo id={row.original.id} persona="paciente" />
+        </span>
+      ) },
       { accessorKey: 'dni', header: 'DNI', size: 120, minSize: 100, cell: ({ row }) => row.original.dni ?? '—' },
       { accessorKey: 'phone', header: 'Teléfono', size: 130, minSize: 100, cell: ({ row }) => row.original.phone ?? '—' },
       { accessorKey: 'email', header: 'Email', size: 210, minSize: 140, cell: ({ row }) => <span className="block truncate" title={row.original.email ?? undefined}>{row.original.email ?? '—'}</span> },

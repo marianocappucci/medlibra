@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from .. import offline
 from ..auth import require_admin
 from ..dependencies import get_clinical_document_repository, get_patient_repository
 from ..services.clinical_documents import ClinicalDocumentRepository
@@ -44,7 +45,13 @@ def _require_document(patient_id: str, document_id: str, documents: ClinicalDocu
     return document
 
 
-@router.post("", status_code=201, response_model=ClinicalDocumentOut)
+# Los documentos adjuntos son archivos del disco del central (`MEDLIBRA_DOCUMENTS_DIR`): LibraEdge espeja filas, no archivos.
+# En un nodo se ven y se suben solo con internet (decision del humano, 2026-10-25): 409 `sin_conexion` (o `solo_en_el_central`
+# si el nodo esta en linea pero no tiene los archivos). La lista y la ficha del documento (las filas) si se leen del espejo.
+_SOLO_CON_INTERNET = [Depends(offline.exigir_central_para_documentos)]
+
+
+@router.post("", status_code=201, response_model=ClinicalDocumentOut, dependencies=_SOLO_CON_INTERNET)
 def upload_clinical_document(
     patient_id: str,
     author: str = Form(...),
@@ -91,7 +98,7 @@ def get_clinical_document(
     return _require_document(patient_id, document_id, documents)
 
 
-@router.get("/{document_id}/file")
+@router.get("/{document_id}/file", dependencies=_SOLO_CON_INTERNET)
 def download_clinical_document(
     patient_id: str,
     document_id: str,
@@ -109,7 +116,9 @@ def download_clinical_document(
     )
 
 
-@router.delete("/{document_id}", status_code=204, dependencies=[Depends(require_admin)])
+@router.delete(
+    "/{document_id}", status_code=204, dependencies=[Depends(require_admin), Depends(offline.exigir_central_para_documentos)],
+)
 def delete_clinical_document(
     patient_id: str,
     document_id: str,
