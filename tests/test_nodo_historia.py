@@ -12,6 +12,8 @@ Lo que se fija acá:
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from nodo_apoyo import (
     aplicar_en_el_central,
@@ -75,7 +77,8 @@ def test_cargar_en_el_nodo_deja_la_fila_con_su_uuid_y_la_operacion(admin_client,
     assert tipos_encolados() == [alta["tipo"]]
     op = operaciones()[0]
     assert op.payload["id"] == creada["id"] and op.payload["fila"]["patient_id"] == "patient-1"
-    assert op.payload["fila"]["created_at"].endswith("+00:00")
+    # Una hora con huso (cualquiera: la sesión de PostgreSQL del CI está en el de Argentina), no una ingenua.
+    assert datetime.fromisoformat(op.payload["fila"]["created_at"]).utcoffset() is not None
     for tabla, _ in alta["hijas"]:
         assert len(op.payload["hijas"][tabla]) == 2
 

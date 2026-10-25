@@ -12,6 +12,8 @@ Lo que se fija acá:
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from nodo_apoyo import (
     NODO,
@@ -55,7 +57,8 @@ def test_un_paciente_dado_de_alta_en_el_nodo_tiene_id_provisorio_y_su_operacion(
     op = operaciones()[0]
     assert op.aggregate_id == f"{NODO}:paciente:-1"
     assert op.payload["paciente_id"] == "-1" and op.payload["dni"] == "28.111.222" and op.payload["phone"] == "11-5555-0001"
-    assert op.payload["creada_at"].endswith("+00:00")
+    # Una hora con huso (cualquiera: la sesión de PostgreSQL del CI está en el de Argentina), no una ingenua.
+    assert datetime.fromisoformat(op.payload["creada_at"]).utcoffset() is not None
     # el contador de la web no se toca: el `p-NNN` es del central
     assert filas("SELECT count(*) FROM patient_sequences") == [(0,)]
 
