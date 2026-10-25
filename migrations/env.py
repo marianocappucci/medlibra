@@ -20,6 +20,7 @@ import os
 
 from alembic import context
 from libracore.db.url_de_instancia import url_de_instancia
+from libracore.migrar import normalizar_url
 from sqlalchemy import engine_from_config, pool
 
 target_metadata = None
@@ -27,7 +28,10 @@ VERSION_TABLE = "alembic_version_medlibra"
 
 
 def get_url():
-    return url_de_instancia("medlibra") or context.config.get_main_option("sqlalchemy.url")
+    # `normalizar_url`: `postgresql://` a secas lo resuelve SQLAlchemy a psycopg2, que no se instala (el paquete trae
+    # psycopg 3). El nodo de LibraEdge escribe la URL así; las instancias del VPS ya traían `+psycopg`.
+    url = url_de_instancia("medlibra") or context.config.get_main_option("sqlalchemy.url")
+    return normalizar_url(url) if url else url
 
 
 def run_migrations_offline():
