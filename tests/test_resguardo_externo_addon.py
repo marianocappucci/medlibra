@@ -167,7 +167,7 @@ def test_el_backoffice_prende_y_apaga_el_addon_en_la_base_que_lee_la_app(admin_c
     """🔑 El circuito completo, y el control de que el contrato no abre una base
     paralela: se escribe por `app.database` y se lee por la app.
 
-    Si escribiera en otra tabla o en la base de LibraCore (`medlibra_core`), el
+    Si escribiera en otra tabla o en la `modulos` del motor (misma base, ADR-044), el
     `set_addon` saldría con éxito y el gate seguiría dando 403."""
     assert admin_client.get(ENLACE).status_code == 403
 
@@ -187,7 +187,7 @@ def test_dentro_de_la_app_el_contrato_lee_la_misma_tabla_que_la_app(admin_client
     """Desde ADR-043 el contrato ya no depende de a qué base apunte `libracore.db.core`.
 
     Antes delegaba en `libracore.db.modulos`, que lee la tabla `modulos` de la base a la que el core
-    estuviera apuntado: adentro de la app era `medlibra_core` (con una `modulos` vacía) y había que cortar
+    estuviera apuntado: adentro de la app era la base de LibraCore (con una `modulos` vacía) y había que cortar
     con un error para no contestar «apagado» con el add-on prendido. Ahora lee y escribe `medlibra_modulos`
     por la base del dominio, la que consulta `ModuleRepository`, así que adentro de la app dice lo mismo
     que `app.state.modules`."""
