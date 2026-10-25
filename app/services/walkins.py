@@ -79,7 +79,7 @@ class WalkinRow(Base):
     id: Mapped[str] = mapped_column(String(100), primary_key=True)
     block_id: Mapped[str] = mapped_column(ForeignKey("agenda_blocks.id"), index=True)
     day: Mapped[date] = mapped_column(Date, index=True)
-    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), index=True)
+    client_id: Mapped[str] = mapped_column(ForeignKey("agenda_clients.id"), index=True)  # ADR-043
     service_id: Mapped[str] = mapped_column(ForeignKey("services.id"))
     arrival_order: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=ESPERANDO)

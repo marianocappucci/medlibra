@@ -1,5 +1,10 @@
 -- La SEGUNDA base del sidecar: la de LibraCore.
 --
+-- 2026-10-25 (ADR-043): el motivo de abajo ya no existe -- libragenda v0.14.0
+-- renombro su tabla a `agenda_clients` y MedLibra renombro su `modulos` -- y
+-- el codigo anda con una sola base. Este archivo se borra cuando las instancias
+-- se unan (plan de LibraEdge, PR 6).
+--
 -- 🔴 Son dos bases y no dos schemas de la misma, y no es preferencia:
 -- LibraCore y LibraGenda declaran los dos una tabla `clients`, con
 -- `id INTEGER PRIMARY KEY AUTOINCREMENT` el primero y `id VARCHAR(100)` el

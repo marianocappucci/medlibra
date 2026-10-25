@@ -34,7 +34,6 @@ from libracore.config_router import (
     build_empresa_admin_router,
     build_empresa_router,
 )
-from libracore.db.url_de_instancia import url_de_instancia
 from libracore.docs_api import cerrar_docs_de_la_api
 from libracore.errores import instalar_registro_de_errores
 from libracore.estado_del_sistema import build_estado_del_sistema_router
@@ -60,6 +59,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, get_current_user, require_admin, require_admin_o_servicio, require_staff
+from .config import Config, misma_base
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
 from .payments import ManualPaymentPort
@@ -153,12 +153,16 @@ def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
                            directorios: list) -> Instancia:
     """Que se lleva el backup, segun el motor de cada mitad.
 
-    🔴 **Las dos mitades o ninguna.** El dominio y LibraCore son dos bases
-    separadas -- dos archivos en SQLite, dos bases PostgreSQL despues del corte,
-    porque no pueden compartir schema: las dos declaran una tabla `clients` con
-    `id` de tipos incompatibles. Un backup con una sola no se puede restaurar:
-    o volves el dominio y te quedan usuarios de otro momento, o al reves. Y no
+    🔴 **Las dos mitades o ninguna.** Mientras el dominio y LibraCore sean dos
+    bases (dos archivos en SQLite, dos bases PostgreSQL desde el corte, porque
+    no podian compartir schema: las dos declaraban una tabla `clients` con `id`
+    de tipos incompatibles), un backup con una sola no se puede restaurar: o
+    volves el dominio y te quedan usuarios de otro momento, o al reves. Y no
     falla: da un ZIP que se descarga y pesa poco.
+
+    Con una sola base (ADR-043: libragenda v0.14.0 renombro su `clients`) hay una
+    sola mitad, y declarar la misma base como `postgres_extra` la volcaria dos
+    veces y la restauraria encima de si misma: el core se agrega **sólo si es otra**.
 
     Eso es exactamente lo que pasaba al cortar a PostgreSQL: `bases=` sirve para
     rutas de archivo, asi que la URL de la base entraba como si fuera una ruta,
@@ -169,7 +173,8 @@ def _instancia_a_respaldar(database_url: str, libracore_db_path: str,
     dominio = make_url(database_url)
     if dominio.drivername.startswith("postgresql"):
         extra = []
-        if str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://")):
+        if (str(libracore_db_path).startswith(("postgresql://", "postgresql+psycopg://"))
+                and not misma_base(database_url, str(libracore_db_path))):
             extra.append(str(libracore_db_path))
         return Instancia(
             nombre="medlibra",
@@ -242,9 +247,14 @@ def create_app(database_url: str) -> FastAPI:
     #
     # libraauth lee sin problema la tabla que escribio el sqlite3 crudo de
     # libracore (mismo schema, mismo hashing) y `create_all` no la altera.
-    libracore_db_path = url_de_instancia(
-        "medlibra", core=True, default="./data/medlibra_libracore.db"
-    )
+    #
+    # 2026-10-25 (ADR-043): "la base de LibraCore" puede ser la del dominio. Con una sola
+    # base las `usuarios` y las 11 tablas con FK a `usuarios` conviven con las de la agenda
+    # (ya no chocan: `agenda_clients`, `medlibra_modulos`).
+    #
+    # La base de LibraCore puede ser la del dominio o una aparte (ADR-043): `Config` lo resuelve.
+    config = Config.desde_entorno(database_url)
+    libracore_db_path = config.libracore_database_url
     libracore_setup.configure(libracore_db_path)
     # La URL de SQLAlchemy salia siempre como `sqlite:///...`, aunque el destino
     # fuera una URL PostgreSQL: la interpolacion la convertia en una ruta
@@ -268,7 +278,7 @@ def create_app(database_url: str) -> FastAPI:
     # no corrió, la app no levanta y el error dice el comando. Hasta ese día acá
     # había un `AuthBase.metadata.create_all(auth_engine)` que tapaba cualquier
     # camino que se olvidara de migrar.
-    exigir_schema_al_dia(auth_engine, prefijo="medlibra", base="core")
+    exigir_schema_al_dia(auth_engine, prefijo="medlibra", base=config.base_de_auth)
     auth_sessions = sessionmaker(bind=auth_engine)
 
     # 🔴 Los secretos de terceros de `config.json` -el access token y la firma

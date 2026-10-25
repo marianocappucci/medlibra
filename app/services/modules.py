@@ -24,7 +24,9 @@ from plans import ADDONS, TODOS_LOS_MODULOS
 
 
 class ModuleRow(Base):
-    __tablename__ = "modulos"
+    # `medlibra_modulos` y no `modulos` (ADR-043, migracion 0023): `modulos` es tambien una tabla de LibraCore, con otra
+    # forma (`id` serial, `habilitado` entero), y con una sola base por producto las dos no pueden llamarse igual.
+    __tablename__ = "medlibra_modulos"
 
     modulo: Mapped[str] = mapped_column(primary_key=True)
     habilitado: Mapped[bool] = mapped_column(default=True)

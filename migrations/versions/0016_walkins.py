@@ -8,6 +8,11 @@ El unico por (block_id, day, arrival_order) no es decorativo: `registrar()`
 asigna el numero con un `max + 1`, que entre dos llegadas simultaneas es una
 condicion de carrera. Sin la restriccion, dos pacientes quedan en la misma
 posicion y la fila se ve perfectamente bien.
+
+2026-10-25 (ADR-043): la clave foranea apunta a `agenda_clients`, que es como llama
+libragenda v0.14.0 a la tabla `clients` (la de LibraCore es otra). En una base que ya
+corrio esta revision no cambia nada: el renombre de libragenda mueve la clave solo.
+En una base nueva la cadena de libragenda corre antes y ya dejo `agenda_clients`.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -26,7 +31,7 @@ def upgrade():
             "block_id", sa.String(100), sa.ForeignKey("agenda_blocks.id"), nullable=False,
         ),
         sa.Column("day", sa.Date, nullable=False),
-        sa.Column("client_id", sa.String(100), sa.ForeignKey("clients.id"), nullable=False),
+        sa.Column("client_id", sa.String(100), sa.ForeignKey("agenda_clients.id"), nullable=False),
         sa.Column("service_id", sa.String(100), sa.ForeignKey("services.id"), nullable=False),
         sa.Column("arrival_order", sa.Integer, nullable=False),
         sa.Column("status", sa.String(20), nullable=False, server_default="waiting"),

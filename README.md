@@ -100,9 +100,9 @@ amerite, sin cambios de código.
 ## Migraciones
 
 Dos cadenas de Alembic independientes corren contra la **misma** base
-`medlibra`, cada una con su propia tabla de versión (`alembic_version` es
-de LibraGenda, `alembic_version_medlibra` es de MedLibra). El deploy corre
-ambas, en este orden, antes de levantar la API:
+`medlibra`, cada una con su propia tabla de versión (`alembic_version_libragenda`
+es de LibraGenda desde la v0.14.0; `alembic_version_medlibra` es de MedLibra). El
+deploy corre ambas, en este orden, antes de levantar la API:
 
 **1. Migraciones de LibraGenda** (schema del motor). No viajan en el wheel
 instalado por pip, se aplican clonando el repo en el tag pineado en
@@ -159,7 +159,7 @@ acá lo clínico es una necesidad profesional básica, no un extra
 comercial. Lo que varía por plan es recordatorios, señas, facturación y
 dashboard.
 
-La tabla `modulos` (migración `0011_modulos`) guarda el estado real por
+La tabla `medlibra_modulos` (migración `0011_modulos`; se llamaba `modulos` hasta la `0023`, ADR-043) guarda el estado real por
 instancia — se siembra con todo habilitado por defecto (una instancia sin
 plan asignado no bloquea nada) y `aplicar_plan_en_db()` la ajusta cuando
 se asigna un plan real. `require_module(nombre)` (`app/modules_gate.py`)
