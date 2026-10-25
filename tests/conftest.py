@@ -48,8 +48,8 @@ def _sin_almacen_de_secretos_colgado():
 
 #: Las dos formas del nombre de la variable que le diria a la app y al motor "LibraCore esta en OTRA
 #: base". La suite es de una sola base (ADR-044): ningun test arranca con ellas puestas, ni siquiera
-#: si quien corre la suite las tiene en su entorno. Los tests de la forma de dos bases (la demo,
-#: hasta que se una) las ponen ellos, a mano, con una base propia.
+#: si quien corre la suite las tiene en su entorno. Los tests de la forma de dos bases (tolerada,
+#: ya sin instancias así) las ponen ellos, a mano, con una base propia.
 _VARIABLES_DEL_CORE = ("MEDLIBRA_LIBRACORE_DATABASE_URL", "MEDLIBRA_LIBRACORE_DB_PATH")
 
 
