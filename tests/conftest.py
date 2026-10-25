@@ -11,10 +11,11 @@ _os.environ["TZ"] = "America/Argentina/Buenos_Aires"
 _time.tzset()
 
 import pytest
+from bases_temporales import correr_cadena
 from fastapi.testclient import TestClient
 from libraauth import session_auth
 from libraauth.captcha import Captcha
-from motor_de_test import fresh_database_url, limpiar_entre_tests
+from motor_de_test import TEST_DATABASE_URL, fresh_database_url, limpiar_entre_tests
 
 from app.main import create_app
 
@@ -83,6 +84,13 @@ def _construir_armada(url: str) -> None:
         # `setattr` con el mismo valor es para que `undo()` lo deje como estaba.
         mp.setattr(libracore_core, "_db_path", libracore_core._db_path)
         mp.setattr(libracore_core, "_database_url", libracore_core._database_url)
+        # 🔴 La plantilla es una instancia **migrada**, como la deja el deploy, y no solo lo que crea `create_app()`
+        # (`create_all`, que no deja ninguna tabla de version). El restore de un backup (`POST /api/config/restore`)
+        # vuelve a correr las cuatro cadenas contra el backup restaurado: sobre una base sin versiones,
+        # `libragenda-migrar` muere con `relation "resources" already exists`. Hasta que la suite paso a una sola base
+        # eso no se veia: `libragenda-migrar` y `alembic` leen `DATABASE_URL`, que en el CI apunta a un SQLite, o sea
+        # que migraban *otra* base y solo `libracore-migrar` (por la variable del core) tocaba la restaurada.
+        correr_cadena(url)
         app = create_app(url)
         app.state.auth_engine.dispose()
     finally:
@@ -105,6 +113,13 @@ def _dev_env(request, monkeypatch, tmp_path):
     # fail closed unless ENV=development -- see app/auth.py and
     # app/services/users.py::ensure_default_admin.
     monkeypatch.setenv("ENV", "development")
+    # 🔴 `DATABASE_URL` apuntada a la base de este worker, como en una instancia real (donde ES la base del
+    # dominio). Con una sola base ya no hay variable del core, y el restore de un backup corre las cuatro cadenas en
+    # subprocesos con el entorno del proceso (`libracore.respaldo_postgres.correr_migraciones`): `libracore-migrar` y
+    # `libraauth-migrar` caen a la base del dominio, y `libragenda-migrar` y `alembic` la leen de `DATABASE_URL`. El
+    # job del CI define `DATABASE_URL=sqlite:///...ci.db`; sin esto el restore migraba ese archivo (`unable to open
+    # database file`) o, peor, migraba SQLite en vez de la base restaurada y el test pasaba sin probar nada.
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
     # Uploaded clinical documents go to a per-test temp dir instead of the
     # repo's default ./data path -- pytest cleans tmp_path up automatically.
     monkeypatch.setenv("MEDLIBRA_DOCUMENTS_DIR", str(tmp_path / "medlibra_documents"))
