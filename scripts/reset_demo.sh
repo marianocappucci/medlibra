@@ -82,11 +82,16 @@ log "seed listo desde origin/develop ($(wc -l < "$SEED_LOCAL") lineas)"
 # sin resetear nada. Por eso el motor se DETECTA, y si no se puede detectar se
 # aborta en vez de suponer SQLite.
 #
-# 🔴 Y son DOS bases: el dominio y LibraCore no pueden compartir schema en este
-# producto -- los dos declaran una tabla `clients` con `id` de tipos
-# incompatibles. Resetear una sola deja la demo a medias.
+# 🔴 Mientras haya DOS bases (el dominio y LibraCore no podian compartir schema:
+# los dos declaraban una tabla `clients` con `id` de tipos incompatibles),
+# resetear una sola deja la demo a medias. Desde libragenda v0.14.0 (ADR-043 de
+# MedLibra) la de la agenda es `agenda_clients` y una instancia puede tener UNA:
+# sin variable del core, la base de LibraCore es la del dominio y no se resetea
+# dos veces. Se acepta el nombre vigente del core y el historico (`..._DB_PATH`).
 URL_DOMINIO=$(docker exec "$CONTENEDOR" printenv DATABASE_URL 2>/dev/null || true)
-URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DB_PATH 2>/dev/null || true)
+URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DATABASE_URL 2>/dev/null || true)
+[ -n "$URL_CORE" ] || URL_CORE=$(docker exec "$CONTENEDOR" printenv MEDLIBRA_LIBRACORE_DB_PATH 2>/dev/null || true)
+[ -n "$URL_CORE" ] || URL_CORE=$URL_DOMINIO
 
 es_postgres() {
   case "$1" in postgres://*|postgresql://*|postgresql+*://*) return 0 ;; *) return 1 ;; esac
@@ -111,7 +116,7 @@ filas_del_dominio() {
     docker exec "$(sidecar_de "$URL_DOMINIO")" sh -c '
       psql -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
         SELECT COALESCE((SELECT COUNT(*) FROM appointments), 0)
-             + COALESCE((SELECT COUNT(*) FROM clients), 0)
+             + COALESCE((SELECT COUNT(*) FROM agenda_clients), 0)
              + COALESCE((SELECT COUNT(*) FROM services), 0)"
     ' 2>/dev/null || echo "?"
   else
@@ -120,7 +125,7 @@ import sqlite3
 try:
     c = sqlite3.connect('/app/data/medlibra.db')
     print(sum(c.execute('SELECT COUNT(*) FROM ' + t).fetchone()[0]
-              for t in ('appointments', 'clients', 'services')))
+              for t in ('appointments', 'agenda_clients', 'services')))
 except Exception:
     print('?')
 " 2>/dev/null || echo "?"
@@ -167,6 +172,9 @@ if es_postgres "$URL_DOMINIO"; then
 
   for base in "$(base_de "$URL_DOMINIO")" "$(base_de "$URL_CORE")"; do
     [ -z "$base" ] && continue
+    # Una sola base: la del core ya quedo vacia en la vuelta anterior.
+    [ "$base" = "${hecha:-}" ] && continue
+    hecha=$base
     # `psql` corre DENTRO del sidecar y con las variables de su propio entorno:
     # asi la contrasena no pasa por la linea de comandos del host, donde
     # quedaria en el `ps` y en el log del cron.

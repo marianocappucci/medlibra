@@ -88,25 +88,54 @@ ADDONS = {"resguardo_externo"}
 TODOS_LOS_MODULOS = set(PLAN_MODULOS["premium"])
 
 
-def aplicar_plan_en_db(db_path: str, plan: str) -> None:
-    """Aplica un plan escribiendo el estado de módulos directo en la DB
-    SQLite de un cliente (`clientes/<slug>/data/medlibra.db`). Lo usa el
-    provisioning para asignar el plan de una instancia sin depender del
-    contenedor.
+#: La tabla de módulos de MedLibra. No es `modulos`, que es la de LibraCore (ADR-043, migración 0023).
+TABLA_DE_MODULOS = "medlibra_modulos"
 
-    Shim sobre libracore.provisioning.apply_plan_modules (extraído
+
+def aplicar_plan_en_db(db_path: str, plan: str) -> None:
+    """Aplica un plan escribiendo el estado de módulos directo en la base de
+    un cliente (una URL PostgreSQL, o una ruta SQLite). Lo usa el provisioning
+    para asignar el plan de una instancia sin depender del contenedor: corre
+    DENTRO del contenedor, `plans.aplicar_plan_en_db(os.environ[...], plan)`.
+
+    Era un shim sobre `libracore.provisioning.apply_plan_modules` (extraído
     2026-07-26: el cuerpo era idéntico en Gestiolibra/MedLibra/VentaLibra
     salvo el nombre de la variable, ver
-    wiki/analyses/auditoria-duplicacion-familia-libra.md). Requiere que la
-    tabla `modulos` ya exista (la crea la migración propia de MedLibra,
-    `0011_modulos`)."""
+    wiki/analyses/auditoria-duplicacion-familia-libra.md). **Desde ADR-043
+    (2026-10-25) no puede serlo**: esa función escribe en una tabla llamada
+    `modulos` escrita a mano, y la de este producto es `medlibra_modulos`. Mismo
+    cuerpo, otra tabla; vuelve a ser un shim cuando las filas pasen a la `modulos`
+    del motor (después de unir las bases).
+
+    Requiere que la tabla ya exista (la crea la migración propia de MedLibra,
+    `0011_modulos`, o el arranque de la app)."""
     if plan not in PLAN_MODULOS:
         raise ValueError(f"Plan desconocido: {plan!r}")
-    from libracore.provisioning import apply_plan_modules
-    apply_plan_modules(
-        db_path, active_modules=modulos_de_plan(plan),
-        # `- ADDONS`: aplicar un plan nunca toca un add-on. Hoy es equivalente
-        # (ya estan afuera de `TODOS_LOS_MODULOS`), pero deja la invariante
-        # escrita — mismo criterio que Contalibra y LibraDesk.
-        all_modules=TODOS_LOS_MODULOS - ADDONS, plan=plan,
-    )
+    import sys
+
+    from libracore.adicionales import modulos_de_adicionales
+    from libracore.db.core import conectar
+
+    activos = modulos_de_plan(plan)
+    # `- ADDONS` y los adicionales: aplicar un plan nunca toca un add-on (ADR-048 de libracore).
+    # Hoy es equivalente (ya estan afuera de `TODOS_LOS_MODULOS`), pero deja la invariante escrita.
+    todos = TODOS_LOS_MODULOS - ADDONS - modulos_de_adicionales(sys.modules[__name__])
+
+    # `conectar` abre contra PostgreSQL o SQLite sin tocar el estado global del proceso, y traduce
+    # `INSERT OR IGNORE` y los `?` para el motor real.
+    con = conectar(str(db_path))
+    try:
+        for m in sorted(todos):
+            # `bool`, no `1`/`0`: `habilitado` es BOOLEAN en PostgreSQL y no acepta un entero.
+            on = m in activos
+            con.execute(
+                f"INSERT OR IGNORE INTO {TABLA_DE_MODULOS} (modulo, habilitado, plan) VALUES (?,?,?)",
+                (m, on, plan),
+            )
+            con.execute(
+                f"UPDATE {TABLA_DE_MODULOS} SET habilitado=?, plan=? WHERE modulo=?",
+                (on, plan, m),
+            )
+        con.commit()
+    finally:
+        con.close()

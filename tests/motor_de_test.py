@@ -244,9 +244,13 @@ def url_para_archivo(ruta) -> str:  # noqa: ARG001
 def url_libracore() -> str:
     """La URL de la base de LibraCore: **otra base**, en el mismo servidor.
 
-    🔴 **No puede ser el mismo schema que el dominio, y esto no es preferencia.**
-    LibraCore y LibraGenda declaran los dos una tabla `clients`, con formas
-    incompatibles:
+    Es la forma de dos bases, la de `-dev` y `-demo` hoy. La de una sola base la
+    miden `tests/test_una_sola_base.py` y `tests/bases_temporales.py` con bases
+    propias (ADR-043).
+
+    🔴 **Hasta libragenda v0.14.0 no podia ser el mismo schema que el dominio, y no
+    era preferencia.** LibraCore y LibraGenda declaraban los dos una tabla
+    `clients`, con formas incompatibles (hoy la de la agenda es `agenda_clients`):
 
         LibraCore   clients.id  INTEGER PRIMARY KEY AUTOINCREMENT
         LibraGenda  clients.id  VARCHAR(100) PRIMARY KEY

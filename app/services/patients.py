@@ -26,7 +26,8 @@ from .study_orders import StudyOrderRow
 class PatientRow(Base):
     __tablename__ = "patients"
 
-    id: Mapped[str] = mapped_column(ForeignKey("clients.id"), primary_key=True)
+    # `agenda_clients` y no `clients` (libragenda v0.14.0, ADR-018 de libragenda; ADR-043 de este repo): `clients` es de LibraCore.
+    id: Mapped[str] = mapped_column(ForeignKey("agenda_clients.id"), primary_key=True)
     dni: Mapped[str | None] = mapped_column(String(20), nullable=True)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     cuit: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -226,7 +227,7 @@ class PatientRepository:
             ) is not None
         if has_notes or has_prescriptions or has_study_orders or has_documents or has_consents:
             raise PatientHasClinicalNotes(patient_id)
-        # Borrar primero la extension (PatientRow.id tiene FK a clients.id):
+        # Borrar primero la extension (PatientRow.id tiene FK a agenda_clients.id):
         # borrar el Client antes violaria esa FK en Postgres real -- en
         # SQLite pasaba desapercibido porque no fuerza FKs por default.
         with self.session_factory.begin() as session:

@@ -134,9 +134,12 @@ services:
       - MEDLIBRA_ADMIN_USERNAME=${MEDLIBRA_ADMIN_USERNAME:-admin}
       - MEDLIBRA_ADMIN_PASSWORD=${MEDLIBRA_ADMIN_PASSWORD:-}
       # 🔴 El corte a PostgreSQL. Son DOS bases y no dos schemas de la misma:
-      # el dominio (LibraGenda) y LibraCore declaran los dos una tabla
+      # el dominio (LibraGenda) y LibraCore declaraban los dos una tabla
       # `clients` con `id` de tipos incompatibles — ver
-      # `docker/postgres-init/10-base-de-libracore.sql`.
+      # `docker/postgres-init/10-base-de-libracore.sql`. Desde libragenda v0.14.0
+      # la de la agenda es `agenda_clients` y el código anda con una sola base
+      # (ADR-043); esta instancia sigue con dos hasta que `libracore-unir-bases`
+      # las una (plan de LibraEdge, PR 5 y 6).
       #
       # Volver estas dos líneas a las rutas `.db` y reiniciar es el rollback
       # completo: los archivos de `dev-data/` siguen ahí y sin tocar —

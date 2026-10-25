@@ -61,7 +61,7 @@ def test_dos_workers_arrancan_y_el_seed_queda_una_sola_vez(tmp_path):
     limpiar_entre_tests(_construir_armada)
     dominio = fresh_database_url()
     with psycopg.connect(_cruda(dominio), autocommit=True) as c:
-        c.execute("DELETE FROM modulos")
+        c.execute("DELETE FROM medlibra_modulos")
     with psycopg.connect(_cruda(url_libracore()), autocommit=True) as c:
         c.execute("DELETE FROM usuarios")
 
@@ -94,6 +94,6 @@ def test_dos_workers_arrancan_y_el_seed_queda_una_sola_vez(tmp_path):
     with psycopg.connect(_cruda(url_libracore())) as c:
         admins = c.execute("SELECT count(*) FROM usuarios WHERE role = 'admin'").fetchone()[0]
     with psycopg.connect(_cruda(dominio)) as c:
-        modulos = c.execute("SELECT count(*), count(DISTINCT modulo) FROM modulos").fetchone()
+        modulos = c.execute("SELECT count(*), count(DISTINCT modulo) FROM medlibra_modulos").fetchone()
     assert admins == 1, f"{admins} admins: el hook de arranque corrio sin candado en los dos workers"
     assert modulos == (len(TODOS_LOS_MODULOS), len(TODOS_LOS_MODULOS))

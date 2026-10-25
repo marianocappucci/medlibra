@@ -201,10 +201,12 @@ jobs:
       # sobre las ~340 consultas crudas del core.
       #
       # LibraCore va a `medlibra_core`, otra base en el mismo servidor, que el
-      # arnes crea si no esta (ver `motor_de_test.url_libracore`). No puede
-      # compartir schema con el dominio: LibraCore y LibraGenda declaran las dos
-      # una tabla `clients` con formas incompatibles -- `id` INTEGER contra
-      # VARCHAR(100) -- y en SQLite eso no chocaba porque eran dos archivos.
+      # arnes crea si no esta (ver `motor_de_test.url_libracore`). Asi estan hoy
+      # `-dev` y `-demo`. Hasta libragenda v0.14.0 no podian compartir schema
+      # (LibraCore y LibraGenda declaraban las dos una tabla `clients`, `id`
+      # INTEGER contra VARCHAR(100)); ahora la de la agenda es `agenda_clients`
+      # y `tests/test_una_sola_base.py` mide la forma de una sola base con
+      # bases propias (ADR-043).
 
 
       # Smoke check for the two independent Alembic chains this repo

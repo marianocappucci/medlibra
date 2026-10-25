@@ -89,9 +89,12 @@ configure(
     # primero. Al reves, la primera revision que las toque muere con
     # `relation "branches" does not exist`.
     #
-    # Son dos tablas de version distintas en la misma base: `alembic_version`
-    # para LibraGenda y `alembic_version_medlibra` para esta cadena.
-    # 🔴 **TRES cadenas, y el orden no es decorativo.**
+    # Son tablas de version distintas en la misma base: `alembic_version_libragenda`
+    # para LibraGenda (hasta libragenda v0.13.0 era `alembic_version`, la del motor;
+    # `libragenda-migrar` la renombra sola, ADR-017 de libragenda), y
+    # `alembic_version_medlibra` para esta cadena.
+    # 🔴 **CUATRO cadenas, y el orden no es decorativo.** (ADR-043: el orden no cambia con una sola base;
+    # lo que cambia entonces es `--base core` -> `--base dominio` de libraauth, en un PR aparte.)
     #
     # 1. `libragenda-migrar` — va primero porque las revisiones propias de este
     #    producto tienen FK contra tablas de LibraGenda.
