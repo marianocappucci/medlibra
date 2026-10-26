@@ -133,7 +133,8 @@ dependencies = [
     # `libraedge_mapeo_texto`, ADR-026), que es lo que necesitan los pacientes (`p-NNN`). Sin migracion de los productos.
     # v0.23.0 -> v0.24.1 (2026-10-25): instalador publicado de GestioLibra y MedLibra (ADR-027). Sin migracion.
     # v0.24.1 -> v0.24.3 (2026-10-25): VentaLibra sin la variable del core en el instalador. Sin migracion.
-    "libraedge @ git+https://github.com/marianocappucci/libraedge.git@v0.24.3",
+    # v0.24.3 -> v0.25.0 (2026-10-25): el nodo cierra solo lo que se resolvio en el central (ADR-028). Sin migracion.
+    "libraedge @ git+https://github.com/marianocappucci/libraedge.git@v0.25.0",
     # v0.8.0 log de accesos, v0.9.0 el de actividad, v0.10.0 el router y
     # v0.11.0 la etiqueta parametrizable -- que es lo que este producto
     # necesita para que el contenido clinico no termine escrito en el log
