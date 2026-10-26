@@ -60,7 +60,7 @@ DE_LIBRACORE = {
     "arca_config", "arca_credenciales_servicio", "caja_movimientos", "cajas", "categorias_egreso", "categorias_producto",
     "cc_asientos", "cc_debitos", "cc_pagos", "cierres_diarios", "cierres_diarios_medios", "cierres_diarios_turnos",
     "clients", "cola_arca", "comprobantes_pendientes", "cuentas_tesoreria", "depositos", "egresos", "egresos_pagos",
-    "envios_email", "facturacion_alias", "facturas", "lista_precio_items", "listas_precio", "modulos",
+    "envios_email", "facturacion_alias", "facturas", "indices_ajuste", "lista_precio_items", "listas_precio", "modulos",
     "movimientos_stock", "movimientos_tesoreria", "mp_movimientos", "mp_pagos", "presupuestos", "productos",
     "proveedores", "recibos", "reintegros_pendientes", "remitos", "turnos_caja", "ventas", "ventas_pagos",
 }
