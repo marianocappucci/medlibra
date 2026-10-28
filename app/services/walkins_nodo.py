@@ -20,7 +20,7 @@ se anotó a alguien mientras la PC estaba sin conexión (y entonces el orden ent
 | `operation_type` | Qué sube |
 |---|---|
 | `walkin.registrado` | una llegada nueva (`walkin_id`, `block_id`, `day`, `client_id`, `service_id`, `created_at`) |
-| `walkin.estado` | el pase de una llegada a `in_progress`, `completed` o `cancelled` (`walkin_id`, `estado`, `at`) |
+| `walkin.estado` | el pase de una llegada a `in_progress`, `completed` o `cancelled` (`walkin_id`, `estado`, `at`); el `at` del pase a `in_progress` es el `called_at` que guarda el central (ADR-048) |
 
 `aggregate_type = "walkin"`, `schema_version = 1`, `version 1`. El `client_id` puede ser un paciente provisorio
 (`"-N"`): el central lo traduce con el mapeo de `agenda_clients`; si el alta del paciente quedó en revisión manual, la
@@ -90,12 +90,14 @@ def encolar_registrada(sesion, fila: Any) -> bool:
     })
 
 
-def encolar_estado(sesion, walkin_id: str, estado: str) -> bool:
-    """Encola `walkin.estado`. Fuera de un nodo no hace nada y devuelve `False`."""
+def encolar_estado(sesion, walkin_id: str, estado: str, en: datetime | None = None) -> bool:
+    """Encola `walkin.estado`. `en` es el instante del pase (el mismo que se guardó en la fila: de `in_progress` sale la
+    espera, ADR-048). Fuera de un nodo no hace nada y devuelve `False`."""
     from libragenda import atencion_en_nodo
 
     return atencion_en_nodo.encolar_en_nodo(sesion, TIPO_WALKIN_ESTADO, AGREGADO_WALKIN, walkin_id, {
-        "version": VERSION, "walkin_id": walkin_id, "estado": estado, "at": datetime.now(UTC).isoformat(),
+        "version": VERSION, "walkin_id": walkin_id, "estado": estado,
+        "at": (en or datetime.now(UTC)).isoformat(),
     })
 
 
@@ -185,7 +187,7 @@ def aplicar_walkin_estado(conn, operacion) -> None:
     estado = datos.get("estado")
     if estado not in ESTADOS_DE_DESTINO:
         raise WalkinDelNodoError(f"estado {estado!r} desconocido (se entiende {list(ESTADOS_DE_DESTINO)})")
-    _instante(datos, "at", operacion)
+    momento = _instante(datos, "at", operacion)
 
     fila = conn.execute("SELECT status FROM walkins WHERE id = ? FOR UPDATE", (walkin_id,)).fetchone()
     if fila is None:
@@ -201,7 +203,11 @@ def aplicar_walkin_estado(conn, operacion) -> None:
             f"la llegada {walkin_id!r} se marcó {estado} en el nodo {operacion.node_id}, pero en el central está "
             f"{actual}, desde donde no se puede: revisar a mano"
         )
-    conn.execute("UPDATE walkins SET status = ? WHERE id = ?", (estado, walkin_id))
+    if estado == "in_progress":
+        # El instante en que la PC la llamó: de ahí sale cuánto esperó (ADR-048).
+        conn.execute("UPDATE walkins SET status = ?, called_at = ? WHERE id = ?", (estado, momento, walkin_id))
+    else:
+        conn.execute("UPDATE walkins SET status = ? WHERE id = ?", (estado, walkin_id))
 
 
 def registrar_en(despachador):

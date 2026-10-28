@@ -17,6 +17,28 @@ export function minutosDeEspera(llegada: string, ahora: number): number {
   return Math.max(0, Math.floor((ahora - desde) / 60_000))
 }
 
+/** Minutos enteros entre dos instantes ISO (`desde` → `hasta`). Nunca negativo: dos relojes (la PC del consultorio
+ *  y el servidor) pueden no coincidir al segundo y una espera de «-1 min» no existe. */
+export function minutosEntre(desde: string, hasta: string): number {
+  const a = Date.parse(desde)
+  const b = Date.parse(hasta)
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0
+  return Math.max(0, Math.floor((b - a) / 60_000))
+}
+
+/** Lo que esperó alguien **hasta que lo llamaron** (ADR-048): `called_at - created_at`. `null` si no se sabe —todavía
+ *  espera, se sacó de la fila sin llamarlo, o se lo llamó antes de que se guardara ese dato—: nunca se inventa con
+ *  «ahora», que crece sola y no mide nada. */
+export function esperaHastaLlamada(l: { created_at: string; called_at?: string | null }): number | null {
+  return l.called_at ? minutosEntre(l.created_at, l.called_at) : null
+}
+
+/** El promedio de varias esperas, en minutos enteros; `null` si no hay ninguna que promediar. */
+export function promedioDeEspera(minutos: number[]): number | null {
+  if (minutos.length === 0) return null
+  return Math.round(minutos.reduce((a, b) => a + b, 0) / minutos.length)
+}
+
 /** `12 min` o `1 h 05 min`. Pasada la hora se parte, porque "95 min" obliga a
  *  hacer la cuenta a quien está mirando el mostrador. */
 export function describirEspera(minutos: number): string {

@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/table'
 import { enHoraDePared } from '@/components/agenda/datos'
 import { fecha, fechaHora } from '@/lib/fechas'
-import { describirEspera, minutosDeEspera } from '@/lib/espera'
+import { describirEspera, esperaHastaLlamada, minutosDeEspera, promedioDeEspera } from '@/lib/espera'
 
 /** Cada cuánto se vuelve a pedir la fila. La operan dos puntas a la vez —el
  *  mostrador anota, el consultorio llama— y ninguna ve lo que hace la otra si
@@ -96,6 +96,12 @@ function horaCorta(valor: string): string {
 function describirError(err: unknown): string {
   if (err instanceof ApiError) return err.detail
   return 'Error de conexión.'
+}
+
+/** Lo que esperó alguien a quien ya llamaron, o «—» si no se sabe (ADR-048). */
+function textoDeEsperaFija(l: Llegada): string {
+  const minutos = esperaHastaLlamada(l)
+  return minutos === null ? '—' : describirEspera(minutos)
 }
 
 function describirBloque(b: BloqueDeLaFila): string {
@@ -250,6 +256,16 @@ export function DemandaEspontanea() {
   const sigue = fila.find((l) => l.status === 'waiting')?.id ?? null
   const esperando = fila.filter((l) => l.status === 'waiting').length
   const enAtencion = fila.filter((l) => l.status === 'in_progress').length
+  // Los atendidos salen de la fila y van a su propia lista, con lo que esperaron (ADR-048).
+  const enLaFila = fila.filter((l) => l.status !== 'completed')
+  const atendidos = fila.filter((l) => l.status === 'completed')
+  // Esperó hasta que lo llamaron: vale para quien ya está en atención y para quien ya terminó. Los que no tienen
+  // `called_at` (de antes de que se guardara) no entran al promedio: no se inventa su espera.
+  const esperas = fila
+    .filter((l) => l.status === 'in_progress' || l.status === 'completed')
+    .map(esperaHastaLlamada)
+    .filter((m): m is number => m !== null)
+  const promedio = promedioDeEspera(esperas)
 
   return (
     <div className="grid gap-4">
@@ -373,12 +389,23 @@ export function DemandaEspontanea() {
           </Card>
 
           <p className="text-sm text-muted-foreground">
-            Fila del {fecha(dia)} · {esperando} esperando · {enAtencion} en atención
+            Fila del {fecha(dia)} · {esperando} esperando · {enAtencion} en atención · {atendidos.length} atendidos
+            {promedio !== null && (
+              <>
+                {' '}· Espera promedio hasta que los llaman:{' '}
+                <span className="font-medium text-foreground">{describirEspera(promedio)}</span>
+                {' '}({esperas.length})
+              </>
+            )}
           </p>
 
           {fila.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
               Todavía no llegó nadie.
+            </CardContent></Card>
+          ) : enLaFila.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No queda nadie en la fila.
             </CardContent></Card>
           ) : (
             <div className="overflow-x-auto rounded-md border">
@@ -395,7 +422,7 @@ export function DemandaEspontanea() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {fila.map((l) => (
+                  {enLaFila.map((l) => (
                     <TableRow key={l.id}>
                       {/* Anotada sin conexión (ADR-045): el número provisorio es negativo y no se muestra; lo recibe al volver la conexión. */}
                       <TableCell
@@ -416,12 +443,13 @@ export function DemandaEspontanea() {
                         {fechaHora(enHoraDePared(l.created_at, zona))}
                       </TableCell>
                       <TableCell className="tabular-nums">
-                        {/* Sólo para quien espera: sin la hora en que lo
-                            llamaron, "cuánto esperó" el ya atendido sería una
-                            cuenta hasta ahora, que no mide nada. */}
+                        {/* Quien espera: hasta ahora, y crece. Quien ya lo
+                            llamaron: lo que esperó, fijo (ADR-048). Si no se
+                            sabe cuándo lo llamaron, "—": una cuenta hasta
+                            ahora no mediría nada. */}
                         {l.status === 'waiting'
                           ? describirEspera(minutosDeEspera(l.created_at, ahora))
-                          : '—'}
+                          : textoDeEsperaFija(l)}
                       </TableCell>
                       <TableCell>
                         <BadgeEstado tono={TONO[l.status]}>
@@ -447,6 +475,59 @@ export function DemandaEspontanea() {
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {atendidos.length > 0 && (
+            <section className="grid gap-2" aria-labelledby="fila-atendidos">
+              <h2 id="fila-atendidos" className="text-base font-semibold">
+                {dia === hoy ? 'Atendidos hoy' : `Atendidos el ${fecha(dia)}`}
+              </h2>
+              <div className="overflow-x-auto rounded-md border">
+                <Table aria-labelledby="fila-atendidos">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-14">N°</TableHead>
+                      <TableHead>Paciente</TableHead>
+                      <TableHead>Prestación</TableHead>
+                      <TableHead>Llegó</TableHead>
+                      <TableHead>Lo llamaron</TableHead>
+                      <TableHead>Esperó</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {atendidos.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell
+                          className="tabular-nums font-medium"
+                          title={l.arrival_order < 0 ? 'Anotada sin conexión: recibe su número cuando vuelva la conexión.' : undefined}
+                        >
+                          {l.arrival_order > 0 ? l.arrival_order : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-2">
+                            {nombrePaciente(l.client_id)}
+                            <EtiquetaDePersonaDelNodo id={l.client_id} persona="paciente" />
+                          </span>
+                        </TableCell>
+                        <TableCell>{nombrePrestacion(l.service_id)}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {fechaHora(enHoraDePared(l.created_at, zona))}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {l.called_at ? fechaHora(enHoraDePared(l.called_at, zona)) : '—'}
+                        </TableCell>
+                        <TableCell
+                          className="tabular-nums"
+                          title={l.called_at ? undefined : 'No se guardó cuándo lo llamaron.'}
+                        >
+                          {textoDeEsperaFija(l)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
           )}
         </>
       )}
