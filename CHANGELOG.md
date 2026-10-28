@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- **Demanda espontánea: lo que esperó cada persona ya atendida** (2026-10-28; ADR-048). **Migración `0025_walkin_called_at`** (una columna nullable, aditiva). Antes la fila sólo mostraba la espera de quien todavía esperaba, porque no se guardaba cuándo se llamaba a cada llegada; ahora `walkins.called_at` guarda el instante del pase a «En atención» y la pantalla muestra lo que cada uno esperó **hasta que lo llamaron**.
+  - **Pantalla**: los atendidos salen de la fila y van a **«Atendidos hoy»** (llegó, lo llamaron, esperó, en la hora de la sede); quien está en atención muestra su espera fija; el resumen suma los atendidos y la **espera promedio hasta que los llaman**, con la cantidad sobre la que se calculó. Lo anterior a la migración queda en «—» y no entra al promedio: no se inventa.
+  - **API**: `called_at` (UTC, `null` si no se sabe) en las llegadas de `GET /agenda-blocks/{id}/walkins` y en las respuestas de `llamar`/`completar`/`cancelar`. Sacar de la fila sin llamar no lo completa.
+  - **Sin conexión (ADR-045)**: la PC guarda el instante de la llamada y lo sube en el `at` de `walkin.estado` (el mismo valor en la fila y en la operación); el central lo guarda como `called_at`. No cambia el contrato de la operación.
+  - **El alta de paciente desde la fila ya estaba** (ADR-041 y ADR-045, con `SelectCliente`; con número provisorio sin conexión): no se tocó; el ADR-038 que decía lo contrario queda anotado.
+  - **Al desplegar**: `alembic upgrade head` antes de arrancar. Sin cambio de pines.
+  - Tests: `tests/test_walkins.py`, `tests/test_nodo_walkins.py`, `tests/test_migracion_walkin_called_at.py` y `frontend/src/test/demanda-espontanea.test.tsx`.
+
 - **libracore `v1.195.0` (ADR-084 del motor): `GET /api/nodo/conexion` del motor y fuera `MEDLIBRA_LIBRACORE_DB_PATH`** (2026-10-25; ADR-047). **Sin migración.** Pin `libracore` `v1.194.0` → `v1.195.0` (y `uv.lock`).
   - **`app/routers/nodo.py` se borra:** la ruta la monta `build_conexion_del_nodo_router(conexion=offline.CONEXION, usuario_actual=require_staff)`. Misma ruta, misma guarda y misma respuesta (`{es_nodo, en_linea, node_id, a_facturar: 0}`); el frontend no cambia.
   - **Se borra toda mención de `MEDLIBRA_LIBRACORE_DB_PATH`** del código vivo: `tests/conftest.py`, `tests/test_una_sola_base.py` (un test que medía el nombre histórico), `app/config.py`, el compose y el README. Con eso el motor puede sacar el histórico de `_HISTORICOS`.

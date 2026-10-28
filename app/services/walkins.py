@@ -87,6 +87,10 @@ class WalkinRow(Base):
     arrival_order: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=ESPERANDO)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    #: Cuándo se la llamó (pasó a `in_progress`). Con `created_at` da lo que esperó
+    #: (ADR-048). `NULL` = no se sabe: sigue esperando, se sacó sin llamarla, o se
+    #: llamó antes de que existiera esta columna. Nunca se inventa.
+    called_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TransicionInvalida(Exception):
@@ -98,7 +102,7 @@ def _to_dict(row: WalkinRow) -> dict:
         "id": row.id, "block_id": row.block_id, "day": row.day,
         "client_id": row.client_id, "service_id": row.service_id,
         "arrival_order": row.arrival_order, "status": row.status,
-        "created_at": row.created_at,
+        "created_at": row.created_at, "called_at": row.called_at,
     }
 
 
@@ -166,7 +170,12 @@ class WalkinRepository:
                 raise KeyError(walkin_id)
             if nuevo not in TRANSICIONES.get(row.status, set()):
                 raise TransicionInvalida(f"{row.status} -> {nuevo}")
+            # Un solo instante para la fila y para la operación que sube del nodo:
+            # el central guarda el mismo `called_at` que la PC, no uno posterior.
+            ahora = datetime.now(UTC)
             row.status = nuevo
+            if nuevo == EN_ATENCION:
+                row.called_at = ahora
             session.flush()
-            walkins_nodo.encolar_estado(session, walkin_id, nuevo)
+            walkins_nodo.encolar_estado(session, walkin_id, nuevo, ahora)
             return _to_dict(row)

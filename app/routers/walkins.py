@@ -68,6 +68,9 @@ class WalkinOut(BaseModel):
     arrival_order: int
     status: str
     created_at: InstanteUTC
+    #: Cuándo se la llamó (ADR-048). `null` = todavía espera, se sacó sin llamarla o es
+    #: de antes de que se guardara. Con `created_at` da la espera de los ya atendidos.
+    called_at: InstanteUTC | None = None
 
 
 class BloqueDeLaFila(BaseModel):

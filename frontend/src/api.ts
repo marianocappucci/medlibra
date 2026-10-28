@@ -176,6 +176,9 @@ export type Llegada = {
   status: EstadoLlegada
   /** Instante en UTC (`...Z`): la hora de llegada. */
   created_at: string
+  /** Instante en UTC en que la llamaron (ADR-048). `null` si todavía espera, se la sacó sin llamarla o es de antes de
+   *  que se guardara: la espera de los ya atendidos es `called_at - created_at`. */
+  called_at?: string | null
 }
 
 export type PrestacionDeLaFila = {
