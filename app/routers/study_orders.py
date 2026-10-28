@@ -8,7 +8,7 @@ from ..auth import require_admin
 from ..dependencies import get_patient_repository, get_study_order_repository
 from ..services import historia_en_nodo
 from ..services.patients import PatientRepository
-from ..services.study_orders import StudyOrderRepository
+from ..services.study_orders import PedidoEnviadoALibraView, StudyOrderRepository
 from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/patients/{patient_id}/study-orders", tags=["study-orders"])
@@ -116,6 +116,9 @@ def delete_study_order(
         orders.delete(order_id)
     except KeyError:
         raise HTTPException(404, "study order not found")
+    except PedidoEnviadoALibraView:
+        # Del otro lado hay una orden con estudios por hacer e informar (ADR-050): borrarlo dejaría informes sin pedido.
+        raise HTTPException(409, "El pedido ya está en LibraView y no se puede borrar.")
     return Response(status_code=204)
 
 

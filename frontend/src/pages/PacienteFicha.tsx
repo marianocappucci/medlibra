@@ -5,7 +5,7 @@ import { useFieldArray, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   api, ApiError,
-  type ClinicalDocument, type ClinicalNote, type Consent, type Patient,
+  type ClinicalDocument, type ClinicalNote, type Consent, type EnvioLibraView, type LibraViewEstado, type Patient,
   type Prescription, type StudyOrder,
 } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -26,6 +26,8 @@ import { EtiquetaDePersonaDelNodo } from 'libra-ui/EtiquetaProvisorio'
 import { ICONOS } from 'libra-ui/iconos-identidad'
 import { fechaHora } from '@/lib/fechas'
 import { CampoArchivo } from 'libra-ui/CampoArchivo'
+import { BadgeEstado } from 'libra-ui/badge-estado'
+import { EnviarALibraView } from '@/components/EnviarALibraView'
 
 function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.detail
@@ -408,12 +410,18 @@ function AddResultForm({
   )
 }
 
-function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin: boolean }) {
+function StudyOrdersSection({ patientId, patient, isAdmin }: { patientId: string; patient: Patient | null; isAdmin: boolean }) {
   const { user } = useAuth()
   const [orders, setOrders] = useState<StudyOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // La costura con LibraView (ADR-050): sólo existe si la instancia la tiene configurada (`estado.configurado`). Los envíos se indexan
+  // por pedido; un pedido sin envío es uno que todavía no se mandó.
+  const [libraview, setLibraview] = useState<LibraViewEstado | null>(null)
+  const [envios, setEnvios] = useState<Record<string, EnvioLibraView>>({})
+  const [aEnviar, setAEnviar] = useState<StudyOrder | null>(null)
+  const [reintentando, setReintentando] = useState<string | null>(null)
 
   const form = useForm<StudyOrderFormValues>({
     resolver: zodResolver(studyOrderSchema),
@@ -433,6 +441,34 @@ function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin
       setError(describeError(err))
     } finally {
       setLoading(false)
+    }
+    await cargarLibraView()
+  }
+
+  // Aparte del resto: que LibraView no conteste (o que no esté configurado) no tiene que ensuciar la pestaña con un error.
+  async function cargarLibraView() {
+    try {
+      const estado = await api.get<LibraViewEstado>('/integraciones/libraview/estado')
+      setLibraview(estado)
+      if (!estado.configurado) { setEnvios({}); return }
+      const lista = await api.get<EnvioLibraView[]>(`/integraciones/libraview/envios?patient_id=${encodeURIComponent(patientId)}`)
+      setEnvios(Object.fromEntries(lista.map((e) => [e.order_id, e])))
+    } catch {
+      setLibraview(null)
+      setEnvios({})
+    }
+  }
+
+  async function reintentar(order: StudyOrder) {
+    setReintentando(order.id)
+    setError(null)
+    try {
+      await api.post(`/patients/${patientId}/study-orders/${order.id}/libraview/reintentar`)
+      await cargarLibraView()
+    } catch (err) {
+      setError(describeError(err))
+    } finally {
+      setReintentando(null)
     }
   }
 
@@ -543,15 +579,36 @@ function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin
                     <p className="text-sm font-medium">{order.author}</p>
                     <p className="text-xs text-muted-foreground">{fechaHora(order.created_at)}</p>
                   </div>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => handleDelete(order)}>Eliminar</Button>
-                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {libraview?.configurado && (
+                      <EstadoEnLibraView
+                        envio={envios[order.id]}
+                        ocupado={reintentando === order.id}
+                        onEnviar={() => setAEnviar(order)}
+                        onReintentar={() => reintentar(order)}
+                      />
+                    )}
+                    {isAdmin && (
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(order)}>Eliminar</Button>
+                    )}
+                  </div>
                 </div>
+                {libraview?.configurado && envios[order.id]?.estado === 'error' && (
+                  <p role="alert" className="mt-2 text-xs text-destructive">
+                    LibraView no recibió el pedido ({envios[order.id].intentos === 1 ? '1 intento' : `${envios[order.id].intentos} intentos`},
+                    {' '}último {fechaHora(envios[order.id].actualizado)}): {envios[order.id].error}
+                  </p>
+                )}
                 <div className="mt-3 grid gap-3">
                   {order.items.map((item) => (
                     <div key={item.id} className="rounded-md border p-3">
                       <p className="text-sm font-medium">
                         {item.study_type}{item.reason ? ` — ${item.reason}` : ''}
+                        {envios[order.id]?.estado === 'enviado' && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            N.º de acceso {envios[order.id].items.find((e) => e.item_id === item.id)?.numero_acceso ?? '—'}
+                          </span>
+                        )}
                       </p>
                       {item.results.length > 0 && (
                         <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
@@ -574,7 +631,44 @@ function StudyOrdersSection({ patientId, isAdmin }: { patientId: string; isAdmin
           ))}
         </div>
       )}
+
+      {aEnviar && patient && (
+        <EnviarALibraView
+          patient={patient}
+          order={aEnviar}
+          recibeResultados={libraview?.recibe_resultados ?? false}
+          onClose={() => setAEnviar(null)}
+          onEnviado={() => { setAEnviar(null); cargarLibraView() }}
+        />
+      )}
     </div>
+  )
+}
+
+/** Qué se ve de LibraView en un pedido: el botón para mandarlo, o cómo le fue. Un error se reintenta (mismo cuerpo) o se corrige
+ *  (se vuelve a mandar desde el diálogo, por si el dato que LibraView rechazó estaba mal). */
+function EstadoEnLibraView({ envio, ocupado, onEnviar, onReintentar }: {
+  envio: EnvioLibraView | undefined
+  ocupado: boolean
+  onEnviar: () => void
+  onReintentar: () => void
+}) {
+  if (!envio) {
+    return <Button size="sm" variant="outline" onClick={onEnviar}>Enviar a LibraView</Button>
+  }
+  if (envio.estado === 'enviado') {
+    return <BadgeEstado tono="curso">En LibraView</BadgeEstado>
+  }
+  return (
+    <>
+      <BadgeEstado tono={envio.estado === 'error' ? 'negativo' : 'atencion'}>
+        {envio.estado === 'error' ? 'Error en LibraView' : 'Envío pendiente'}
+      </BadgeEstado>
+      <Button size="sm" variant="outline" disabled={ocupado} onClick={onReintentar}>
+        {ocupado ? 'Reintentando…' : 'Reintentar'}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onEnviar}>Corregir y reenviar</Button>
+    </>
   )
 }
 
@@ -963,7 +1057,7 @@ export function PacienteFicha() {
         </TabsList>
         <TabsContent value="notas"><NotesSection patientId={id} isAdmin={isAdmin} /></TabsContent>
         <TabsContent value="recetas"><PrescriptionsSection patientId={id} isAdmin={isAdmin} /></TabsContent>
-        <TabsContent value="estudios"><StudyOrdersSection patientId={id} isAdmin={isAdmin} /></TabsContent>
+        <TabsContent value="estudios"><StudyOrdersSection patientId={id} patient={patient} isAdmin={isAdmin} /></TabsContent>
         <TabsContent value="documentos"><DocumentsSection patientId={id} isAdmin={isAdmin} /></TabsContent>
         <TabsContent value="consentimientos"><ConsentsSection patientId={id} isAdmin={isAdmin} /></TabsContent>
       </Tabs>

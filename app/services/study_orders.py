@@ -82,6 +82,10 @@ def _order_to_dict(row: StudyOrderRow) -> dict:
     }
 
 
+class PedidoEnviadoALibraView(Exception):
+    """El pedido ya está en LibraView (ADR-050): no se borra."""
+
+
 class StudyOrderRepository:
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self.session_factory = session_factory
@@ -124,10 +128,27 @@ class StudyOrderRepository:
             return [_order_to_dict(row) for row in rows]
 
     def delete(self, order_id: str) -> None:
+        """Borra el pedido. Si ya se mandó a LibraView (ADR-050) levanta `PedidoEnviadoALibraView`: del otro lado hay una orden con
+        estudios que se van a hacer y a informar, y borrar acá dejaría informes que llegan a un pedido que no existe. Si el envío
+        quedó en error o pendiente (LibraView no lo tiene) se borra junto con sus filas."""
+        # Import perezoso: `libraview` importa este módulo (sus tablas apuntan a las del pedido).
+        from .libraview import ENVIADO, EnvioALibraViewRow, EstudioEnLibraViewRow
+
         with self.session_factory.begin() as session:
             row = session.get(StudyOrderRow, order_id)
             if row is None:
                 raise KeyError(order_id)
+            envio = session.get(EnvioALibraViewRow, order_id)
+            if envio is not None:
+                if envio.estado == ENVIADO:
+                    raise PedidoEnviadoALibraView(order_id)
+                for estudio in session.scalars(
+                    select(EstudioEnLibraViewRow).where(EstudioEnLibraViewRow.order_id == order_id)
+                ):
+                    session.delete(estudio)
+                session.delete(envio)
+                # Primero las hijas: las FK apuntan al pedido y a sus ítems.
+                session.flush()
             session.delete(row)
 
     def add_result(self, item_id: str, author: str, text: str) -> dict:

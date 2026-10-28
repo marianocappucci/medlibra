@@ -18,6 +18,7 @@ from .services.consultorios import ConsultorioRepository
 from .services.contalibra import EnvioRepository
 from .services.dashboard import DashboardService
 from .services.iva_rates import IvaRateRepository
+from .services.libraview import EnvioRepository as EnvioLibraViewRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
 from .services.resource_prices import ResourcePriceRepository
@@ -54,6 +55,10 @@ def get_walkin_repository(request: Request) -> WalkinRepository:
 
 def get_envio_contalibra_repository(request: Request) -> EnvioRepository:
     return request.app.state.envios_contalibra
+
+
+def get_envio_libraview_repository(request: Request) -> EnvioLibraViewRepository:
+    return request.app.state.envios_libraview
 
 
 def get_appointment_service(request: Request) -> AppointmentService:
