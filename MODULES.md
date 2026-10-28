@@ -149,8 +149,8 @@
 
 ## Después del MVP
 
-- Canal real de notificaciones (email/SMS/WhatsApp) para reemplazar
-  `LoggingNotificationPort`.
+- ~~Canal real de notificaciones~~ — hecho (ADR-049): WhatsApp (Evolution) y
+  mail. Falta, si se pide, SMS.
 - Proveedor de pago real para reemplazar `ManualPaymentPort` y automatizar
   la confirmación de señas.
 - Dashboard y reportes operativos.

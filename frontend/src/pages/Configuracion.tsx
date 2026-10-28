@@ -33,6 +33,11 @@
  *  > afuera enteros y el usuario se llevaría un ZIP creyendo que tiene los
  *  > estudios de sus pacientes. Ver `app/main.py` y `libracore/respaldo.py`.
  *
+ *  ## Avisos (2026-10-28)
+ *
+ *  La quinta sección propia: cómo salen los recordatorios de turno (WhatsApp por Evolution, mail por el correo de Integraciones) y el
+ *  registro de lo que salió. El correo se sigue configurando en Integraciones; acá sólo se dice si está disponible.
+ *
  *  ## Las cuatro secciones de la agenda (2026-08-24)
  *
  *  Sedes, Consultorios, Prestaciones y Profesionales entran acá y no como ítems
@@ -41,11 +46,12 @@
  *  diferencia de la agenda y los pacientes, que se usan todos los días.
  */
 import { createConfiguracion } from 'libra-ui/Configuracion'
-import { CalendarClock, DoorClosed, MapPin, Stethoscope } from 'lucide-react'
+import { BellRing, CalendarClock, DoorClosed, MapPin, Stethoscope } from 'lucide-react'
 import { SedesCard } from './configuracion/sedes'
 import { ConsultoriosCard } from './configuracion/consultorios'
 import { PrestacionesCard } from './configuracion/prestaciones'
 import { ProfesionalesCard } from './configuracion/profesionales'
+import { AvisosCard } from './configuracion/avisos'
 
 export const Configuracion = createConfiguracion({
   // Sin `icono`: el default del kit es `ICONOS.configuracion` (ADR-035), el mismo que el sidebar de este producto.
@@ -72,5 +78,8 @@ export const Configuracion = createConfiguracion({
       clave: 'profesionales', label: 'Profesionales', icono: CalendarClock,
       contenido: <ProfesionalesCard />,
     },
+    // Los recordatorios de turno por WhatsApp y por mail (ADR-049): cómo está WhatsApp, probarlo y el registro de lo que salió. Sin
+    // `ICONOS`: un concepto de este producto, no del catálogo (ADR-035). Los componentes y su `esAdmin` están en `avisos.tsx`.
+    { clave: 'avisos', label: 'Avisos', icono: BellRing, contenido: <AvisosCard /> },
   ],
 })

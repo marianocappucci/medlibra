@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends
 from libragenda import ReminderDispatcher
 from pydantic import BaseModel
 
-from ..dependencies import get_reminder_dispatcher
+from ..avisos import enviar_recordatorios
+from ..dependencies import get_proveedores_de_avisos, get_reminder_dispatcher
 from ._instantes import InstanteUTC
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
@@ -20,9 +21,14 @@ class ReminderOut(BaseModel):
 
 
 @router.post("/dispatch", response_model=list[ReminderOut])
-def dispatch_reminders(dispatcher: ReminderDispatcher = Depends(get_reminder_dispatcher)):
-    """Envia todos los recordatorios vencidos y aun no enviados.
+def dispatch_reminders(
+    dispatcher: ReminderDispatcher = Depends(get_reminder_dispatcher),
+    proveedores=Depends(get_proveedores_de_avisos),
+):
+    """Envia todos los recordatorios vencidos y aun no enviados, por WhatsApp y por mail (ADR-049), y despues reintenta los
+    avisos que fallaron en las ultimas 24 horas.
 
-    Pensado para un cron/scheduler externo -- este repo no corre uno.
+    Pensado para un cron/scheduler externo -- la app no corre uno; `scripts/enviar_recordatorios.py` es lo que tiene que correr
+    ese cron (esta ruta pide la sesion de un admin). Es `def` y no `async def` a proposito: enviar espera a Evolution o al SMTP.
     """
-    return dispatcher.dispatch(datetime.now(UTC))
+    return enviar_recordatorios(dispatcher, proveedores, datetime.now(UTC))

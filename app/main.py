@@ -29,6 +29,7 @@ from libraauth.session_auth import (
 from libraauth.smtp_settings import SmtpSettingsRepository, resolver_smtp_config
 from libraauth.terminos import TerminosRepository, build_terminos_router
 from libracore import config_manager
+from libracore.avisos_router import build_avisos_router
 from libracore.candados import una_vez_al_arrancar
 from libracore.config_router import (
     build_backup_router,
@@ -65,9 +66,10 @@ from sqlalchemy.orm import sessionmaker
 from . import offline
 from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, get_current_user, require_admin, require_admin_o_servicio, require_staff
+from .avisos import armar_notificacion, proveedores_de_la_instancia
 from .config import Config, misma_base
 from .modules_gate import require_module
-from .notifications import DEFAULT_REMINDER_POLICIES, LoggingNotificationPort
+from .notifications import DEFAULT_REMINDER_POLICIES
 from .payments import ManualPaymentPort
 from .routers import (
     agenda,
@@ -455,9 +457,20 @@ def create_app(database_url: str) -> FastAPI:
         # la instancia se comporta igual que antes hasta que se cargue algo.
         smtp_config=lambda: resolver_smtp_config(auth_sessions),
     )
+    # Los recordatorios salen de verdad (ADR-049, libracore ADR-090): WhatsApp por Evolution y mail por el SMTP de arriba, con
+    # el modo y la conexion que el admin deja en Configuracion > Avisos. **La misma fabrica de proveedores** sirve al puerto, al
+    # reintento de `/reminders/dispatch` y al router de `/api/avisos`: se resuelve en cada uso.
+    def smtp_config():
+        return resolver_smtp_config(auth_sessions)
+
+    app.state.proveedores_de_avisos = proveedores_de_la_instancia(smtp_config)
     app.state.reminder_dispatcher = ReminderDispatcher(
         appointment_repository, reminder_repository,
-        LoggingNotificationPort(), DEFAULT_REMINDER_POLICIES,
+        armar_notificacion(
+            catalog=catalog, appointments=appointment_repository, branches=app.state.branches,
+            consultorios=app.state.consultorios, proveedores=app.state.proveedores_de_avisos,
+        ),
+        DEFAULT_REMINDER_POLICIES,
     )
     app.state.deposits = deposit_repository
     app.state.deposit_manager = DepositManager(deposit_repository, ManualPaymentPort())
@@ -521,6 +534,11 @@ def create_app(database_url: str) -> FastAPI:
         build_smtp_probe_router(lambda: resolver_smtp_config(auth_sessions)),
         dependencies=[Depends(require_admin)],
     )
+    # `GET`/`PUT /api/avisos/config`, `POST /api/avisos/probar` y `GET /api/avisos/envios` (libracore ADR-090, ADR-049 de acá): cómo
+    # está WhatsApp, cambiarlo, probarlo y el registro de lo que salió. Sólo admin (`require_admin` no tiene default en el
+    # motor): el registro guarda el teléfono, el mail y el texto de cada aviso a un paciente. `PUT` y `probar` dan 409
+    # `solo_en_el_central` en un nodo: el motor lo resuelve solo, no hace falta `_DEL_CENTRAL`. El mismo `smtp_config` que el de arriba.
+    app.include_router(build_avisos_router(require_admin=require_admin, smtp_config=smtp_config))
     # `GET /terminos`, `POST /terminos/aceptar`, `GET /terminos/historial`.
     # NO se gatea desde afuera: es el unico camino para salir del gate.
     app.include_router(build_terminos_router())

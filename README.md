@@ -51,10 +51,12 @@ vencidos — 24h y 2h antes de cada turno, fijo); y
 el estado de la seña). Evoluciones estructuradas y diagnósticos
 quedan para fases siguientes.
 
-Recordatorios y señas todavía no tienen un canal real conectado (mismo
-estado que Gestiolibra): los recordatorios se loguean
-(`LoggingNotificationPort`) y las señas se cobran y confirman fuera de la
-app, a mano (`ManualPaymentPort` — ver `DECISIONS.md` ADR-010).
+Los recordatorios salen por WhatsApp (Evolution) y por mail (ADR-049): el
+admin elige el modo y conecta Evolution en Configuración > Avisos, y el cron
+corre `scripts/enviar_recordatorios.py`. El texto lleva sede, profesional,
+consultorio, fecha, hora y dirección, **nunca la prestación**. Las señas se
+cobran y confirman fuera de la app, a mano (`ManualPaymentPort` — ver
+`DECISIONS.md` ADR-010).
 
 ## Autenticación y roles
 
