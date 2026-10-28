@@ -452,3 +452,12 @@ def test_el_script_no_manda_desde_un_nodo(admin_client: TestClient, monkeypatch,
 
     assert "es un nodo" in salida
     assert llamadas == []
+
+
+def test_el_script_pone_la_raiz_del_repo_en_el_path(monkeypatch):
+    """`python /app/scripts/enviar_recordatorios.py` (el cron) pone `scripts/` en `sys.path`, no `/app`: sin la raíz,
+    `app.services.modules` no encuentra `plans.py` (pasó en dev y demo el 2026-10-28)."""
+    raiz = str(SCRIPT.parent.parent)
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p != raiz])
+    runpy.run_path(str(SCRIPT), run_name="enviar_recordatorios")
+    assert sys.path[0] == raiz

@@ -22,6 +22,11 @@ from __future__ import annotations
 
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
+
+# `plans.py` vive en la raiz del repo (`/app` en la imagen), fuera del paquete instalado: el servidor la ve porque arranca
+# con `/app` como directorio de trabajo, pero `python /app/scripts/...` pone en `sys.path` la carpeta `scripts/`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def main() -> int:
