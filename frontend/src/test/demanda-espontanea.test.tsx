@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DemandaEspontanea } from '../pages/DemandaEspontanea'
-import { describirEspera, minutosDeEspera } from '../lib/espera'
+import { describirEspera, esperaHastaLlamada, minutosDeEspera, minutosEntre, promedioDeEspera } from '../lib/espera'
 
 const DIA = '2026-07-20'
 const BLOQUE = {
@@ -271,14 +271,106 @@ describe('la espera', () => {
     expect(minutosDeEspera('2026-07-20T12:20:00Z', ahora)).toBe(0)
   })
 
-  it('🔴 se ve sólo para quien espera', async () => {
-    // Sin la hora en que lo llamaron, "cuánto esperó" el ya atendido sería la
-    // cuenta hasta ahora, que crece sola y no mide nada.
+  it('🔴 sin la hora en que lo llamaron, la espera de un atendido es «—» y no una cuenta hasta ahora', async () => {
+    // Los atendidos de antes de la migración 0025 no tienen `called_at`: contar hasta "ahora" daría un número que
+    // crece solo y no mide nada.
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-07-20T12:17:00Z'))
     servir(rutas([llegada(1, { status: 'completed' }), llegada(2)]))
     montar()
     expect(within(await filaDe('Beto Prueba')).getByText('12 min')).toBeInTheDocument()
-    expect(within(await filaDe('Ana Prueba')).queryByText(/min$/)).not.toBeInTheDocument()
+    const ana = within(await filaDe('Ana Prueba'))
+    expect(ana.queryByText(/min$/)).not.toBeInTheDocument()
+    expect(ana.getAllByText('—')).toHaveLength(2) // ni «lo llamaron» ni «esperó»
+  })
+
+  it('las esperas entre dos instantes: entera, nunca negativa, y sin dato no se inventa', () => {
+    expect(minutosEntre('2026-07-20T12:05:00Z', '2026-07-20T12:17:59Z')).toBe(12)
+    expect(minutosEntre('2026-07-20T12:20:00Z', '2026-07-20T12:17:00Z')).toBe(0) // relojes desfasados
+    expect(minutosEntre('basura', '2026-07-20T12:17:00Z')).toBe(0)
+    expect(esperaHastaLlamada({ created_at: '2026-07-20T12:05:00Z', called_at: '2026-07-20T12:35:00Z' })).toBe(30)
+    expect(esperaHastaLlamada({ created_at: '2026-07-20T12:05:00Z', called_at: null })).toBeNull()
+    expect(esperaHastaLlamada({ created_at: '2026-07-20T12:05:00Z' })).toBeNull()
+    expect(promedioDeEspera([10, 20, 15])).toBe(15)
+    expect(promedioDeEspera([10, 15])).toBe(13) // redondea
+    expect(promedioDeEspera([])).toBeNull()
+  })
+})
+
+describe('los atendidos y lo que esperaron (ADR-048)', () => {
+  /** Llegó 12:05 UTC (09:05) y lo llamaron `min` minutos después. */
+  const atendido = (n: number, min: number, cambios: Record<string, unknown> = {}) => llegada(n, {
+    status: 'completed',
+    called_at: new Date(Date.parse('2026-07-20T12:05:00Z') + min * 60_000).toISOString(),
+    ...cambios,
+  })
+
+  it('🔴 salen de la fila y van a «Atendidos» con la hora en que los llamaron y lo que esperaron', async () => {
+    servir(rutas([atendido(1, 12), llegada(2)]))
+    montar()
+    const seccion = await screen.findByRole('region', { name: /Atendidos/ })
+    const ana = within(within(seccion).getByText('Ana Prueba').closest('tr') as HTMLElement)
+    expect(ana.getByText('20-07-2026 09:05')).toBeInTheDocument() // llegó
+    expect(ana.getByText('20-07-2026 09:17')).toBeInTheDocument() // lo llamaron
+    expect(ana.getByText('12 min')).toBeInTheDocument() // esperó
+    // y ya no está en la tabla de la fila, donde sí sigue el que espera
+    const tablas = screen.getAllByRole('table')
+    expect(within(tablas[0]).queryByText('Ana Prueba')).not.toBeInTheDocument()
+    expect(within(tablas[0]).getByText('Beto Prueba')).toBeInTheDocument()
+  })
+
+  it('🔴 la hora en que lo llamaron es la de la SEDE', async () => {
+    servir(rutas([atendido(1, 12)], { ...BLOQUE, timezone: 'America/Mexico_City' }))
+    montar()
+    const fila = await filaDe('Ana Prueba')
+    expect(within(fila).getByText('20-07-2026 06:17')).toBeInTheDocument()
+  })
+
+  it('el título dice «hoy» cuando la fila es la de hoy', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-07-20T15:00:00Z'))
+    servir(rutas([atendido(1, 12)]))
+    montar()
+    expect(await screen.findByRole('heading', { name: 'Atendidos hoy' })).toBeInTheDocument()
+  })
+
+  it('el promedio cuenta a los que ya pasaron a atención, y no a los que no tienen el dato', async () => {
+    servir(rutas([
+      atendido(1, 10), atendido(2, 20),
+      llegada(3, { status: 'in_progress', called_at: '2026-07-20T12:35:00Z' }), // 30
+      llegada(4, { status: 'completed' }), // de antes de guardarse: no entra
+      llegada(5), // espera: no entra
+    ]))
+    montar()
+    await screen.findByText('Carla Prueba')
+    // (10 + 20 + 30) / 3 = 20, sobre tres personas
+    const resumen = screen.getByText(/Espera promedio hasta que los llaman/).textContent
+    expect(resumen).toContain('20 min (3)')
+    expect(resumen).toContain('3 atendidos') // el 1, el 2 y el 4; el 3 sigue en atención
+  })
+
+  it('🔴 la espera de quien ya está en atención es la que tuvo, y no sigue creciendo', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-07-20T16:00:00Z')) // cuatro horas después
+    servir(rutas([llegada(1, { status: 'in_progress', called_at: '2026-07-20T12:25:00Z' })]))
+    montar()
+    const fila = within(await filaDe('Ana Prueba'))
+    expect(fila.getByText('20 min')).toBeInTheDocument()
+    expect(fila.queryByText(/h \d\d min/)).not.toBeInTheDocument()
+  })
+
+  it('sin atendidos no hay sección ni promedio', async () => {
+    servir(rutas([llegada(1)]))
+    montar()
+    await screen.findByText('Ana Prueba')
+    expect(screen.queryByRole('region', { name: /Atendidos/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Espera promedio/)).not.toBeInTheDocument()
+  })
+
+  it('con todos atendidos la fila lo dice y la lista de atendidos sigue ahí', async () => {
+    servir(rutas([atendido(1, 5)]))
+    montar()
+    expect(await screen.findByText('No queda nadie en la fila.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Atendidos/ })).toBeInTheDocument()
   })
 })

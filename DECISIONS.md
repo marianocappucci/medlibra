@@ -2004,10 +2004,13 @@ Las dos quedan bajo `staff_or_admin` porque el router ya lo estaba.
 - **La espera se ve sólo para quien espera.** No se guarda cuándo lo llamaron
   (`walkins` tiene `created_at` y nada más), así que "cuánto esperó" el ya
   atendido no se puede decir. Sumarlo es una columna y una migración.
+  *(Cerrado por el ADR-048: `called_at`.)*
 - **No hay estado "ausente"**: la máquina de ADR-031 no tiene `no_show` a
   propósito. "Se fue" es `cancelled` y conserva su número.
 - **La fila sólo anota pacientes existentes** (`client_id` es FK). El alta de
   uno nuevo se hace en Pacientes; la pantalla lo dice y enlaza.
+  *(Cerrado por el ADR-041: el alta se hace ahí mismo, con `SelectCliente`; y sin
+  conexión, por el ADR-045, con número provisorio.)*
 
 ### Consecuencias
 
@@ -2223,3 +2226,20 @@ prestaciones—.
   4. **`app/asgi.py` sin el `setdefault` del core:** existía para llevar el nombre histórico al normalizado; sin histórico no hace nada, y `Config` resuelve la base de LibraCore por su cuenta.
 - Consecuencias: ninguna instancia cambia. Una variable `MEDLIBRA_LIBRACORE_DB_PATH` suelta ya no la lee este repo; el motor deja de leerla cuando saque el histórico.
 - Tests: `tests/test_nodo_aprovisionamiento.py` (`test_el_cartel_de_conexion_distingue_la_pc_del_central` y `test_el_cartel_pide_sesion`) ya fijan la ruta, la respuesta y la sesión, y valen sin cambios.
+
+## ADR-048 — La espera de los ya atendidos: se guarda cuándo se llamó a cada llegada (2026-10-28)
+
+- Estado: aceptada. Pedido del humano: *«Demanda espontánea: la espera de los ya atendidos y el alta de paciente desde la fila»*. **Migración `0025_walkin_called_at`** (aditiva, una columna nullable).
+- Qué ya existía (se miró antes de diseñar): el **alta de paciente desde la fila ya está hecha** y no se toca: la pantalla usa `SelectCliente` con `altaDePaciente` (ADR-041, desde 2026-10-16: nombre, DNI, teléfono y email; `POST /patients` sin `id`, el backend da el `p-NNN`), el paciente recién creado queda elegido y la llegada se anota con su id (`alta-de-paciente.test.tsx`, «Anotar llegada»); sin conexión el paciente nace provisorio (`-N`, con cartel «Provisorio») y la llegada que lo nombra sube y se traduce al aplicarse (ADR-045, `test_una_llegada_de_un_paciente_provisorio_se_traduce`). Lo que decía el ADR-038 («sólo anota pacientes existentes») ya no vale. **Lo que sí faltaba era la espera de los atendidos**: `walkins` tenía `created_at` y nada más, así que la pantalla sólo podía mostrar «Espera» para quien todavía esperaba y ponía «—» al resto (ADR-038, «Lo que queda abierto»).
+- Decisión:
+  1. **`walkins.called_at`** (`timestamptz`, nullable): el instante en que la llegada pasó a `in_progress`. `WalkinRepository.cambiar_estado` lo escribe **sólo** en ese pase; completar no lo toca y sacar de la fila sin haberla llamado lo deja vacío (si guardara el momento de la baja, el promedio del día mentiría para abajo). Sale en `WalkinOut.called_at` (UTC, como `created_at`). **La espera de un atendido es `called_at - created_at`**: lo que esperó **hasta que lo llamaron**, no hasta que terminó la consulta.
+  2. **Vacío = «no lo sabemos».** Las llamadas anteriores a la migración no tienen el dato y no hay backfill posible: la pantalla muestra «—» y **no las cuenta en el promedio**, en vez de inventar una espera con «ahora».
+  3. **Sin conexión (ADR-045): el mismo instante en las dos puntas.** `cambiar_estado` toma **un** `ahora` y lo usa para la fila de la PC y para el `at` de `walkin.estado` (`encolar_estado(..., en=ahora)`); `aplicar_walkin_estado` guarda ese `at` como `called_at` del central cuando el pase es a `in_progress`, y la fila vuelve a la PC por el espejo con el mismo valor. **No cambia el contrato de la operación** (`at` ya viajaba y ya se validaba; `version` 1, `schema_version` 1): un central viejo que reciba la operación la sigue aplicando, sólo ignora la hora. La espera de quien se atendió sin conexión se mide con la hora de la PC y no con la de cuándo subió. Dos relojes (PC y central) pueden desfasarse unos segundos: la cuenta nunca da negativo (el piso es 0).
+  4. **La pantalla** (`DemandaEspontanea.tsx`): los atendidos salen de la fila y van a su propia lista, **«Atendidos hoy»** (o «Atendidos el dd-mm-aaaa»), con N°, paciente, prestación, hora de llegada, hora en que los llamaron (las dos en la hora de **la sede**, ADR-028) y **Esperó**. En la fila, quien ya está en atención muestra lo que esperó, fijo, en vez de «—» (antes ni siquiera eso) y quien espera sigue contando hasta ahora. El resumen suma «N atendidos» y la **espera promedio hasta que los llaman** del día, calculada sobre quienes ya pasaron a atención (en atención + atendidos) **con** dato, con la cantidad entre paréntesis para que se vea sobre cuántos es.
+  5. **No se expone nada más.** La lista usa los mismos datos que la fila (nombre, prestación, horas): ni DNI, ni teléfono, ni nada clínico; el endpoint sigue siendo `staff_or_admin` y `called_at` es un instante, no un dato de salud.
+- Qué no hace / queda abierto:
+  - **No hay histórico por varios días ni promedios por profesional o prestación.** La espera queda guardada, así que un reporte es una consulta (`called_at - created_at`), pero no se armó.
+  - **No mide la duración de la consulta** (`in_progress` → `completed`): sería otra columna (`completed_at`) y nadie la pidió.
+  - **`GET /patients` sigue trayendo la lista completa** al abrir la pantalla (el selector busca en el cliente, igual que Agenda): es anterior a este cambio y no se tocó.
+- Consecuencias: **MINOR**. Migración `0025_walkin_called_at`: aditiva, idempotente en los dos mundos (instancia armada por migraciones o por `create_all`) y sin la tabla; el downgrade saca la columna. Al desplegar, `alembic upgrade head` antes de arrancar, como siempre. El nodo la recibe por la cadena de migraciones y el espejo de `walkins` no cambia de forma (la tabla ya baja entera).
+- Tests (verificados por mutación: sin el arreglo se ponen rojos): `tests/test_walkins.py` (llamar guarda `called_at` y completar no lo pisa; sacar sin llamar no lo inventa; un cambio rechazado no lo toca), `tests/test_nodo_walkins.py` (la PC y la operación llevan el mismo instante, el central lo guarda, completar y cancelar no lo pisan), `tests/test_migracion_walkin_called_at.py` (los dos mundos, sin tabla, downgrade) y `frontend/src/test/demanda-espontanea.test.tsx` (los atendidos van a su lista con la hora de la sede, la espera fija no crece, el promedio cuenta sólo lo que tiene dato, «—» sin dato).

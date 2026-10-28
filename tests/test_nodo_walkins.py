@@ -11,6 +11,8 @@ Decisión del humano (2026-10-25): *demanda espontánea, sí*. Lo que se fija ac
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from nodo_apoyo import (
     aplicar_en_el_central,
@@ -132,6 +134,32 @@ def test_llamar_completar_y_cancelar_en_el_nodo_suben_como_estado(admin_client, 
     assert aplicar_en_el_central(ops) == ["accepted"] * 5
     estados = {w["client_id"]: (w["arrival_order"], w["status"]) for w in _fila(admin_client, consultorio)}
     assert estados == {"p-1": (1, "completed"), "p-2": (2, "cancelled")}
+
+
+def test_la_llamada_hecha_en_la_pc_llega_al_central_con_su_instante(admin_client, consultorio, nodo_apagado):
+    """ADR-048: la espera de un atendido sin conexión se mide con la hora en que la PC lo llamó, no con la de cuando subió."""
+    nodo_apagado.prender()
+    a = _llega(admin_client, consultorio, "p-1")
+    b = _llega(admin_client, consultorio, "p-2")
+    llamada = admin_client.post(f"/walkins/{a['id']}/llamar").json()
+    admin_client.post(f"/walkins/{a['id']}/completar")
+    admin_client.post(f"/walkins/{b['id']}/cancelar")
+    ops = operaciones()
+    nodo_apagado.apagar()
+
+    de_la_pc = next(o for o in ops if o.payload.get("estado") == "in_progress").payload["at"]
+    assert llamada["called_at"] is not None
+    assert datetime.fromisoformat(de_la_pc) == datetime.fromisoformat(llamada["called_at"]), \
+        "la fila de la PC y la operación llevan el mismo instante"
+    borrar_filas("walkins", [a["id"], b["id"]])
+
+    assert aplicar_en_el_central(ops) == ["accepted"] * 5
+    assert filas("SELECT called_at FROM walkins WHERE client_id = 'p-1'") == [(datetime.fromisoformat(de_la_pc),)]
+    # completar no lo pisa, y quien se fue sin que lo llamaran no tiene llamada
+    assert filas("SELECT called_at FROM walkins WHERE client_id = 'p-2'") == [(None,)]
+    # y la web lo devuelve igual que si lo hubiera llamado ella
+    por_cliente = {w["client_id"]: w["called_at"] for w in _fila(admin_client, consultorio)}
+    assert datetime.fromisoformat(por_cliente["p-1"]) == datetime.fromisoformat(de_la_pc) and por_cliente["p-2"] is None
 
 
 def test_un_pase_que_la_web_ya_no_admite_va_a_revision_manual(admin_client, consultorio, nodo_apagado):

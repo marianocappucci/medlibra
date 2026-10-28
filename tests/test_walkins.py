@@ -213,6 +213,48 @@ def test_solo_activos_deja_afuera_a_los_atendidos(consultorio: TestClient):
     assert len(_fila(consultorio, bloque)) == 2
 
 
+# ── Cuándo se llamó a cada uno (ADR-048) ───────────────────────────────────
+#
+# La espera de los ya atendidos es `called_at - created_at`. Sin `called_at` la
+# única espera que se podía calcular era contra "ahora", que crece sola y no mide
+# nada: por eso la pantalla sólo la mostraba para quien todavía esperaba.
+
+def _llamada_de(client: TestClient, bloque: str, walkin_id: str):
+    return next(w for w in _fila(client, bloque) if w["id"] == walkin_id)["called_at"]
+
+
+def test_llamar_guarda_cuando_se_llamo_y_completar_no_lo_pisa(consultorio: TestClient):
+    bloque = _bloque(consultorio)
+    w = _llega(consultorio, bloque, "p-1").json()
+    assert w["called_at"] is None, "recién llegada: nadie la llamó"
+
+    llamada = consultorio.post(f"/walkins/{w['id']}/llamar").json()
+    assert llamada["called_at"] is not None
+    # El instante viaja en UTC, como `created_at`, y no puede ser anterior a la llegada.
+    assert llamada["called_at"].endswith("Z") and llamada["called_at"] >= w["created_at"]
+
+    completada = consultorio.post(f"/walkins/{w['id']}/completar").json()
+    assert completada["called_at"] == llamada["called_at"], "atenderla no cambia cuándo la llamaron"
+    assert _llamada_de(consultorio, bloque, w["id"]) == llamada["called_at"]
+
+
+def test_sacar_de_la_fila_sin_llamar_no_inventa_una_llamada(consultorio: TestClient):
+    """🔴 Quien se fue sin que lo llamaran no tiene espera hasta ser atendido: si se
+    guardara el momento de la baja, el promedio del día mentiría para abajo."""
+    bloque = _bloque(consultorio)
+    w = _llega(consultorio, bloque, "p-1").json()
+    assert consultorio.post(f"/walkins/{w['id']}/cancelar").json()["called_at"] is None
+    assert _llamada_de(consultorio, bloque, w["id"]) is None
+
+
+def test_un_cambio_de_estado_rechazado_no_toca_la_llamada(consultorio: TestClient):
+    bloque = _bloque(consultorio)
+    w = _llega(consultorio, bloque, "p-1").json()
+    llamada = consultorio.post(f"/walkins/{w['id']}/llamar").json()["called_at"]
+    assert consultorio.post(f"/walkins/{w['id']}/llamar").status_code == 409
+    assert _llamada_de(consultorio, bloque, w["id"]) == llamada
+
+
 # ── Lo que la pantalla lee para operar la fila ─────────────────────────────
 #
 # La pantalla tiene que ofrecer DÓNDE anotar a alguien, y el mostrador no puede
