@@ -138,7 +138,8 @@ dependencies = [
     # v1.199.0 -> v1.200.0 (2026-10-27): el respaldo nocturno distingue fallo de no corrio (addendum ADR-075). Sin migracion.
     # v1.200.0 -> v1.201.0 (2026-10-28): nota de credito con motivo y emision sin HTTP (ADR-089). Sin migracion.
     # v1.201.0 -> v1.202.0 (2026-10-28): libracore.avisos: WhatsApp por Evolution, mail y registro (ADR-090). Migracion 0032 (avisos_envios).
-    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.202.0",
+    # v1.202.0 -> v1.202.1 (2026-10-28): avisos: la demo no manda mails y espera entre reintentos (addendum ADR-090). Sin migracion.
+    "libracore @ git+https://github.com/marianocappucci/libracore.git@v1.202.1",
     # libraedge v0.23.0 (2026-10-25): el nodo sin conexion de MedLibra (ADR-045 de este repo). Dependencia NORMAL y no extra, como en
     # VentaLibra, RestoLibra, LibraCargo y LibraClub: el central monta `/sync/v1/*` (push, pull) aunque no tenga nodos. El repo es
     # publico: no hace falta deploy key ni en el CI ni en el build del VPS. v0.23.0 trae los ids provisorios de texto (`"-N"`,
