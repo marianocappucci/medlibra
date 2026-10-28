@@ -40,6 +40,7 @@ EXCLUIDAS = {
     "auth_log": "el log de accesos es de cada punta",
     "secretos_instancia": "el almacén de claves cifradas (MercadoPago, SMTP) es del central: la clave no sale del VPS",
     "smtp_settings": "la configuración del correo es del central: el nodo no manda mails",
+    "avisos_envios": "el registro de avisos es del central: el nodo no manda avisos (libracore ADR-090)",
     "demo_codigos": "los códigos de la demo son del central",
     "password_reset_tokens": "la recuperación de contraseña es del central",
     "libraauth_captcha_usados": "el anti-replay del captcha es de cada punta (el nodo no pide captcha, libraauth ADR-028)",
