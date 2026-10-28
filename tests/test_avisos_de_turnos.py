@@ -22,7 +22,8 @@ import httpx
 import pytest
 from conftest import https_client
 from fastapi.testclient import TestClient
-from libracore.avisos import Resultado, configuracion
+from libracore import fechas
+from libracore.avisos import ESPERA_ENTRE_INTENTOS, Resultado, configuracion
 from nodo_apoyo import ejecutar
 from test_reminders import _inicio_sin_cruzar_medianoche
 
@@ -153,7 +154,7 @@ class CorreoSimulado:
 @pytest.fixture
 def correo(monkeypatch) -> CorreoSimulado:
     falso = CorreoSimulado()
-    monkeypatch.setattr(configuracion, "proveedor_email", lambda smtp_config=None: falso)
+    monkeypatch.setattr(configuracion, "proveedor_email", lambda smtp_config=None, **_: falso)
     return falso
 
 
@@ -287,9 +288,11 @@ def test_con_todo_apagado_no_se_escribe_nada_y_el_recordatorio_se_da_por_visto(a
 # ── Un fallo se reintenta después de dispatch ──────────────────────────────────────────────────────────────────────
 
 
-def test_dispatch_reintenta_lo_que_fallo_en_la_misma_tanda(admin_client: TestClient, evolution):
-    """Evolution falla el primer mensaje (500) y anda después: sin `reintentar_fallidos` el aviso de 24h quedaría `fallido` con
-    un solo intento hasta la corrida siguiente. Va por HTTP para cubrir la ruta: el turno es de dentro de 90 minutos."""
+def test_dispatch_reintenta_lo_que_fallo_en_la_pasada_siguiente(admin_client: TestClient, evolution, monkeypatch):
+    """Evolution falla el primer mensaje (500) y anda después: el aviso de 24h queda `fallido` con un solo intento, y el cron lo
+    reintenta en la pasada siguiente, pasados 5 minutos (`ESPERA_ENTRE_INTENTOS`, libracore v1.202.1): una pasada enseguida no lo
+    toca, para que un fallo de Evolution no gaste dos de los tres intentos en el mismo segundo. El reloj se adelanta, no se duerme.
+    Va por HTTP para cubrir la ruta: el turno es de dentro de 90 minutos."""
     inicio = _inicio_sin_cruzar_medianoche(90)
     admin_client.post("/branches", json={"id": "sede-1", "name": "Consultorio Norte", "timezone": "UTC"})
     admin_client.post("/resources", json={"id": "dra-vidal", "name": "Dra. Vidal", "branch_id": "sede-1"})
@@ -310,7 +313,20 @@ def test_dispatch_reintenta_lo_que_fallo_en_la_misma_tanda(admin_client: TestCli
 
     assert r.status_code == 200, r.text
     assert len(r.json()) == 2
-    assert len(wa.pedidos) == 3, "dos mensajes y el reintento del que falló"
+    assert len(wa.pedidos) == 2, "dos mensajes y ningún reintento: el fallo espera a la pasada siguiente"
+    assert [(f["clave"], f["estado"], f["intentos"]) for f in avisos(admin_client)] == [
+        (f"agenda:{turno}:24h", "fallido", 1), (f"agenda:{turno}:2h", "enviado", 1),
+    ]
+
+    # Enseguida, todavía no: faltan los 5 minutos.
+    assert admin_client.post("/reminders/dispatch").json() == []
+    assert len(wa.pedidos) == 2
+
+    # Pasados los 5 minutos, la pasada siguiente reintenta el 24h (los recordatorios ya están dados por enviados: `dispatch` no encuentra nada).
+    ahora = fechas.ahora()
+    monkeypatch.setattr(fechas, "ahora", lambda: ahora + ESPERA_ENTRE_INTENTOS + timedelta(seconds=1))
+    assert admin_client.post("/reminders/dispatch").json() == []
+    assert len(wa.pedidos) == 3, "el reintento del que falló"
     assert [(f["clave"], f["estado"], f["intentos"]) for f in avisos(admin_client)] == [
         (f"agenda:{turno}:24h", "enviado", 2), (f"agenda:{turno}:2h", "enviado", 1),
     ]
