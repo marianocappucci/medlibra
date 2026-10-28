@@ -96,11 +96,15 @@ lógica propia del vertical): el dominio ya está resuelto en LibraGenda
 era conectarlo a un canal real, y todavía no hay uno elegido para
 MedLibra tampoco.
 
-- **Recordatorios**: `LoggingNotificationPort` implementa `NotificationPort`
-  logueando en vez de enviar. `DEFAULT_REMINDER_POLICIES` (24h y 2h antes,
-  fijo) se pasa a `ReminderDispatcher` al construir la app.
-  `POST /reminders/dispatch` (admin-only) está pensado para un cron/
-  scheduler externo, no hay uno corriendo dentro de este repo.
+- **Recordatorios** (ADR-049): salen de verdad por WhatsApp (Evolution) y por
+  mail (el SMTP de la instancia). `NotificacionPorAvisos` (de `libracore.avisos`)
+  implementa `NotificationPort`; `app/avisos.py` pone lo propio de MedLibra: el
+  contacto del paciente y el texto, **sin prestación ni nada clínico**.
+  `DEFAULT_REMINDER_POLICIES` (24h y 2h antes, fijo) se pasa a
+  `ReminderDispatcher` al construir la app. `POST /reminders/dispatch`
+  (admin-only) y `scripts/enviar_recordatorios.py` (el que tiene que correr el
+  cron) mandan lo vencido y después reintentan los avisos fallidos. La
+  configuración y el registro: `/api/avisos` (admin) y Configuración > Avisos.
 - **Señas**: `ManualPaymentPort` implementa `PaymentPort`; no cobra ni
   reintegra solo, solo loguea la intención. La confirmación de la seña
   (efectivo, transferencia, link de MercadoPago enviado a mano) la hace un

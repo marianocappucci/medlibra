@@ -66,6 +66,8 @@ describe('la Configuración de MedLibra', () => {
       // pertenecer, una prestación sin poder ponerle precio —el precio es por
       // sede— y un bloque de agenda sin consultorio donde ubicarlo.
       'Sedes', 'Consultorios', 'Prestaciones', 'Profesionales',
+      // Los recordatorios por WhatsApp y por mail (ADR-049): después de lo que se carga y antes de lo que más rompe.
+      'Avisos',
       // Última: es la que más rompe si se toca sin querer.
       'Datos / Backup',
     ])

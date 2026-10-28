@@ -27,6 +27,11 @@ from .services.users import UserRepository
 from .services.walkins import WalkinRepository
 
 
+def get_proveedores_de_avisos(request: Request):
+    """`{canal: proveedor}` de avisos, como un callable que se resuelve en cada uso (`app/avisos.py`)."""
+    return request.app.state.proveedores_de_avisos
+
+
 def get_catalog_repository(request: Request) -> SqlAlchemyCatalogRepository:
     return request.app.state.catalog
 

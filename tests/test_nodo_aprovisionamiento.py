@@ -275,6 +275,9 @@ def test_los_turnos_a_revisar_y_atender_son_del_staff(admin_client, clientes):
     ("POST", "/deposits/inexistente/mark-paid", {"medio_pago": "efectivo"}),
     ("POST", "/deposits/inexistente/refund", {}),
     ("POST", "/reminders/dispatch", None),
+    # la configuración de avisos (la apikey de Evolution vive en el central) y la prueba de envío: el router del motor lo resuelve solo
+    ("PUT", "/api/avisos/config", {"modo": "registro"}),
+    ("POST", "/api/avisos/probar", {"canal": "whatsapp", "destino": "11 5555-1234"}),
 ])
 def test_en_un_nodo_lo_que_manda_el_central_se_contesta_409(admin_client, nodo_apagado, metodo, ruta, cuerpo):
     """Los maestros, los precios, la configuración y el reintento a ContaLibra no se escriben en el nodo: su espejo los pisaría

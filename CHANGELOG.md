@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- **Los recordatorios de turno salen de verdad por WhatsApp y por mail** (2026-10-28; ADR-049; libracore ADR-090 y libra-ui ADR-097). **Sin migración propia** (`avisos_envios` es de la cadena de libracore). Pines `libracore` `v1.202.0` y `libra-ui` `v0.184.0` (ya estaban). El `LoggingNotificationPort` se borra: `NotificacionPorAvisos` lo reemplaza con el contacto del paciente (teléfono con `telefono_para_whatsapp`, y email) y un texto de MedLibra.
+  - 🔴 **El recordatorio no lleva datos de salud** (Ley 25.326 y 26.529): dice sede, día, hora **de la sede**, profesional, consultorio, dirección y el teléfono de la sede. **Nunca la prestación**, ni el motivo, ni el nombre o el DNI del paciente. La clave del aviso es `agenda:{turno}:{política}`: no sale dos veces.
+  - **API**: `/api/avisos/config` (`GET`/`PUT`), `/probar` y `/envios`, todo admin. `POST /reminders/dispatch` reintenta, después de `dispatch`, los avisos fallidos de las últimas 24 horas.
+  - **Pantalla**: sección **«Avisos»** de Configuración (admin): modo de WhatsApp (apagado, registro, Evolution), probar envío y registro de lo enviado, con el destino entero para el admin.
+  - 🔴 **Nada corría `dispatch`** en el repo (la ruta pide sesión de admin y no había cron). Nuevo **`scripts/enviar_recordatorios.py`**: `*/10 * * * * docker exec medlibra-dev python /app/scripts/enviar_recordatorios.py >> /var/log/medlibra_recordatorios.log 2>&1`. Respeta el módulo `recordatorios` del plan y no manda desde un nodo.
+  - **LibraEdge**: `avisos_envios` es del central y no se espeja al nodo; `PUT /api/avisos/config` y `probar` dan 409 `solo_en_el_central` en un nodo.
+  - **Al desplegar**: nada que migrar. Los avisos nacen **apagados**: no sale nada hasta que un admin elija «Registro» o conecte Evolution, y hasta que alguien instale el cron en el VPS. Al conectar Evolution empiezan los turnos que venzan desde entonces (lo ya visto no se reenvía).
+  - Tests: `tests/test_avisos_de_turnos.py`, `tests/test_nodo_aprovisionamiento.py` y `frontend/src/test/avisos.test.tsx`.
+
 - **Demanda espontánea: lo que esperó cada persona ya atendida** (2026-10-28; ADR-048). **Migración `0025_walkin_called_at`** (una columna nullable, aditiva). Antes la fila sólo mostraba la espera de quien todavía esperaba, porque no se guardaba cuándo se llamaba a cada llegada; ahora `walkins.called_at` guarda el instante del pase a «En atención» y la pantalla muestra lo que cada uno esperó **hasta que lo llamaron**.
   - **Pantalla**: los atendidos salen de la fila y van a **«Atendidos hoy»** (llegó, lo llamaron, esperó, en la hora de la sede); quien está en atención muestra su espera fija; el resumen suma los atendidos y la **espera promedio hasta que los llaman**, con la cantidad sobre la que se calculó. Lo anterior a la migración queda en «—» y no entra al promedio: no se inventa.
   - **API**: `called_at` (UTC, `null` si no se sabe) en las llegadas de `GET /agenda-blocks/{id}/walkins` y en las respuestas de `llamar`/`completar`/`cancelar`. Sacar de la fila sin llamar no lo completa.
