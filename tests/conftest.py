@@ -80,6 +80,8 @@ def _construir_armada(url: str) -> None:
             mp.delenv(nombre, raising=False)
         mp.setattr(config_manager, "CONFIG_PATH", f"{carpeta}/config.json")
         mp.setattr(config_manager, "LOGO_DIR", f"{carpeta}/logos")
+        # La marca de la instancia (logo y Terminos propios, ADR-092/093) tambien vive en disco.
+        mp.setattr(config_manager, "MARCA_DIR", f"{carpeta}/marca")
         # `create_app()` apunta `libracore.db.core` a la base de la plantilla; el
         # `setattr` con el mismo valor es para que `undo()` lo deje como estaba.
         mp.setattr(libracore_core, "_db_path", libracore_core._db_path)
@@ -149,6 +151,7 @@ def _dev_env(request, monkeypatch, tmp_path):
     from libracore import config_manager
     monkeypatch.setattr(config_manager, "CONFIG_PATH", str(tmp_path / "config.json"))
     monkeypatch.setattr(config_manager, "LOGO_DIR", str(tmp_path / "logos"))
+    monkeypatch.setattr(config_manager, "MARCA_DIR", str(tmp_path / "marca"))
 
 
 def https_client(app) -> TestClient:

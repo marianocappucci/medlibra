@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Marca blanca: la instancia lleva el nombre, el logo, el color y los términos de un revendedor** (2026-10-30, ADR-050; `libracore` v1.202.1 → v1.206.0, `libraauth` v0.57.0, `libra-ui` v0.185.0). **Sin migración.** `/api/marca` y `/manifest.webmanifest`; con marca propia la instancia exige los Términos del revendedor y, sin ellos, queda frenada. ⚠️ `MEDLIBRA_RESET_URL_BASE` tiene por defecto `dev.medlibra.com.ar`: una instancia de revendedor tiene que definirla. ⚠️ Por el pin (libracore v1.204.0), **un recordatorio sale por un solo canal**: WhatsApp si el paciente tiene teléfono válido y está disponible, mail si no (antes, por los dos). Tests: `tests/test_marca_blanca.py`, `tests/test_marca_blanca_terminos.py`.
+
 - **Los recordatorios de turno salen de verdad por WhatsApp y por mail** (2026-10-28; ADR-049; libracore ADR-090 y libra-ui ADR-097). **Sin migración propia** (`avisos_envios` es de la cadena de libracore). Pines `libracore` `v1.202.0` y `libra-ui` `v0.184.0` (ya estaban). El `LoggingNotificationPort` se borra: `NotificacionPorAvisos` lo reemplaza con el contacto del paciente (teléfono con `telefono_para_whatsapp`, y email) y un texto de MedLibra.
   - 🔴 **El recordatorio no lleva datos de salud** (Ley 25.326 y 26.529): dice sede, día, hora **de la sede**, profesional, consultorio, dirección y el teléfono de la sede. **Nunca la prestación**, ni el motivo, ni el nombre o el DNI del paciente. La clave del aviso es `agenda:{turno}:{política}`: no sale dos veces.
   - **API**: `/api/avisos/config` (`GET`/`PUT`), `/probar` y `/envios`, todo admin. `POST /reminders/dispatch` reintenta, después de `dispatch`, los avisos fallidos de las últimas 24 horas.
