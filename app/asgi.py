@@ -20,10 +20,10 @@ de node), cae a `frontend/dist` relativo al repo para build+preview local
 sin Docker. Si no existe ninguno de los dos (API pura sin frontend
 buildeado), el mount se salta solo."""
 import os
-from pathlib import Path
 
 from libracore.db.url_de_instancia import url_de_instancia
 
+from app.frontend_dist import frontend_dist
 from app.spa import montar_spa
 
 DATA_DIR = os.environ.get("DATA_DIR")
@@ -49,10 +49,6 @@ from .main import create_app  # noqa: E402 -- after env bridging above
 
 app = create_app(database_url)
 
-_DOCKER_FRONTEND_DIST = Path("/opt/frontend-dist")
-_LOCAL_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-FRONTEND_DIST = (
-    _DOCKER_FRONTEND_DIST if _DOCKER_FRONTEND_DIST.is_dir() else _LOCAL_FRONTEND_DIST
-)
+FRONTEND_DIST = frontend_dist()
 if FRONTEND_DIST.is_dir():
     montar_spa(app, FRONTEND_DIST)

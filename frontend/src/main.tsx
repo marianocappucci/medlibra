@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { cargarMarca } from 'libra-ui/marca'
 import { cargarTema } from 'libra-ui/tema'
 import { aplicarIdentidad } from 'libra-ui/identidad'
 import { ErrorBoundary } from 'libra-ui/ErrorBoundary'
@@ -21,17 +22,21 @@ aplicarIdentidad('medlibra')
 // `POST /api/errores-cliente`. Antes de montar, para que también quede lo que falla al arrancar.
 instalarReporteDeErrores()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {/* «Algo falló» en vez de la pantalla en blanco cuando un render revienta; afuera de todo, así atrapa también a los providers. */}
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  </StrictMode>,
+// La marca de la instancia (libra-ui ADR-098, marca blanca): si el revendedor cargo la suya, se aplica antes de pintar, asi la primera visita
+// no parpadea con el nombre del producto. Espera como mucho 2 s y nunca falla: sin marca propia la app arranca como siempre.
+void cargarMarca().finally(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      {/* «Algo falló» en vez de la pantalla en blanco cuando un render revienta; afuera de todo, así atrapa también a los providers. */}
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </StrictMode>,
+  ),
 )
 
 // Instalable como aplicación: el service worker no cachea nada (ver

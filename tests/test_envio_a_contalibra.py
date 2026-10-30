@@ -115,7 +115,10 @@ def test_no_queda_ningun_camino_de_facturacion_local(consultorio: TestClient):
     assert len(rutas) > 20, f"el schema trajo {len(rutas)} rutas: no se midió nada"
     # `/sync/v1/ticket-arca` es de LibraEdge (el nodo pide prestado el ticket de ARCA al central): MedLibra no pasa `prestar_ticket`,
     # así que contesta 501 y no emite nada (ver `test_nodo_aprovisionamiento.py`).
-    assert not [r for r in rutas if ("arca" in r or "billing" in r) and not r.startswith("/sync/v1/")], sorted(rutas)
+    # `/api/marca*` es la marca blanca (ADR-050): "marca" contiene "arca" y no tiene nada que ver con ARCA.
+    assert not [
+        r for r in rutas if ("arca" in r or "billing" in r) and not r.startswith(("/sync/v1/", "/api/marca"))
+    ], sorted(rutas)
     assert consultorio.get("/config/arca").status_code == 404
 
 

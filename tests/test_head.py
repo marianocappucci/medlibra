@@ -14,18 +14,26 @@ import pytest
 from conftest import https_client
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from motor_de_test import fresh_database_url
 
 from app.spa import SIN_CACHE, montar_spa
 
 
 @pytest.fixture
-def cliente(admin_client, tmp_path):
+def cliente(monkeypatch, tmp_path):
+    # 🔴 La app se arma con el MISMO dist que la SPA: la marca (`/manifest.webmanifest`) lee el manifest de `frontend_dist()` y en el CI no
+    # hay `frontend/dist`. Con la app de `admin_client` (armada antes) ese GET daria 404 alla y 200 en una maquina con build.
+    from app import main as principal
+
+    monkeypatch.setattr(principal, "frontend_dist", lambda: tmp_path)
+    app = principal.create_app(fresh_database_url())
     (tmp_path / "assets").mkdir()
     (tmp_path / "assets" / "app-abc123.js").write_text("console.log(1)")
     (tmp_path / "index.html").write_text("<html>spa</html>")
     (tmp_path / "manifest.webmanifest").write_text("{}")
-    montar_spa(admin_client.app, tmp_path)
-    return https_client(admin_client.app)
+    montar_spa(app, tmp_path)
+    yield https_client(app)
+    app.state.auth_engine.dispose()
 
 
 @pytest.mark.parametrize("ruta", ["/", "/pantalla/3", "/manifest.webmanifest"])
