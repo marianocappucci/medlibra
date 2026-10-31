@@ -588,7 +588,9 @@ function StudyOrdersSection({ patientId, patient, isAdmin }: { patientId: string
                         onReintentar={() => reintentar(order)}
                       />
                     )}
-                    {isAdmin && (
+                    {/* Un pedido ya en LibraView no se borra (el servidor contesta 409, ADR-051): ni se ofrece. Con el envío en
+                        error o pendiente LibraView no lo tiene, y sí se puede. */}
+                    {isAdmin && envios[order.id]?.estado !== 'enviado' && (
                       <Button size="sm" variant="outline" onClick={() => handleDelete(order)}>Eliminar</Button>
                     )}
                   </div>
