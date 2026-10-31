@@ -41,7 +41,7 @@ EXCLUIDAS = {
     "secretos_instancia": "el almacén de claves cifradas (MercadoPago, SMTP) es del central: la clave no sale del VPS",
     "smtp_settings": "la configuración del correo es del central: el nodo no manda mails",
     "avisos_envios": "el registro de avisos es del central: el nodo no manda avisos (libracore ADR-090)",
-    "envios_a_libraview": "la costura con LibraView es del central (ADR-050): el envío y el aviso sólo existen allá; el nodo no la espeja",
+    "envios_a_libraview": "la costura con LibraView es del central (ADR-051): el envío y el aviso sólo existen allá; el nodo no la espeja",
     "estudios_en_libraview": "idem: el número de acceso de cada ítem lo guarda y lo usa el central",
     "eventos_de_libraview": "idem: la deduplicación de los avisos del webhook es del central",
     "demo_codigos": "los códigos de la demo son del central",

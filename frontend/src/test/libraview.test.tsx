@@ -1,4 +1,4 @@
-// La costura con LibraView (ADR-050) en la pestaña «Estudios» de la ficha del paciente.
+// La costura con LibraView (ADR-051) en la pestaña «Estudios» de la ficha del paciente.
 //
 // Lo que se prueba es lo que vería —o no vería— quien atiende:
 //

@@ -1,4 +1,4 @@
-"""La costura con LibraView, el RIS de imágenes (ADR-050): el pedido de estudios sale como orden y el informe vuelve como resultado.
+"""La costura con LibraView, el RIS de imágenes (ADR-051): el pedido de estudios sale como orden y el informe vuelve como resultado.
 
 LibraView no se levanta: el HTTP lo contesta un `httpx.MockTransport` que **se comporta como el de verdad en lo que importa acá** —es
 idempotente por `id_externo` (mismo contenido: `200 repetida`; otro contenido: `409`) y reparte números de acceso en el orden de las

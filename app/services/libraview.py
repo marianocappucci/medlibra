@@ -1,6 +1,6 @@
 """La costura con LibraView, el RIS de imágenes: el pedido de estudio sale como orden y el informe vuelve como resultado.
 
-Ver ADR-050 en `DECISIONS.md` y el contrato del otro lado en `docs/integraciones.md` de LibraView.
+Ver ADR-051 en `DECISIONS.md` y el contrato del otro lado en `docs/integraciones.md` de LibraView.
 
 ## Las dos mitades
 

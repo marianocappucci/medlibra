@@ -1,4 +1,4 @@
-// Lo puro de la costura con LibraView (ADR-050), aparte del componente para poder probarlo sin montar nada.
+// Lo puro de la costura con LibraView (ADR-051), aparte del componente para poder probarlo sin montar nada.
 import type { PracticaLibraView } from '../api'
 
 /** Sin mayúsculas, sin acentos y sin espacios de más: «Radiografía de Tórax » = «radiografia de torax». */

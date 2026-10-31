@@ -434,7 +434,7 @@ export type StudyOrder = {
   items: StudyOrderItem[]
 }
 
-// La costura con LibraView, el RIS de imágenes (ADR-050): un pedido de estudios se manda como orden y el informe vuelve como resultado.
+// La costura con LibraView, el RIS de imágenes (ADR-051): un pedido de estudios se manda como orden y el informe vuelve como resultado.
 
 /** `GET /integraciones/libraview/estado`. Sin `configurado` la pantalla no muestra nada de LibraView. */
 export type LibraViewEstado = {

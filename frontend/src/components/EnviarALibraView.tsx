@@ -1,4 +1,4 @@
-// «Enviar a LibraView»: el diálogo que manda un pedido de estudios por imágenes a LibraView (el RIS) como una orden (ADR-050).
+// «Enviar a LibraView»: el diálogo que manda un pedido de estudios por imágenes a LibraView (el RIS) como una orden (ADR-051).
 //
 // Por qué se piden acá apellido, nombres y sexo: el paciente de MedLibra tiene un solo campo de nombre (viene de LibraGenda) y no tiene
 // sexo, y LibraView necesita los tres. En vez de cambiarle el modelo al paciente se piden al mandar, precargando lo que se puede. El

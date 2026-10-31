@@ -1,4 +1,4 @@
-"""La costura con LibraView, el RIS de imágenes (ADR-050): los envíos, los estudios y los avisos ya procesados.
+"""La costura con LibraView, el RIS de imágenes (ADR-051): los envíos, los estudios y los avisos ya procesados.
 
 - `envios_a_libraview`: un envío por pedido de estudios, con su estado, el error y **el cuerpo exacto que se mandó** (el reintento
   reenvía ése, así LibraView contesta 200 idempotente y no 409).

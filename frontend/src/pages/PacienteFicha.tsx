@@ -416,7 +416,7 @@ function StudyOrdersSection({ patientId, patient, isAdmin }: { patientId: string
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  // La costura con LibraView (ADR-050): sólo existe si la instancia la tiene configurada (`estado.configurado`). Los envíos se indexan
+  // La costura con LibraView (ADR-051): sólo existe si la instancia la tiene configurada (`estado.configurado`). Los envíos se indexan
   // por pedido; un pedido sin envío es uno que todavía no se mandó.
   const [libraview, setLibraview] = useState<LibraViewEstado | null>(null)
   const [envios, setEnvios] = useState<Record<string, EnvioLibraView>>({})

@@ -1,4 +1,4 @@
-"""La migración `0026_libraview` corre en LOS DOS MUNDOS (ADR-050).
+"""La migración `0026_libraview` corre en LOS DOS MUNDOS (ADR-051).
 
 1. **Base armada por las migraciones** — las tres tablas no existen: se crean, con sus índices (el único del número de acceso incluido).
 2. **Instancia viva** — el esquema lo armó `Base.metadata.create_all()` desde los modelos nuevos, así que las tablas YA existen cuando la

@@ -40,6 +40,7 @@ from libracore.db.core import get_connection as lc_get_connection
 from libracore.docs_api import cerrar_docs_de_la_api
 from libracore.errores import instalar_registro_de_errores
 from libracore.estado_del_sistema import build_estado_del_sistema_router
+from libracore.marca_router import build_marca_admin_router, build_marca_router, es_marca_propia, nombre_de_marca
 from libracore.nodo_conexion_router import build_conexion_del_nodo_router
 from libracore.nodo_offline import SinConexion, SoloEnElCentral
 from libracore.resguardo_enlace import build_resguardo_enlace_router
@@ -47,6 +48,7 @@ from libracore.respaldo import Instancia
 from libracore.security_headers import CSP_SPA, SecurityHeadersMiddleware
 from libracore.smtp_router import build_smtp_probe_router
 from libracore.tema_router import build_tema_admin_router, build_tema_router
+from libracore.terminos_propios import leer_terminos_propios
 from libraedge.pantalla_del_central import create_canje_router, create_nodos_router
 from libragenda import (
     DepositManager,
@@ -68,6 +70,7 @@ from .auditoria import AUDITABLES, COLUMNAS_CLINICAS, etiqueta_segura
 from .auth import build_session_auth, get_current_user, require_admin, require_admin_o_servicio, require_staff
 from .avisos import armar_notificacion, proveedores_de_la_instancia
 from .config import Config, misma_base
+from .frontend_dist import frontend_dist
 from .modules_gate import require_module
 from .notifications import DEFAULT_REMINDER_POLICIES
 from .payments import ManualPaymentPort
@@ -424,7 +427,7 @@ def create_app(database_url: str) -> FastAPI:
     app.state.prescriptions = PrescriptionRepository(sessions)
     app.state.study_orders = StudyOrderRepository(sessions)
     documents_dir = os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents")
-    # La costura con LibraView (ADR-050). El PDF del informe se escribe en la misma carpeta que los documentos clinicos.
+    # La costura con LibraView (ADR-051). El PDF del informe se escribe en la misma carpeta que los documentos clinicos.
     app.state.envios_libraview = EnvioLibraViewRepository(sessions, documents_dir)
     app.state.clinical_documents = ClinicalDocumentRepository(sessions, documents_dir)
     app.state.consents = ConsentRepository(sessions)
@@ -448,10 +451,16 @@ def create_app(database_url: str) -> FastAPI:
     #
     # 🔴 Sin esta linea el gate NO corta y la instancia no falla: se queda sin
     # gate, en silencio. Por eso cada producto tiene un test que lo prueba.
-    app.state.terminos = TerminosRepository(auth_sessions)
+    #
+    # Marca blanca (ADR-092/093 del motor): una instancia con marca propia **exige** los Terminos de su revendedor y, sin ellos, queda
+    # frenada; nunca cae a los de la familia.
+    app.state.terminos = TerminosRepository(
+        auth_sessions, contrato_propio=leer_terminos_propios, exigir_propio=es_marca_propia
+    )
     app.state.password_reset = PasswordResetService(
         auth_sessions,
-        product_name="MedLibra",
+        # CALLABLE: con marca propia el mail de recuperacion sale con el nombre del revendedor.
+        product_name=lambda: nombre_de_marca("MedLibra"),
         reset_url_base=os.environ.get(
             "MEDLIBRA_RESET_URL_BASE", "https://dev.medlibra.com.ar/reset-password"
         ),
@@ -624,7 +633,7 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(clinical_notes.router, dependencies=staff_or_admin)
     app.include_router(prescriptions.router, dependencies=staff_or_admin)
     app.include_router(study_orders.router, dependencies=staff_or_admin)
-    # Mandar un pedido de estudios a LibraView y ver como salio (ADR-050). Staff, como el pedido mismo; sin gate de modulos (la
+    # Mandar un pedido de estudios a LibraView y ver como salio (ADR-051). Staff, como el pedido mismo; sin gate de modulos (la
     # historia clinica nunca se gatea). Las guardas de «solo central» van por ruta, dentro del router.
     app.include_router(libraview.router, dependencies=staff_or_admin)
     # 🔴 El aviso de LibraView (`POST /integraciones/libraview/resultados`) va SIN `staff_or_admin`, SIN `require_module` y SIN
@@ -671,6 +680,11 @@ def create_app(database_url: str) -> FastAPI:
     # del token de servicio del backoffice: 🔴 con `require_admin` a secas el backoffice NO entraría (esa guarda no conoce el token).
     app.include_router(build_tema_router())
     app.include_router(build_tema_admin_router(), dependencies=[Depends(require_admin_o_servicio)])
+    # La marca de la instancia (nombre, logo, color, iconos y manifest), para venderla a marca blanca. La lectura es publica (el login tambien
+    # lleva la marca) y va **antes** del catch-all de la SPA (`asgi.py`): si no, `/manifest.webmanifest` devolveria el `index.html`. Escribir
+    # es del admin o del backoffice (token de servicio).
+    app.include_router(build_marca_router(dist=frontend_dist()))
+    app.include_router(build_marca_admin_router(), dependencies=[Depends(require_admin_o_servicio)])
 
     # 🔴 DOS bases, y las dos tienen que entrar al backup: `usuarios` vive en
     # la de LibraCore, separada de la del dominio. Un backup de una sola no se

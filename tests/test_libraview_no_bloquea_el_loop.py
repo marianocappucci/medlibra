@@ -1,4 +1,4 @@
-"""Las rutas de la costura con LibraView no frenan el loop de uvicorn (ADR-050).
+"""Las rutas de la costura con LibraView no frenan el loop de uvicorn (ADR-051).
 
 Es la misma medición que `test_rutas_no_bloquean_el_loop.py` (ver ahí el porqué): una llamada de la ruta se reemplaza por una que
 duerme con `time.sleep` y, mientras duerme, se pide `/health` por el mismo loop. Acá hay dos cosas lentas: la base (sincrónica) y el

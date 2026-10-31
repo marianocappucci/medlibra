@@ -263,15 +263,16 @@ def test_el_mail_sale_por_su_canal_con_el_mismo_texto_sin_formato_de_whatsapp(ad
     assert {f["canal"] for f in avisos(admin_client)} == {"email"}
 
 
-def test_con_los_dos_canales_un_paciente_recibe_un_aviso_por_cada_uno(admin_client: TestClient, evolution, correo):
+def test_con_los_dos_canales_un_paciente_recibe_cada_aviso_por_un_solo_canal(admin_client: TestClient, evolution, correo):
+    """libracore v1.204.0 (ADR-090, addendum; decision del humano del 2026-10-28): un aviso sale por UN canal. Con WhatsApp disponible y un
+    telefono valido, sale por WhatsApp; el mail queda de respaldo (sin telefono o si WhatsApp rechaza). Antes salia por los dos."""
     sembrar(admin_client, email="ana@ejemplo.example")
     wa = evolution()
 
     tanda(admin_client)
 
-    assert len(wa.pedidos) == 2 and len(correo.mensajes) == 2
-    assert sorted((f["canal"], f["estado"]) for f in avisos(admin_client)) == [("email", "enviado")] * 2 + [
-        ("whatsapp", "enviado")] * 2
+    assert len(wa.pedidos) == 2 and correo.mensajes == []
+    assert sorted((f["canal"], f["estado"]) for f in avisos(admin_client)) == [("whatsapp", "enviado")] * 2
 
 
 def test_con_todo_apagado_no_se_escribe_nada_y_el_recordatorio_se_da_por_visto(admin_client: TestClient):
@@ -452,3 +453,12 @@ def test_el_script_no_manda_desde_un_nodo(admin_client: TestClient, monkeypatch,
 
     assert "es un nodo" in salida
     assert llamadas == []
+
+
+def test_el_script_pone_la_raiz_del_repo_en_el_path(monkeypatch):
+    """`python /app/scripts/enviar_recordatorios.py` (el cron) pone `scripts/` en `sys.path`, no `/app`: sin la raíz,
+    `app.services.modules` no encuentra `plans.py` (pasó en dev y demo el 2026-10-28)."""
+    raiz = str(SCRIPT.parent.parent)
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p != raiz])
+    runpy.run_path(str(SCRIPT), run_name="enviar_recordatorios")
+    assert sys.path[0] == raiz

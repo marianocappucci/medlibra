@@ -11,13 +11,13 @@ dominio clínico, dashboard y facturación).
 
 ## Próximas
 
-- [ ] LibraView (ADR-050): **llevar la verificación de la firma y el cliente al motor.** `verificar_firma` y el
+- [ ] LibraView (ADR-051): **llevar la verificación de la firma y el cliente al motor.** `verificar_firma` y el
       armado del pedido son la contraparte de `app/integraciones/` de LibraView, que es candidato a moverse a
       `libracore`; cuando se mueva, el servicio de acá queda en el adaptador (qué ítem, qué paciente).
-- [ ] LibraView (ADR-050): cancelar una orden desde MedLibra (hoy un pedido enviado no se borra ni se anula);
+- [ ] LibraView (ADR-051): cancelar una orden desde MedLibra (hoy un pedido enviado no se borra ni se anula);
       avisos de otros hitos (estudio realizado) y rotación del token con período de gracia (LibraView lo tiene
       pendiente de su lado). Verificar contra una LibraView de verdad (`scripts/prueba_integraciones.py` de LibraView).
-- [ ] LibraView (ADR-050): la ficha sólo se actualiza al recargar la pestaña; si hace falta ver llegar el informe en
+- [ ] LibraView (ADR-051): la ficha sólo se actualiza al recargar la pestaña; si hace falta ver llegar el informe en
       vivo, un refresco periódico o un aviso en pantalla.
 - [ ] Frontend: `PatientCreate` sigue exigiendo un `id` explícito en el
       formulario de alta — a diferencia del `Client.id` de Gestiolibra

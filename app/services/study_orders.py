@@ -83,7 +83,7 @@ def _order_to_dict(row: StudyOrderRow) -> dict:
 
 
 class PedidoEnviadoALibraView(Exception):
-    """El pedido ya está en LibraView (ADR-050): no se borra."""
+    """El pedido ya está en LibraView (ADR-051): no se borra."""
 
 
 class StudyOrderRepository:
@@ -128,7 +128,7 @@ class StudyOrderRepository:
             return [_order_to_dict(row) for row in rows]
 
     def delete(self, order_id: str) -> None:
-        """Borra el pedido. Si ya se mandó a LibraView (ADR-050) levanta `PedidoEnviadoALibraView`: del otro lado hay una orden con
+        """Borra el pedido. Si ya se mandó a LibraView (ADR-051) levanta `PedidoEnviadoALibraView`: del otro lado hay una orden con
         estudios que se van a hacer y a informar, y borrar acá dejaría informes que llegan a un pedido que no existe. Si el envío
         quedó en error o pendiente (LibraView no lo tiene) se borra junto con sus filas."""
         # Import perezoso: `libraview` importa este módulo (sus tablas apuntan a las del pedido).

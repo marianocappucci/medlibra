@@ -1,4 +1,4 @@
-"""La costura con LibraView (ADR-050): el pedido de estudios sale como orden y el informe vuelve como resultado.
+"""La costura con LibraView (ADR-051): el pedido de estudios sale como orden y el informe vuelve como resultado.
 
 Dos routers con dos guardas distintas, y es lo que importa de este archivo:
 

@@ -24,8 +24,9 @@ from app.main import create_app
 TOKEN = "un-token-de-servicio-de-prueba"
 RUTA_USERS = "/users"
 
-# Lo que SI acepta el token, a proposito. El resto no.
-ACEPTAN_TOKEN = {RUTA_USERS, "/admin/smtp"}
+# Lo que SI acepta el token, a proposito. El resto no. `/api/marca/terminos` es del router de marca (la lectura del texto de los terminos
+# propios es del admin o del backoffice, igual que escribir).
+ACEPTAN_TOKEN = {RUTA_USERS, "/admin/smtp", "/api/marca/terminos"}
 
 
 @pytest.fixture

@@ -58,7 +58,7 @@ consultorio, fecha, hora y dirección, **nunca la prestación**. Las señas se
 cobran y confirman fuera de la app, a mano (`ManualPaymentPort` — ver
 `DECISIONS.md` ADR-010).
 
-### Estudios por imágenes: LibraView (ADR-050)
+### Estudios por imágenes: LibraView (ADR-051)
 
 Un pedido de estudios por imágenes se manda a **LibraView** (el RIS) con el botón
 «Enviar a LibraView» de la pestaña Estudios de la ficha, y el informe publicado vuelve

@@ -224,7 +224,7 @@ class PatientRepository:
     ) -> None:
         """Completa el DNI y la fecha de nacimiento **sólo si están vacíos**; lo que ya está cargado no se pisa.
 
-        Lo usa la costura con LibraView (ADR-050): para mandar un pedido hacen falta los dos, y quien lo manda los escribe en el
+        Lo usa la costura con LibraView (ADR-051): para mandar un pedido hacen falta los dos, y quien lo manda los escribe en el
         diálogo (precargados con los de la ficha). A LibraView va lo del diálogo, pero la ficha sólo gana lo que le faltaba:
         corregir un dato ya cargado es una edición de la ficha, no un efecto lateral de un envío."""
         with self.session_factory.begin() as session:

@@ -117,7 +117,7 @@ def delete_study_order(
     except KeyError:
         raise HTTPException(404, "study order not found")
     except PedidoEnviadoALibraView:
-        # Del otro lado hay una orden con estudios por hacer e informar (ADR-050): borrarlo dejaría informes sin pedido.
+        # Del otro lado hay una orden con estudios por hacer e informar (ADR-051): borrarlo dejaría informes sin pedido.
         raise HTTPException(409, "El pedido ya está en LibraView y no se puede borrar.")
     return Response(status_code=204)
 

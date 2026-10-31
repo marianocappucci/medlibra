@@ -148,7 +148,7 @@ mecanismo que ya bloqueaba el borrado con notas/recetas —
 `PatientRepository.delete()` chequea las tres tablas. Ver `DECISIONS.md`
 ADR-012.
 
-**Estudios por imágenes: LibraView (ADR-050).** Un pedido se puede mandar a LibraView
+**Estudios por imágenes: LibraView (ADR-051).** Un pedido se puede mandar a LibraView
 (el RIS) como una orden, y el informe publicado vuelve como un `study_results` más. Tres
 tablas propias (migración `0026_libraview`): `envios_a_libraview` (un envío por pedido, con
 su estado y el **cuerpo exacto** que se mandó: el reintento reenvía ése),

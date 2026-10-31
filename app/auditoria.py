@@ -77,7 +77,7 @@ COLUMNAS_CLINICAS = frozenset({
     # Contenido clinico propiamente dicho
     "text", "notes", "diagnosis", "medication", "dosage", "instructions",
     "result", "results", "observations", "indications", "title", "content",
-    # El JSON que se manda a LibraView (ADR-050): nombre, documento y fecha de nacimiento del paciente, más el diagnostico.
+    # El JSON que se manda a LibraView (ADR-051): nombre, documento y fecha de nacimiento del paciente, más el diagnostico.
     "cuerpo",
     # Identificatorios del paciente
     "dni", "cuit", "birth_date", "email", "phone",
