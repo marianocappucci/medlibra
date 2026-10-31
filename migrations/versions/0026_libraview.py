@@ -9,7 +9,9 @@ Nacen vacías y sólo se escriben si la instancia tiene `LIBRAVIEW_URL` y `LIBRA
 
 Corre en los dos mundos, como `0025_walkin_called_at`: una instancia viva arma su esquema con `Base.metadata.create_all()` y puede tener ya las
 tablas (las crea desde los modelos nuevos cuando arranca con el código nuevo antes de migrar), y una migración fallida aborta el deploy. Cada
-tabla se crea sólo si falta.
+tabla se crea sólo si falta **y si existen las tablas a las que apunta**: una instancia estampada sin ejecutar nada (el mundo de
+`test_migracion_sin_users`, que estampa `0018` sobre un esquema vacío y sube a `head`) no tiene `study_orders`, y una clave foránea contra una
+tabla que no está hace fallar el `CREATE TABLE`. Sin esas tablas no hay pedidos que enviar, así que no crear las nuestras no pierde nada.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -24,8 +26,14 @@ def _falta(tabla: str) -> bool:
     return not sa.inspect(op.get_bind()).has_table(tabla)
 
 
+def _crear(tabla: str, *padres: str) -> bool:
+    """Si hay que crear `tabla`: falta, y están todas las tablas contra las que tiene clave foránea."""
+    inspector = sa.inspect(op.get_bind())
+    return not inspector.has_table(tabla) and all(inspector.has_table(p) for p in padres)
+
+
 def upgrade():
-    if _falta("envios_a_libraview"):
+    if _crear("envios_a_libraview", "study_orders"):
         op.create_table(
             "envios_a_libraview",
             sa.Column("order_id", sa.String(100), sa.ForeignKey("study_orders.id"), primary_key=True),
@@ -38,7 +46,7 @@ def upgrade():
             sa.Column("enviado_por", sa.String(200), nullable=False, server_default=""),
         )
         op.create_index("ix_envios_a_libraview_estado", "envios_a_libraview", ["estado"])
-    if _falta("estudios_en_libraview"):
+    if _crear("estudios_en_libraview", "study_orders", "study_order_items"):
         op.create_table(
             "estudios_en_libraview",
             sa.Column("item_id", sa.String(100), sa.ForeignKey("study_order_items.id"), primary_key=True),
@@ -51,7 +59,7 @@ def upgrade():
         op.create_index(
             "ix_estudios_en_libraview_numero_acceso", "estudios_en_libraview", ["numero_acceso"], unique=True,
         )
-    if _falta("eventos_de_libraview"):
+    if _crear("eventos_de_libraview"):
         op.create_table(
             "eventos_de_libraview",
             sa.Column("id_evento", sa.String(100), primary_key=True),

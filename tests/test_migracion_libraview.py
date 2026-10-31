@@ -1,8 +1,11 @@
-"""La migración `0026_libraview` corre en LOS DOS MUNDOS (ADR-051).
+"""La migración `0026_libraview` corre en LOS TRES MUNDOS (ADR-051).
 
 1. **Base armada por las migraciones** — las tres tablas no existen: se crean, con sus índices (el único del número de acceso incluido).
 2. **Instancia viva** — el esquema lo armó `Base.metadata.create_all()` desde los modelos nuevos, así que las tablas YA existen cuando la
    migración llega. Un `create_table` pelado revienta con *already exists*, y una migración fallida aborta el deploy.
+3. **Instancia estampada sin ejecutar nada** — ni siquiera existen `study_orders` ni `study_order_items`. Es el mundo de
+   `test_migracion_sin_users`, que estampa `0018` sobre un esquema vacío y sube a `head`: una clave foránea contra una tabla que no está
+   hace fallar el `CREATE TABLE`. La migración se saltea lo que depende de ellas (sin pedidos no hay nada que enviar).
 
 Mismo escenario y misma fixture que `test_migracion_walkin_called_at.py`.
 """
@@ -89,3 +92,18 @@ def test_baja_y_vuelve_a_subir(base_limpia):  # noqa: F811
     _ejecutar("DROP TABLE eventos_de_libraview")
     command.downgrade(base_limpia, PREVIA)
     assert _tablas() == set()
+
+
+def test_mundo_3_sin_las_tablas_de_pedidos_no_falla_y_se_saltea_lo_que_depende_de_ellas(base_limpia):  # noqa: F811
+    """🔴 Lo que rompió el CI de medlibra#490: `test_migracion_sin_users` sube a `head` desde un esquema vacío y `0026` creaba
+    `envios_a_libraview` con una clave foránea a `study_orders`, que ahí no existe."""
+    command.stamp(base_limpia, PREVIA)
+    assert _tablas() == set()
+
+    command.upgrade(base_limpia, NUEVA)
+
+    assert _revision() == NUEVA
+    # Sólo la que no apunta a ninguna: las otras dos necesitan los pedidos.
+    assert _tablas() == {"eventos_de_libraview"}
+    command.downgrade(base_limpia, PREVIA)
+    assert _tablas() == set() and _revision() == PREVIA
