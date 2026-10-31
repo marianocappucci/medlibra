@@ -58,6 +58,36 @@ consultorio, fecha, hora y dirección, **nunca la prestación**. Las señas se
 cobran y confirman fuera de la app, a mano (`ManualPaymentPort` — ver
 `DECISIONS.md` ADR-010).
 
+### Estudios por imágenes: LibraView (ADR-051)
+
+Un pedido de estudios por imágenes se manda a **LibraView** (el RIS) con el botón
+«Enviar a LibraView» de la pestaña Estudios de la ficha, y el informe publicado vuelve
+solo como un resultado del ítem (con su PDF en Documentos). Es explícito por pedido: los
+de laboratorio no van. Está **apagado** si falta `LIBRAVIEW_URL` o `LIBRAVIEW_TOKEN`.
+
+| Variable | Qué es |
+|---|---|
+| `LIBRAVIEW_URL` | Dirección de LibraView (`https://…`, sin barra final). |
+| `LIBRAVIEW_TOKEN` | La credencial del cliente `medlibra` (`lvi_<id>_<secreto>`): va como `Authorization: Bearer`. |
+| `LIBRAVIEW_WEBHOOK_SECRET` | El secreto de firma del webhook (`lvw_whsec_…`). Sin él el informe no vuelve solo: el webhook contesta 503. |
+
+Cómo configurarlo:
+
+1. En LibraView, **Integración → Clientes de integración → «Nuevo cliente»**: nombre
+   `medlibra` y webhook `https://<instancia de MedLibra>/integraciones/libraview/resultados`
+   (este backend **no** tiene prefijo `/api`: la ruta es esa, tal cual; el proxy debe dejar
+   pasar `/integraciones` sin sesión y sin filtrar la cabecera `X-LibraView-Firma`).
+2. LibraView muestra **una sola vez** el token y el secreto: cargarlos en el `.env` de la
+   instancia (`LIBRAVIEW_URL`, `LIBRAVIEW_TOKEN`, `LIBRAVIEW_WEBHOOK_SECRET`) y recrear el
+   contenedor.
+3. Probar: abrir la ficha de un paciente, pestaña Estudios; el catálogo de prácticas sale de
+   LibraView en el diálogo de envío.
+
+El webhook no pide sesión (lo llama LibraView): lo protege la firma HMAC-SHA256 del cuerpo
+crudo, con una tolerancia de 5 minutos. Un envío con error se **reintenta** con el mismo
+cuerpo (es seguro: LibraView es idempotente por el id del pedido). Un pedido ya enviado no se
+puede borrar. En una PC sin conexión (nodo de LibraEdge) la integración no existe.
+
 ## Autenticación y roles
 
 Sesión por cookie firmada (`ml_session`), sin API keys ni JWT todavía. Al

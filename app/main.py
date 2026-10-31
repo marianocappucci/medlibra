@@ -88,6 +88,7 @@ from .routers import (
     facturacion_externa,
     health,
     holidays,
+    libraview,
     prescriptions,
     reminders,
     resources,
@@ -132,6 +133,7 @@ from .services.consultorios import ConsultorioRepository
 from .services.contalibra import EnvioRepository as EnvioContalibraRepository
 from .services.dashboard import DashboardService
 from .services.iva_rates import IvaRateRepository
+from .services.libraview import EnvioRepository as EnvioLibraViewRepository
 from .services.modules import ModuleRepository
 from .services.patients import PatientRepository
 from .services.prescriptions import PrescriptionRepository
@@ -425,6 +427,8 @@ def create_app(database_url: str) -> FastAPI:
     app.state.prescriptions = PrescriptionRepository(sessions)
     app.state.study_orders = StudyOrderRepository(sessions)
     documents_dir = os.environ.get("MEDLIBRA_DOCUMENTS_DIR", "./data/medlibra_documents")
+    # La costura con LibraView (ADR-051). El PDF del informe se escribe en la misma carpeta que los documentos clinicos.
+    app.state.envios_libraview = EnvioLibraViewRepository(sessions, documents_dir)
     app.state.clinical_documents = ClinicalDocumentRepository(sessions, documents_dir)
     app.state.consents = ConsentRepository(sessions)
     app.state.users = user_repository
@@ -629,6 +633,13 @@ def create_app(database_url: str) -> FastAPI:
     app.include_router(clinical_notes.router, dependencies=staff_or_admin)
     app.include_router(prescriptions.router, dependencies=staff_or_admin)
     app.include_router(study_orders.router, dependencies=staff_or_admin)
+    # Mandar un pedido de estudios a LibraView y ver como salio (ADR-051). Staff, como el pedido mismo; sin gate de modulos (la
+    # historia clinica nunca se gatea). Las guardas de «solo central» van por ruta, dentro del router.
+    app.include_router(libraview.router, dependencies=staff_or_admin)
+    # 🔴 El aviso de LibraView (`POST /integraciones/libraview/resultados`) va SIN `staff_or_admin`, SIN `require_module` y SIN
+    # ningun guard de sesion, a proposito: no lo llama una persona sino LibraView. Lo protege la firma HMAC del cuerpo crudo
+    # (`LIBRAVIEW_WEBHOOK_SECRET`); sin secreto contesta 503. Un test fija que sigue sin pedir sesion.
+    app.include_router(libraview.webhook_router)
     app.include_router(clinical_documents.router, dependencies=staff_or_admin)
     app.include_router(consents.router, dependencies=staff_or_admin)
     app.include_router(appointments.router, dependencies=staff_or_admin)

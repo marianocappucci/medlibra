@@ -434,6 +434,41 @@ export type StudyOrder = {
   items: StudyOrderItem[]
 }
 
+// La costura con LibraView, el RIS de imágenes (ADR-051): un pedido de estudios se manda como orden y el informe vuelve como resultado.
+
+/** `GET /integraciones/libraview/estado`. Sin `configurado` la pantalla no muestra nada de LibraView. */
+export type LibraViewEstado = {
+  configurado: boolean
+  /** Hay secreto del webhook: el informe vuelve solo. */
+  recibe_resultados: boolean
+}
+
+/** Una práctica del catálogo de LibraView (`GET /integraciones/libraview/practicas`). */
+export type PracticaLibraView = {
+  codigo: string
+  nombre: string
+  modalidad: string | null
+  codigo_nomenclador: string | null
+  preparacion: string | null
+}
+
+export type EnvioLibraViewItem = {
+  item_id: string
+  codigo_practica: string
+  /** El que le dio LibraView; `null` hasta que confirma la orden. */
+  numero_acceso: string | null
+}
+
+export type EnvioLibraView = {
+  order_id: string
+  estado: 'pendiente' | 'enviado' | 'error'
+  /** `"<status>: <detalle>"`, vacío si salió bien. */
+  error: string
+  intentos: number
+  actualizado: string
+  items: EnvioLibraViewItem[]
+}
+
 export type Consent = {
   id: string
   patient_id: string
