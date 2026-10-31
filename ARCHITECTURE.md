@@ -148,6 +148,19 @@ mecanismo que ya bloqueaba el borrado con notas/recetas —
 `PatientRepository.delete()` chequea las tres tablas. Ver `DECISIONS.md`
 ADR-012.
 
+**Estudios por imágenes: LibraView (ADR-051).** Un pedido se puede mandar a LibraView
+(el RIS) como una orden, y el informe publicado vuelve como un `study_results` más. Tres
+tablas propias (migración `0026_libraview`): `envios_a_libraview` (un envío por pedido, con
+su estado y el **cuerpo exacto** que se mandó: el reintento reenvía ése),
+`estudios_en_libraview` (cada ítem y el número de acceso que le dio LibraView, el puente de
+la vuelta) y `eventos_de_libraview` (los avisos ya procesados, la deduplicación por
+`id_evento`). El servicio es `app/services/libraview.py` y los routers
+`app/routers/libraview.py`: el del personal con la guarda de sesión y el webhook
+(`POST /integraciones/libraview/resultados`) **sin** sesión, protegido por la firma HMAC del
+cuerpo crudo. El aviso no lleva datos del paciente: con el número de acceso se pide el
+informe y el PDF a LibraView, y el resultado, el documento y el evento se graban en **una**
+transacción. Sólo en el central (ADR-045).
+
 ## Documentos clínicos
 
 Archivos adjuntos por paciente (informes externos, estudios escaneados,

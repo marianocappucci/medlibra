@@ -219,6 +219,24 @@ class PatientRepository:
             row.cuit, row.condicion_iva = cuit, condicion_iva
         return self._to_out(client, dni, birth_date, cuit, condicion_iva)
 
+    def completar_documento_y_nacimiento(
+        self, patient_id: str, dni: str | None, birth_date: date | None,
+    ) -> None:
+        """Completa el DNI y la fecha de nacimiento **sólo si están vacíos**; lo que ya está cargado no se pisa.
+
+        Lo usa la costura con LibraView (ADR-051): para mandar un pedido hacen falta los dos, y quien lo manda los escribe en el
+        diálogo (precargados con los de la ficha). A LibraView va lo del diálogo, pero la ficha sólo gana lo que le faltaba:
+        corregir un dato ya cargado es una edición de la ficha, no un efecto lateral de un envío."""
+        with self.session_factory.begin() as session:
+            row = session.get(PatientRow, patient_id)
+            if row is None:
+                row = PatientRow(id=patient_id)
+                session.add(row)
+            if dni and not (row.dni or "").strip():
+                row.dni = dni
+            if birth_date is not None and row.birth_date is None:
+                row.birth_date = birth_date
+
     def delete(self, patient_id: str) -> None:
         with self.session_factory() as session:
             has_notes = session.scalar(

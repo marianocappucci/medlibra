@@ -175,6 +175,14 @@ services:
       # dejan usar y el que nosotros aceptamos— y compartir el nombre haría que
       # rotar uno rote el otro sin que nadie lo pida.
       - CONTALIBRA_SERVICE_TOKEN=${CONTALIBRA_SERVICE_TOKEN:-}
+      # La costura con LibraView, el RIS de imagenes (ADR-051). Sin LIBRAVIEW_URL y LIBRAVIEW_TOKEN la integracion esta APAGADA: la
+      # ficha del paciente no muestra nada de LibraView. El token (`lvi_<id>_<secreto>`) y el secreto del webhook (`lvw_whsec_...`)
+      # los muestra LibraView una sola vez al dar de alta el cliente `medlibra` (Integracion > Clientes de integracion). Sin
+      # LIBRAVIEW_WEBHOOK_SECRET el pedido se manda pero el informe no vuelve solo: `POST /integraciones/libraview/resultados`
+      # contesta 503 (y LibraView reintenta).
+      - LIBRAVIEW_URL=${LIBRAVIEW_URL:-}
+      - LIBRAVIEW_TOKEN=${LIBRAVIEW_TOKEN:-}
+      - LIBRAVIEW_WEBHOOK_SECRET=${LIBRAVIEW_WEBHOOK_SECRET:-}
       # Que cada linea del registro de errores (`DATA_DIR/errores/errores.jsonl`, ADR-045 de libracore) diga de que
       # instancia viene. Las de cliente y demo las reciben del panel en cada `actualizar`; esta no pasa por el panel.
       - LIBRA_ENTORNO=dev

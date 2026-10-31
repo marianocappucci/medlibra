@@ -12,6 +12,9 @@ const API_PATHS = [
   '/auth', '/branches', '/resources', '/services', '/patients',
   '/business', '/users', '/reminders', '/deposits', '/config',
   '/dashboard', '/appointments', '/health',
+  // La costura con LibraView (ADR-051): catalogo, estado y envios para la ficha del paciente. El aviso de LibraView
+  // (`POST /integraciones/libraview/resultados`) lo llama un servidor, no el navegador: en dev sirve para probarlo con curl.
+  '/integraciones',
   // El tema de la suite (libra-ui ADR-008): `cargarTema()` lo pide al arrancar, tiene que llegar al backend también en desarrollo.
   '/api/tema',
   // El registro de errores del navegador (libra-ui ADR-053): `instalarReporteDeErrores` y `<ErrorBoundary>` postean acá.

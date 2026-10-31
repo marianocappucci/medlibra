@@ -46,6 +46,7 @@ AUDITABLES: dict[str, str] = {
     "AppointmentResourceRow": "sala del turno",
     "WalkinRow": "llegada",
     "EnvioAContalibraRow": "envio a Contalibra",
+    "EnvioALibraViewRow": "envio a LibraView",
     "BranchRow": "sede",
     "AvailabilityRow": "disponibilidad",
     "AvailabilityExceptionRow": "excepcion",
@@ -76,6 +77,8 @@ COLUMNAS_CLINICAS = frozenset({
     # Contenido clinico propiamente dicho
     "text", "notes", "diagnosis", "medication", "dosage", "instructions",
     "result", "results", "observations", "indications", "title", "content",
+    # El JSON que se manda a LibraView (ADR-051): nombre, documento y fecha de nacimiento del paciente, más el diagnostico.
+    "cuerpo",
     # Identificatorios del paciente
     "dni", "cuit", "birth_date", "email", "phone",
 })
@@ -86,7 +89,7 @@ COLUMNAS_CLINICAS = frozenset({
 ENTIDADES_SIN_ETIQUETA = frozenset({
     "ClinicalNoteRow", "ClinicalDocumentRow", "PrescriptionRow",
     "PrescriptionItemRow", "StudyOrderRow", "StudyOrderItemRow",
-    "StudyResultRow", "ConsentRow", "PatientRow",
+    "StudyResultRow", "ConsentRow", "PatientRow", "EnvioALibraViewRow",
 })
 
 
