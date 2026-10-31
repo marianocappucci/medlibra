@@ -218,6 +218,19 @@ describe('cómo se ve un pedido ya mandado', () => {
     expect(screen.queryByRole('button', { name: 'Enviar a LibraView' })).not.toBeInTheDocument()
   })
 
+  it('🔴 enviado: no se ofrece «Eliminar» (el servidor lo rechaza con 409); sin enviar o con error, sí', async () => {
+    servir({ envios: [ENVIADO] })
+    await abrirEstudios()
+    await screen.findByText('En LibraView')
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument()
+  })
+
+  it('un pedido sin enviar y uno con error siguen pudiéndose eliminar', async () => {
+    servir({ envios: [] })
+    await abrirEstudios()
+    expect(await screen.findByRole('button', { name: 'Eliminar' })).toBeInTheDocument()
+  })
+
   it('con error: el badge, el mensaje y «Reintentar», que reenvía sin pedir los datos de nuevo', async () => {
     servir({ envios: [CON_ERROR] })
     await abrirEstudios()
@@ -225,6 +238,7 @@ describe('cómo se ve un pedido ya mandado', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('503: en mantenimiento')
     expect(screen.getByRole('alert')).toHaveTextContent('2 intentos')
     expect(screen.queryByText(/N\.º de acceso/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eliminar' })).toBeInTheDocument() // LibraView no lo tiene: se puede borrar
 
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
     await waitFor(() => expect(mandado('/patients/p-1/study-orders/o-1/libraview/reintentar')).toBeDefined())

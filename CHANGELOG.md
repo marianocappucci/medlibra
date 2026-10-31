@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Pestaña «Estudios»: un pedido ya enviado a LibraView no ofrece «Eliminar».** El servidor lo rechaza con 409 (ADR-051: del otro lado hay una orden con estudios por informar); ahora el botón ni aparece. Con el envío en error o pendiente (LibraView no lo tiene) o sin enviar, sigue disponible.
 - **Marca blanca: la instancia lleva el nombre, el logo, el color y los términos de un revendedor** (2026-10-30, ADR-050; `libracore` v1.202.1 → v1.206.0, `libraauth` v0.57.0, `libra-ui` v0.185.0). **Sin migración.** `/api/marca` y `/manifest.webmanifest`; con marca propia la instancia exige los Términos del revendedor y, sin ellos, queda frenada. ⚠️ `MEDLIBRA_RESET_URL_BASE` tiene por defecto `dev.medlibra.com.ar`: una instancia de revendedor tiene que definirla. ⚠️ Por el pin (libracore v1.204.0), **un recordatorio sale por un solo canal**: WhatsApp si el paciente tiene teléfono válido y está disponible, mail si no (antes, por los dos). Tests: `tests/test_marca_blanca.py`, `tests/test_marca_blanca_terminos.py`.
 - **Costura con LibraView, el RIS de imágenes: el pedido de estudios sale como orden y el informe vuelve como resultado** (2026-10-28; ADR-051). **Migración `0026_libraview`** (tres tablas nuevas, aditiva e idempotente en los dos mundos). Sin LibraView configurado no cambia nada.
   - **Variables nuevas**: `LIBRAVIEW_URL`, `LIBRAVIEW_TOKEN` y `LIBRAVIEW_WEBHOOK_SECRET` (en `docker-compose.yml`). Sin URL y token la integración está **apagada** (la pantalla no muestra nada); sin secreto el pedido se manda pero el webhook contesta 503.
